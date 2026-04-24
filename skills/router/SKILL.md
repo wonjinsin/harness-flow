@@ -27,7 +27,7 @@ When in doubt between **plan** and **clarify**, prefer **clarify** — one extra
 
 ## When to use
 
-Trigger this skill as the very first step of every user turn. Skip only when another skill has already handed control off explicitly via `flow.yaml`.
+Trigger this skill as the very first step of every user turn. Skip only when another skill has already handed control off explicitly via `harness-flow.yaml`.
 
 ## Procedure
 
@@ -40,7 +40,7 @@ If both signals are present:
 1. Read `.planning/`. If the directory doesn't exist, there are no sessions — fall through to fresh-session flow.
 2. For each subdirectory, read `ROADMAP.md`. Keep only sessions with at least one `- [ ]` unchecked item.
 3. Match the request against candidates using slug similarity plus overlap with the session's goal/title.
-4. **One match** → load that session. Route = `plan` with `session_id` set and `resume: true`. Downstream skips classification and jumps to the next incomplete phase.
+4. **One match** → load that session. Emit `outcome: "resume"` with `session_id` set. Classifier's Step 0 short-circuits and jumps to the next incomplete phase per `harness-flow.yaml`.
 5. **Multiple matches** → ask the user to pick. Format: `{slug} — {one-line goal}`.
 6. **No match, or user rejects the proposed match** → fall through to fresh-session flow.
 
@@ -74,14 +74,16 @@ Leave the files empty of task content. Downstream skills (`prd-writer`, `trd-wri
 
 ### Step 5 — Hand off
 
-Emit a structured classification; `flow.yaml` consumes it.
+Emit a structured classification; `harness-flow.yaml` consumes it via the `outcome` field.
 
-| Route | Next skill | Payload |
-|-------|------------|---------|
-| `casual` | (END — router replies inline) | — |
+| Outcome | Next node (per harness-flow.yaml) | Payload |
+|---------|---------------------------|---------|
+| `casual` | END — router replies inline | — |
 | `clarify` | `brainstorming` | `{ request, session_id }` |
-| `plan` (fresh) | `complexity-classifier` | `{ request, session_id }` |
-| `plan` (resume) | `complexity-classifier` (skipped if already classified) → next incomplete phase | `{ request, session_id, resume: true }` |
+| `plan` | `classifier` | `{ request, session_id }` |
+| `resume` | `classifier` (Step 0 short-circuits to next incomplete phase) | `{ request, session_id }` |
+
+`resume` is its own outcome — not a boolean flag on `plan`. When Step 1 matches an existing session, emit `outcome: "resume"`; otherwise `plan`.
 
 ## Classification signals
 
@@ -183,39 +185,37 @@ Router runs in the main thread and has full access to the live conversation cont
 
 ## Output
 
-Return a single JSON object as the final router payload. Do not surround it with prose.
+Two emission modes depending on `outcome`:
+
+**casual** — respond to the user directly as plain text and end the skill. No JSON, no downstream flow. Example response: *"I'm a task-oriented harness — you describe a change, I plan it, break it into tasks, and help you execute. What would you like to work on?"*
+
+**clarify / plan / resume** — emit a single JSON object as the final message. No surrounding prose.
 
 Schema:
 
-- `route`: `"casual"`, `"clarify"`, or `"plan"`
-- `session_id`: `"YYYY-MM-DD-slug"` for `clarify` and `plan`, `null` for `casual`
-- `resume`: `true` only when Step 1 matched an existing session, else `false`
-- `reply`: full user-facing response string for `casual`; `null` otherwise
+- `outcome`: `"clarify"`, `"plan"`, or `"resume"` — main thread looks this up in `harness-flow.yaml` transitions
+- `session_id`: `"YYYY-MM-DD-slug"`
 
 ### Examples
 
-Input: `hi claude, what can you build?`
-
-```json
-{"route":"casual","session_id":null,"resume":false,"reply":"I'm a task-oriented harness — you describe a change, I plan it, break it into tasks, and help you execute. What would you like to work on?"}
-```
+Input: `hi claude, what can you build?` — casual: router replies with plain text. No JSON emitted.
 
 Input: `add 2FA to login`
 
 ```json
-{"route":"plan","session_id":"2026-04-19-add-2fa-login","resume":false,"reply":null}
+{"outcome":"plan","session_id":"2026-04-19-add-2fa-login"}
 ```
 
 Input: `make the auth code better`
 
 ```json
-{"route":"clarify","session_id":"2026-04-19-improve-auth","resume":false,"reply":null}
+{"outcome":"clarify","session_id":"2026-04-19-improve-auth"}
 ```
 
 Input: `let's continue the 2FA work from yesterday` (match found in `.planning/2026-04-18-add-2fa-login/`)
 
 ```json
-{"route":"plan","session_id":"2026-04-18-add-2fa-login","resume":true,"reply":null}
+{"outcome":"resume","session_id":"2026-04-18-add-2fa-login"}
 ```
 
 ## Keyword catalogue (reference)
@@ -239,7 +239,7 @@ The patterns below are hints — they mark unambiguous cases for fast classifica
 
 - `\b(make\s+it\s+(better|good|nice)|clean\s+it\s+up|improve\s+the\s+code)\b`
 
-Keep these in sync with `flow.yaml`.
+Keep these in sync with `harness-flow.yaml`.
 
 ## Boundaries
 

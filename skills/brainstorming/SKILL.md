@@ -108,7 +108,7 @@ Before asking anything, do both in order:
 
 If the user picks one, update `request` in the payload to describe just that sub-project and proceed. The other sub-projects become future sessions — router will fire fresh on each one.
 
-If the user insists on tackling all of it as one session, proceed but record `constraints: ["deliberately-wide-scope"]` so `complexity-classifier` knows to lean toward Tier-A.
+If the user insists on tackling all of it as one session, proceed but record `constraints: ["deliberately-wide-scope"]` so `complexity-classifier` knows to lean toward prd-trd.
 
 Skip the scope check for obviously single-scope requests — don't ask "is this one project?" for "fix the login timeout bug".
 

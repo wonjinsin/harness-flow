@@ -27,30 +27,26 @@ You receive this object from the main thread. Treat every field as authoritative
 - `request`: the user's original turn, verbatim. **Read it carefully for tone and nuance** the structured fields drop.
 - `prd_path` *(optional)*: `".planning/{session_id}/PRD.md"` if a PRD was produced upstream, `null` otherwise.
 - `brainstorming_output` *(optional)*: `{intent, target, scope_hint, constraints[], acceptance}` — may be absent when the router went straight to classifier.
-- `signals_matched` *(optional)*: `["path:auth/", "keyword:login", ...]` — informs Risks and Affected surfaces.
-- `estimated_files` *(optional)*: integer from classifier — informs exploration width in Step 2.
 
-If `prd_path` is set but the file is unreadable or missing, halt and emit `{"outcome": "error", "reason": "PRD declared in payload but <path> not found", "stage": "step-1"}`. Do not proceed by guessing — the payload is a contract from the main thread.
+If `prd_path` is set but the file is unreadable or missing, halt and emit `{"outcome": "error", "session_id": "...", "reason": "PRD declared in payload but <path> not found"}`. Do not proceed by guessing — the payload is a contract from the main thread.
 
 ## Output
 
-The final message is always a single JSON object tagged by `outcome`. Two outcomes are possible.
+The final message is always a single JSON object tagged by `outcome`.
 
-**drafted** — normal completion:
+**done** — normal completion. File written to `.planning/{session_id}/TRD.md`:
 
 ```json
-{ "outcome": "drafted", "artifact": ".planning/{session_id}/TRD.md", "open_questions": 0 }
+{ "outcome": "done", "session_id": "2026-04-19-..." }
 ```
-
-`open_questions` is the count of items under the "Open questions" section (0 if none). The main thread may surface them to the user before task-writer runs.
 
 **error** — payload defect, missing PRD, file conflict, or unrecoverable exploration gap:
 
 ```json
-{ "outcome": "error", "reason": "...", "stage": "step-1|step-2|step-4" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TRD.md already exists at <path>" }
 ```
 
-**File** (`drafted` outcome only): `.planning/{session_id}/TRD.md`. If a file already exists at that path, emit `error` — **never overwrite**. Re-generation is the main thread's call: it deletes the file first, then re-dispatches.
+The file path is deterministic from `session_id`; the main thread reconstructs it. If a file already exists at the target path, emit `error` — **never overwrite**. Re-generation is the main thread's call: it deletes the file first, then re-dispatches.
 
 Never emit prose alongside the JSON. The main thread treats the final message as a machine-readable status line.
 
@@ -60,18 +56,16 @@ Never emit prose alongside the JSON. The main thread treats the final message as
 
 Re-read `request` in full. If `prd_path` is set, read the PRD end-to-end and treat its Goal, Acceptance criteria, and Constraints as hard inputs — the TRD must satisfy them, not re-derive them. Extract target and visible constraints from the payload. Note what is missing — anything you cannot answer from payload + PRD alone becomes a candidate for Step 2 exploration or Open questions.
 
-If `prd_path` is set and the file is missing/unreadable, emit the error outcome above and stop.
+If `prd_path` is set and the file is missing/unreadable, emit the `error` outcome above and stop.
 
 ### Step 2 — Scoped codebase exploration (budget-capped)
 
 You have a **tool-call budget of roughly 25 Read/Grep/Glob calls** for this phase. TRD decisions require seeing actual function signatures, existing abstractions, and data shapes — deeper than just locating where the change lands — which is why the budget is larger than a pure scope-locating pass would need. Stop as soon as the design question is answered.
 
-Target-directed: locate the primary file/module first using, in order: `brainstorming_output.target` (if present), the PRD's subject (if `prd_path` set), or — as a last resort when both are absent — the first noun-phrase in `request` (e.g., `"Extract the auth middleware into its own package"` → `auth middleware`). Then decide exploration width from the payload signals:
+Target-directed: locate the primary file/module first using, in order: `brainstorming_output.target` (if present), the PRD's subject (if `prd_path` set), or — as a last resort when both are absent — the first noun-phrase in `request` (e.g., `"Extract the auth middleware into its own package"` → `auth middleware`). Then decide exploration width:
 
-- `estimated_files` ≥ 5 **or** `scope_hint: multi-system` **or** `signals_matched` crosses subsystems → walk outward to direct callers, sibling modules, and any shared abstractions the change touches.
+- `scope_hint: multi-system` → walk outward to direct callers, sibling modules, and any shared abstractions the change touches.
 - Otherwise → stay within the target file/module and its immediate dependencies.
-
-This is how `estimated_files` earns its place in the payload — it calibrates how far to walk outward, not what to write.
 
 Stop exploring when you can answer:
 
@@ -106,7 +100,7 @@ See `## TRD.md template` below for the exact structure. Fill each section — th
 
 Create `.planning/{session_id}/` if it doesn't exist. Write `TRD.md`.
 
-If the file already exists, halt and emit `{"outcome": "error", "reason": "TRD.md already exists at <path>", "stage": "step-4"}`. Regeneration is the main thread's call — it deletes the old file first, then re-dispatches.
+If the file already exists, halt and emit `{"outcome": "error", "session_id": "...", "reason": "TRD.md already exists at <path>"}`. Regeneration is the main thread's call — it deletes the old file first, then re-dispatches.
 
 ### Step 5 — Emit
 
@@ -166,7 +160,7 @@ PRD: {relative path to PRD.md, or "(none)"}
 ## 7. Risks
 
 {Specific failure modes and how the design mitigates or accepts them.
- Every `signals_matched` hit touching auth/security/migrations needs an
+ Every auth/security/migration concern surfaced during exploration needs an
  entry — downstream phases (task-writer, evaluator) cannot recover those
  requirements from code alone, so a skipped risk fails silently.}
 
@@ -181,7 +175,7 @@ PRD: {relative path to PRD.md, or "(none)"}
 
 ## Example 1 — rendered TRD (upstream PRD present)
 
-Given the session from prd-writer's example (`2026-04-19-add-2fa-login`) with payload `{prd_path: ".planning/2026-04-19-add-2fa-login/PRD.md", signals_matched: ["path:auth/", "keyword:login"], estimated_files: 4}`:
+Given the session from prd-writer's example (`2026-04-19-add-2fa-login`) with payload `{prd_path: ".planning/2026-04-19-add-2fa-login/PRD.md"}`:
 
 ````markdown
 # TRD — Add 2FA to login page
@@ -234,19 +228,19 @@ No schema change. Intermediate token is stateless JWT signed with existing sessi
 
 ## 7. Risks
 
-- **Intermediate token replay** (`path:auth/`): token is single-use — verify endpoint marks `jti` as consumed in an in-memory LRU (size 10k, TTL 5min). Acceptable loss on process restart since TTL is already short.
-- **Clock skew breaks TOTP** (`keyword:login`): `otplib` default window is ±1 step (30s). Document this; no change.
+- **Intermediate token replay**: token is single-use — verify endpoint marks `jti` as consumed in an in-memory LRU (size 10k, TTL 5min). Acceptable loss on process restart since TTL is already short.
+- **Clock skew breaks TOTP**: `otplib` default window is ±1 step (30s). Document this; no change.
 
 ## 8. Open questions
 
 (none)
 ````
 
-Note: this example sits at the **lower end** of every range — single-file-module change, four bullets in Approach, four Affected surfaces entries, two Risks, zero Open questions. Sessions with `scope_hint: multi-system` or `estimated_files ≥ 8` typically grow Affected surfaces and Interfaces first (a subsystem-crossing change exposes more contracts), then Risks; other sections expand within their ranges, not beyond. The no-PRD variant below replaces Section 1 with a technical-motivation paragraph and typically grows Approach too, since the design rationale has no PRD to lean on.
+Note: this example sits at the **lower end** of every range — single-file-module change, four bullets in Approach, four Affected surfaces entries, two Risks, zero Open questions. Sessions with `scope_hint: multi-system` typically grow Affected surfaces and Interfaces first (a subsystem-crossing change exposes more contracts), then Risks; other sections expand within their ranges, not beyond. The no-PRD variant below replaces Section 1 with a technical-motivation paragraph and typically grows Approach too, since the design rationale has no PRD to lean on.
 
 ## Example 2 — rendered TRD (no upstream PRD)
 
-Given request `"Extract the auth middleware into its own package so we can share it with the admin API"` and payload `{prd_path: null, signals_matched: ["path:auth/", "keyword:middleware"], estimated_files: 8}`:
+Given request `"Extract the auth middleware into its own package so we can share it with the admin API"` and payload `{prd_path: null, brainstorming_output: {scope_hint: "multi-system"}}`:
 
 ````markdown
 # TRD — Extract auth middleware to shared package
@@ -311,15 +305,15 @@ N/A — extraction is behavior-preserving, no persisted shape changes.
 
 - **PRD exists but is thin/incomplete**: still treat it as authoritative; gaps become Open questions in the TRD. Do not "fix" the PRD from inside this skill — that's a main-thread decision.
 - **Request references files that don't exist**: investigate with Glob to confirm. If truly absent, add an Open question rather than inventing structure.
-- **Signals matched `auth/` / `security/` / `migrations/`**: the template's §7 rule applies regardless of how small the change feels — elision is the silent failure mode, so make the call explicit (even if the entry is "accepted: change is behavior-preserving").
+- **Exploration surfaces `auth/` / `security/` / `migrations/` concerns**: the template's §7 rule applies regardless of how small the change feels — elision is the silent failure mode, so make the call explicit (even if the entry is "accepted: change is behavior-preserving").
 - **No PRD and very thin request**: if `prd_path` is null, `request` is one sentence, and `brainstorming_output` is null, the upstream likely mis-routed. Proceed with best-effort TRD and flag the thinness as an Open question — the main thread decides whether to loop back.
 - **Request in non-English language**: body in user's language, headers / field names / code identifiers in English. This keeps the file machine-parseable while staying readable for the user.
-- **>2 open questions after drafting**: flag in the final JSON (`open_questions: N`) — main thread may decide to re-engage the user before task-writer runs. Do not self-escalate; the main thread owns scope decisions.
+- **>2 open questions after drafting**: note them in the TRD's Open questions section and proceed to emit `done` — task-writer re-reads the TRD and surfaces blocking questions. Do not self-escalate; scope decisions stay with the main thread.
 
 ## Boundaries
 
 - Writes only to `.planning/{session_id}/TRD.md`. **Do not touch PRD.md, ROADMAP.md, or STATE.md** — you are a downstream reader of PRD.md only, and the main thread owns the others.
 - Do not invoke other agents or skills. You are an endpoint.
-- Do not dispatch task-writer. The main thread follows flow.yaml.
+- Do not dispatch task-writer. The main thread follows harness-flow.yaml.
 - Do not modify source code, even if you spot bugs during exploration. Note them in Open questions if load-bearing.
-- Tool budget: ~25 Read/Grep/Glob calls total for Step 2. If you need more, something is wrong with the payload — halt and emit an error outcome.
+- Tool budget: ~25 Read/Grep/Glob calls total for Step 2. If you need more, something is wrong with the payload — halt and emit `error` with a `reason` describing the exhaustion.

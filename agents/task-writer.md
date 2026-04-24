@@ -1,6 +1,6 @@
 ---
 name: task-writer
-description: Dispatched by the main thread at the end of every plan flow (Tier A/B/C/D all converge here) to produce `.planning/{session_id}/TASKS.md` — the executor's only source of truth. Consumes the upstream payload plus any existing PRD.md / TRD.md.
+description: Dispatched by the main thread at the end of every plan flow (prd-trd / prd-only / trd-only / tasks-only all converge here) to produce `.planning/{session_id}/TASKS.md` — the executor's only source of truth. Consumes the upstream payload plus any existing PRD.md / TRD.md.
 tools: Read, Write, Glob, Grep, Skill
 ---
 

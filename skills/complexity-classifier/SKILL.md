@@ -1,6 +1,6 @@
 ---
 name: complexity-classifier
-description: Use this whenever router returns `plan` or brainstorming hands off — even when the tier feels obvious. Classifies the request into A/B/C/D and gets user approval (absorbs Gate 1). No separate approval skill exists; recommendation and commit happen here. Routes to prd-writer / trd-writer / task-writer per flow.yaml.
+description: Use this whenever router returns `plan` or brainstorming hands off — even when the route feels obvious. Classifies the request into prd-trd / prd-only / trd-only / tasks-only and gets user approval (absorbs Gate 1). No separate approval skill exists; recommendation and commit happen here. Routes to prd-writer / trd-writer / task-writer per harness-flow.yaml.
 ---
 
 # Complexity Classifier
@@ -9,18 +9,18 @@ description: Use this whenever router returns `plan` or brainstorming hands off 
 
 Decides which artifact chain the request flows through:
 
-| Tier | Route | When |
+| Outcome | Route | When |
 |------|-------|------|
-| **A** | PRD → TRD → Tasks | New feature, complex *or* touches security/architecture signal paths |
-| **B** | PRD → Tasks | New feature, simple (< 5 files, no signals) |
-| **C** | TRD → Tasks | Refactor / technical improvement |
-| **D** | Tasks only | Bug / trivial change, passes a 4-item self-check |
+| **prd-trd** | PRD → TRD → Tasks | New feature, complex *or* touches security/architecture signal paths |
+| **prd-only** | PRD → Tasks | New feature, simple (< 5 files, no signals) |
+| **trd-only** | TRD → Tasks | Refactor / technical improvement |
+| **tasks-only** | Tasks only | Bug / trivial change, passes a 4-item self-check |
 
-The skill also absorbs **Gate 1** — the user-approval step before artifact creation begins. No separate approval skill exists; tier recommendation and commit happen here in one conversation.
+The skill also absorbs **Gate 1** — the user-approval step before artifact creation begins. No separate approval skill exists; route recommendation and commit happen here in one conversation.
 
 ## Why this exists
 
-If tier selection lived in the dispatcher or in each writer agent, every writer would have to re-decide its own eligibility — duplicated logic, inconsistent thresholds. Centralising here means downstream writers trust that if they were called, they are the right writer for this session. The user-approval absorption keeps the conversation shape flat: one recommendation, one response, commit.
+If route selection lived in the dispatcher or in each writer agent, every writer would have to re-decide its own eligibility — duplicated logic, inconsistent thresholds. Centralising here means downstream writers trust that if they were called, they are the right writer for this session. The user-approval absorption keeps the conversation shape flat: one recommendation, one response, commit.
 
 ## Input
 
@@ -42,28 +42,27 @@ These fields are **optional** — router can hand off `plan` directly, in which 
 
 ## Output
 
-Every run ends with **one** of three terminal payloads. The final message of the skill is a single JSON object tagged by `outcome`.
+Every run ends with **one** of six terminal payloads. The final message of the skill is a single JSON object whose `outcome` field carries the route name (or a terminal signal). No nested `classification` field — main thread evaluates `when:` expressions against the `outcome` string per `harness-flow.yaml`.
 
-**Normal classification** — the handoff the downstream dispatcher expects:
+**Normal classification** — `outcome` is the route name (`prd-trd`, `prd-only`, `trd-only`, or `tasks-only`):
 
 ```json
 {
-  "outcome": "classified",
+  "outcome": "prd-trd",
   "session_id": "2026-04-19-...",
   "request": "...",
-  "classification": "A|B|C|D",
-  "brainstorming_output": { "intent": "...", "target": "...", "scope_hint": "...", "constraints": [...], "acceptance": "..." },
-  "estimated_files": 4,
-  "signals_matched": ["path:auth/", "keyword:login"],
-  "user_overrode": false
+  "brainstorming_output": { "intent": "...", "target": "...", "scope_hint": "...", "constraints": [...], "acceptance": "..." }
 }
 ```
 
-Routing for `outcome: "classified"` (from `flow.yaml`):
+Routing per `harness-flow.yaml`:
 
-- `A` or `B` → `prd-writer` (agent)
-- `C` → `trd-writer` (agent)
-- `D` → `task-writer` (agent)
+- `prd-trd` → `prd-writer` → `trd-writer` → `task-writer`
+- `prd-only` → `prd-writer` → `task-writer`
+- `trd-only` → `trd-writer` → `task-writer`
+- `tasks-only` → `task-writer`
+
+`brainstorming_output` may be `null` when router handed off `plan` directly (no brainstorming phase).
 
 **Pivot** — user turned away from the current request to an unrelated one. Dispatcher should let router fire on the next turn; the current session stays as-is:
 
@@ -77,15 +76,13 @@ Routing for `outcome: "classified"` (from `flow.yaml`):
 { "outcome": "exit-casual", "session_id": "2026-04-19-...", "reason": "user was asking about tier definitions, not requesting work" }
 ```
 
-`signals_matched` uses namespaced entries — `path:<glob>` for a file-path hit, `keyword:<token>` for a semantic keyword hit. Downstream may filter by type.
-
-The skill also writes to session files on `classified` outcomes — see Step 7. Pivot and exit-casual leave ROADMAP/STATE untouched.
+The skill also writes to session files on tier outcomes (prd-trd / prd-only / trd-only / tasks-only) — see Step 7. Pivot and exit-casual leave ROADMAP/STATE untouched.
 
 ## Procedure
 
 ### Step 0 — Resume short-circuit
 
-If `resume: true`, read `.planning/{session_id}/ROADMAP.md`. If it contains a `Complexity: X` line (X ∈ A/B/C/D) **and** the `classifier` phase is `[x]`, do **not** reclassify. Emit the resume payload pointing to the next incomplete phase per `flow.yaml` and end. Rationale: re-asking the user "which tier?" when they already decided it last session wastes a turn and erodes trust.
+If `resume: true`, read `.planning/{session_id}/ROADMAP.md`. If it contains a `Complexity: X` line (X ∈ prd-trd / prd-only / trd-only / tasks-only) **and** the `classifier` phase is `[x]`, do **not** reclassify. Emit the resume payload pointing to the next incomplete phase per `harness-flow.yaml` and end. Rationale: re-asking the user "which route?" when they already decided it last session wastes a turn and erodes trust.
 
 If `resume: true` but classification is missing (e.g., session was interrupted mid-Gate-1), proceed normally from Step 1.
 
@@ -105,7 +102,7 @@ Paths are filesystem literals — match them the same in any language. Record hi
 
 **(b) Keyword signals — semantic, multilingual.** Detect whether the request semantically refers to any of these concepts: authentication, login, password, session, database, schema, migration, configuration, dependency. These are concepts, not literal strings — "로그인", "認証", "authentification" all count as the auth/login concept. Use judgment, not a fixed keyword table. Record hits as `signals_matched: ["keyword:login", "keyword:dependency", ...]`.
 
-**(c) `deliberately-wide-scope` constraint** (brainstorming's flag when the user insisted on multi-subsystem scope): implicit Tier-A signal. Record as `signals_matched: ["constraint:deliberately-wide-scope"]`.
+**(c) `deliberately-wide-scope` constraint** (brainstorming's flag when the user insisted on multi-subsystem scope): implicit prd-trd signal. Record as `signals_matched: ["constraint:deliberately-wide-scope"]`.
 
 ### Step 2 — File-count estimate
 
@@ -125,102 +122,102 @@ Don't overthink this. One rough integer is enough — the user can override in S
 
 Apply in order:
 
-1. Any entry in `signals_matched` → **Tier-A candidate** regardless of file count.
+1. Any entry in `signals_matched` → **prd-trd candidate** regardless of file count.
 2. Otherwise, by intent:
-   - `add` / `create` + N ≥ 5 → **A**
-   - `add` / `create` + N < 5 → **B**
-   - `refactor` / `migrate` / `remove` → **C**
-   - `fix` + N ≤ 2 → **D candidate** (must pass Step 4)
-   - `other` with `intent-freeform` in constraints → parse the freeform verb: refactor-ish → C, fix-ish → D candidate, create/add-ish → A if N ≥ 5 else B. Unparseable → B.
-   - `other` or intent missing (no freeform hint) → **B** (conservative — lightweight PRD costs less than wrong tier).
+   - `add` / `create` + N ≥ 5 → **prd-trd**
+   - `add` / `create` + N < 5 → **prd-only**
+   - `refactor` / `migrate` / `remove` → **trd-only**
+   - `fix` + N ≤ 2 → **tasks-only candidate** (must pass Step 4)
+   - `other` with `intent-freeform` in constraints → parse the freeform verb: refactor-ish → trd-only, fix-ish → tasks-only candidate, create/add-ish → prd-trd if N ≥ 5 else prd-only. Unparseable → prd-only.
+   - `other` or intent missing (no freeform hint) → **prd-only** (conservative — lightweight PRD costs less than wrong route).
 
-### Step 4 — Tier-D self-verification
+### Step 4 — tasks-only self-verification
 
-Only runs when Step 3 yielded a D candidate. Check all four:
+Only runs when Step 3 yielded a tasks-only candidate. Check all four:
 
 - [ ] Clearly a bug fix, typo, formatting, or comment-level change?
 - [ ] Estimated files ≤ 2?
 - [ ] No security/architecture signal matched?
 - [ ] No "design needed" cues in the request (new terminology, ambiguous intent, mention of a new concept)?
 
-**Any fail → promote to Tier-B** (a minimal PRD is cheap insurance). All pass → D stays. The rationale: "simple" projects are where unexamined assumptions cause the most wasted work. This gate exists to stop the model from rationalising its way past design.
+**Any fail → promote to prd-only** (a minimal PRD is cheap insurance). All pass → tasks-only stays. The rationale: "simple" projects are where unexamined assumptions cause the most wasted work. This gate exists to stop the model from rationalising its way past design.
 
 ### Step 5 — Gate 1 — present recommendation
 
 Send **one** user-facing message as its own turn, in the user's language, with this shape:
 
-> "Recommend **Tier-{X}** ({route}). Estimated {N} files. {signals summary or 'no security/architecture signals.'} Proceed?"
+> "Recommend **{route}** ({expansion}). Estimated {N} files. {signals summary or 'no security/architecture signals.'} Proceed?"
 
 Examples:
 
-- `"Recommend Tier-B (PRD → Tasks). Estimated 3 files, no security signals. Proceed?"`
-- `"Recommend Tier-A (PRD → TRD → Tasks). Estimated 4 files, touches auth/ (security-sensitive). Proceed?"`
-- `"Recommend Tier-D (Tasks only). Typo fix, 1 file, no signals. Skip design and go straight to tasks?"`
+- `"Recommend prd-only (PRD → Tasks). Estimated 3 files, no security signals. Proceed?"`
+- `"Recommend prd-trd (PRD → TRD → Tasks). Estimated 4 files, touches auth/ (security-sensitive). Proceed?"`
+- `"Recommend tasks-only. Typo fix, 1 file, no signals. Skip design and go straight to tasks?"`
 
-This message is standalone — do **not** bundle the output JSON with it. Offer MC implicitly: accept / change tier / adjust file count. Do not batch more than this — signals + file count + tier is the whole decision surface. Then wait for the user's next turn.
+This message is standalone — do **not** bundle the output JSON with it. Offer MC implicitly: accept / change route / adjust file count. Do not batch more than this — signals + file count + route is the whole decision surface. Then wait for the user's next turn.
 
 ### Step 6 — Handle the response (next user turn)
 
 On the **next** user turn, classify the response into one of four actions:
 
-- **Accept** ("yes", "proceed", silence/no-correction) → go to Step 7 with the current tier. `user_overrode: false`.
-- **Tier override** ("make it A" / "just do D") → go to Step 7 with the user's tier. `user_overrode: true`. Do not argue — the user is the final authority.
+- **Accept** ("yes", "proceed", silence/no-correction) → go to Step 7 with the current route. `user_overrode: false`.
+- **Route override** ("make it prd-trd" / "just do tasks-only") → go to Step 7 with the user's route. `user_overrode: true`. Do not argue — the user is the final authority.
 - **File-count override** ("more like 10 files") → re-run Step 3 with the new N and loop back to Step 5 **once only** with the new recommendation. This is the only loop allowed; a second file-count change uses the second value without another recomputation-then-ask.
 - **Pivot or casual** — see Pivot handling below.
 
-Do **not** ask clarifying questions about `intent` / `target` / `scope_hint` here — that was brainstorming's job. If those fields are missing and feel load-bearing, pick the conservative tier (B for add-like, C for refactor-like) and hand off; the writer will surface gaps at its own layer.
+Do **not** ask clarifying questions about `intent` / `target` / `scope_hint` here — that was brainstorming's job. If those fields are missing and feel load-bearing, pick the conservative route (prd-only for add-like, trd-only for refactor-like) and hand off; the writer will surface gaps at its own layer.
 
 **Pivot handling.** If the user asks about an unrelated topic or drops this request entirely, emit `{"outcome": "pivot", ...}` as the terminal payload and end the skill with one sentence: "This looks like a new request; stepping back to routing." Do **not** update ROADMAP/STATE. If instead the user's response reveals they were asking a question about tiers rather than requesting classified work, emit `{"outcome": "exit-casual", ...}` and end with a one-line acknowledgement.
 
-### Step 7 — Commit + emit (`outcome: "classified"` path only)
+### Step 7 — Commit + emit (route outcome path only: prd-trd / prd-only / trd-only / tasks-only)
 
 On acceptance (including override):
 
 1. **Update `ROADMAP.md`**:
-   - Add / update the line `Complexity: {X} ({route})` near the top.
-   - Mark `- [ ] classifier` → `- [x] classifier       → {X}`.
+   - Add / update the line `Complexity: {route} ({expansion})` near the top.
+   - Mark `- [ ] classifier` → `- [x] classifier       → {route}`.
    - Mark `- [ ] gate-1-approval` → `- [x] gate-1-approval  → approved` (or `→ overridden` if `user_overrode`).
 2. **Update `STATE.md`**:
-   - `Current Position: {next phase per flow.yaml}`
-   - `Last activity: {ISO timestamp} — classified as {X}{, user-overrode if applicable}`
-3. **Emit the `classified` payload** as the final message of this skill. Downstream `subagent-dispatcher` reads it and dispatches the correct writer agent.
+   - `Current Position: {next phase per harness-flow.yaml}`
+   - `Last activity: {ISO timestamp} — classified as {route}{, user-overrode if applicable}`
+3. **Emit the route payload** as the final message — `outcome` is the route name (`prd-trd`/`prd-only`/`trd-only`/`tasks-only`). Main thread evaluates `when:` expressions in `harness-flow.yaml` and dispatches the correct writer agents.
 
 ## What this skill does NOT do
 
 - Ask clarifying questions about intent / target / scope — that's brainstorming. If it's missing, use conservative defaults and move on.
 - Estimate LOC or test coverage — these are request-time unknowns and not part of the classification signal.
 - Promote tier at runtime based on actual diff — runtime promotion is not in scope here.
-- Dispatch the next agent directly — `subagent-dispatcher` owns that step; classifier only emits the payload and updates session files.
+- Dispatch the next agent directly — main thread reads the emitted `outcome` and follows `harness-flow.yaml` transitions; classifier only emits the payload and updates session files.
 - Read the codebase to estimate file count — the estimate is from the request alone. If the request is genuinely unknowable without code reading, default to N=3 and flag low confidence.
 
 ## Conversation shape
 
-**Good — straightforward B:**
+**Good — straightforward trd-only:**
 
 > brainstorming output: `{intent: refactor, target: session handling, scope_hint: subsystem}`
-> Classifier: "Recommend **Tier-C** (TRD → Tasks). Estimated 3 files, no security signals. Proceed?"
+> Classifier: "Recommend **trd-only** (TRD → Tasks). Estimated 3 files, no security signals. Proceed?"
 > User: "yes"
 > Classifier: [commits ROADMAP, emits payload]
 
 **Good — signal promotion:**
 
 > Request: "add 2FA to login"
-> Signal match: `auth/` → A candidate
-> Classifier: "Recommend **Tier-A** (PRD → TRD → Tasks). Estimated 4 files, touches `auth/` (security-sensitive). Proceed?"
+> Signal match: `auth/` → prd-trd candidate
+> Classifier: "Recommend **prd-trd** (PRD → TRD → Tasks). Estimated 4 files, touches `auth/` (security-sensitive). Proceed?"
 > User: "yeah"
 > Classifier: [commits]
 
-**Good — Tier-D self-check fails, demoted to B:**
+**Good — tasks-only self-check fails, demoted to prd-only:**
 
 > Request: "fix the expired-session bug in login"
-> Intent: fix, N=2 — D candidate → signal check hits `auth/` → promoted to B
-> Classifier: "Initially looked like a Tier-D fix, but it touches `auth/` — recommending **Tier-B** (PRD → Tasks) instead. 2 files. Proceed, or escalate to A?"
+> Intent: fix, N=2 — tasks-only candidate → signal check hits `auth/` → promoted to prd-only
+> Classifier: "Initially looked like a tasks-only fix, but it touches `auth/` — recommending **prd-only** (PRD → Tasks) instead. 2 files. Proceed, or escalate to prd-trd?"
 
-**Good — user overrides tier:**
+**Good — user overrides route:**
 
-> Classifier: "Recommend Tier-B …"
-> User: "Nah, just Tier-D, it's one line"
-> Classifier: "Got it — Tier-D, user override. Skipping design. Proceeding to task-writer."
+> Classifier: "Recommend prd-only …"
+> User: "Nah, just tasks-only, it's one line"
+> Classifier: "Got it — tasks-only, user override. Skipping design. Proceeding to task-writer."
 > [commits with user_overrode: true]
 
 **Bad — clarifying:**
@@ -233,22 +230,22 @@ On acceptance (including override):
 
 **Bad — arguing:**
 
-> User: "just do D"
-> Classifier: "Are you sure? It's touching auth/, I recommend A. Shall I reconsider?" ← the user has already decided; log `user_overrode: true` and move on
+> User: "just do tasks-only"
+> Classifier: "Are you sure? It's touching auth/, I recommend prd-trd. Shall I reconsider?" ← the user has already decided; log `user_overrode: true` and move on
 
 ## Edge cases
 
 - **Router → plan direct** (brainstorming bypassed): infer `intent` from the first verb in `request`. If none obvious, default to `add`. Don't ask the user — keep the flow terse.
 - **Resume with existing classification** (Step 0): emit a resume payload pointing to the next `[ ]` phase. Do not re-ask Gate 1.
-- **Conflicting signals** (e.g., `migrations/` + "one-line typo"): err toward A. The cost of over-tiering a trivial migration is a 5-minute PRD; the cost of under-tiering one is a broken schema.
-- **User gives file count but no tier verdict** ("maybe 8 files?"): recompute tier silently and present the new recommendation once more.
-- **User names a non-existent tier** ("Tier-E, please"): re-ask once with the four options. If still unclear, use the recommended tier.
-- **`intent: "other"` with `intent-freeform` constraint** (from brainstorming): inspect the freeform verb — if it parses as refactor-ish → C, as fix-ish → D-candidate, as create-ish → A/B. If unparseable, default to B.
-- **Request is actually casual** (user was asking a question about tiers, not requesting work): classifier should not have been invoked; exit with one sentence and let router re-fire next turn.
+- **Conflicting signals** (e.g., `migrations/` + "one-line typo"): err toward prd-trd. The cost of over-scoping a trivial migration is a 5-minute PRD; the cost of under-scoping one is a broken schema.
+- **User gives file count but no route verdict** ("maybe 8 files?"): recompute route silently and present the new recommendation once more.
+- **User names a non-existent route** ("prd-tasks, please"): re-ask once with the four options. If still unclear, use the recommended route.
+- **`intent: "other"` with `intent-freeform` constraint** (from brainstorming): inspect the freeform verb — if it parses as refactor-ish → trd-only, as fix-ish → tasks-only candidate, as create-ish → prd-trd/prd-only. If unparseable, default to prd-only.
+- **Request is actually casual** (user was asking a question about routes, not requesting work): classifier should not have been invoked; exit with one sentence and let router re-fire next turn.
 
 ## Boundaries
 
 - Writes only to `ROADMAP.md` (Complexity line + two checkboxes) and `STATE.md` (Current Position + Last activity). No other files.
-- Hands off only via `flow.yaml` routing — never invokes a writer agent directly.
-- Skill internals (tier names, signal list, checklists, field names) stay English. User-facing recommendations and confirmations mirror the user's language.
+- Hands off only via `harness-flow.yaml` routing — never invokes a writer agent directly.
+- Skill internals (route names, signal list, checklists, field names) stay English. User-facing recommendations and confirmations mirror the user's language.
 - No retry loop except the single file-count recomputation in Step 6. One user turn of back-and-forth is the whole budget.

@@ -24,30 +24,26 @@ You receive this object from the dispatching main thread. Treat every field as a
 - `session_id`: `"YYYY-MM-DD-{slug}"` — determines the output folder.
 - `request`: the user's original turn, verbatim. **Read it carefully for tone and nuance** the structured fields drop.
 - `brainstorming_output` *(optional)*: `{intent, target, scope_hint, constraints[], acceptance}` — may be missing if router handed off `plan` directly.
-- `signals_matched` *(optional)*: `["path:auth/", "keyword:login", ...]` — informs Constraints section.
-- `estimated_files` *(optional)*: integer from classifier — informs exploration width in Step 2.
 
 If `brainstorming_output` is null, recover intent from the verb in `request` (same heuristic as classifier: first-verb rule, default `add`).
 
 ## Output
 
-The final message is always a single JSON object tagged by `outcome`. Two outcomes are possible.
+The final message is always a single JSON object tagged by `outcome`.
 
-**drafted** — normal completion:
+**done** — normal completion. File written to `.planning/{session_id}/PRD.md`:
 
 ```json
-{ "outcome": "drafted", "artifact": ".planning/{session_id}/PRD.md", "open_questions": 0 }
+{ "outcome": "done", "session_id": "2026-04-19-..." }
 ```
-
-`open_questions` is the count of items under the "Open questions" section (0 if none). The main thread may surface them to the user before handoff.
 
 **error** — payload defect, file conflict, or unrecoverable exploration gap:
 
 ```json
-{ "outcome": "error", "reason": "...", "stage": "step-1|step-2|step-4" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "PRD.md already exists at <path>" }
 ```
 
-**File** (`drafted` outcome only): `.planning/{session_id}/PRD.md`. If a file already exists at that path, emit `error` — **never overwrite**. Re-generation is the main thread's call: it deletes the file first, then re-dispatches.
+The file path is deterministic from `session_id`; the main thread reconstructs it. If a file already exists at the target path, emit `error` — **never overwrite**. Re-generation is the main thread's call: it deletes the file first, then re-dispatches.
 
 Never emit prose alongside the JSON. The main thread treats the final message as a machine-readable status line.
 
@@ -61,12 +57,10 @@ Re-read `request` in full. Extract intent, target, and visible constraints from 
 
 You have a **tool-call budget of roughly 15 Read/Grep/Glob calls** for this phase. The goal is to ground the PRD in the actual codebase — not to audit it. Stop as soon as the question is answered.
 
-Target-directed: use `target` (if present) to locate the file/module first, then decide exploration width from the payload signals:
+Target-directed: use `target` (if present) to locate the file/module first, then decide exploration width:
 
-- `estimated_files` ≥ 5 **or** `scope_hint: multi-system` **or** `signals_matched` crosses subsystems → expand to direct callers and sibling modules.
+- `scope_hint: multi-system` → expand to direct callers and sibling modules.
 - Otherwise → stay within the target file/module.
-
-This is how `estimated_files` earns its place in the payload — it calibrates how far to walk outward, not what to write.
 
 Stop exploring when you can answer:
 
@@ -100,7 +94,7 @@ See `## PRD.md template` below for the exact structure. Fill each section — th
 
 Create `.planning/{session_id}/` if it doesn't exist. Write `PRD.md`.
 
-If the file already exists, halt and emit `{"outcome": "error", "reason": "PRD.md already exists at <path>", "stage": "step-4"}`. Regeneration is the main thread's call — it deletes the old file first, then re-dispatches.
+If the file already exists, halt and emit `{"outcome": "error", "session_id": "...", "reason": "PRD.md already exists at <path>"}`. Regeneration is the main thread's call — it deletes the old file first, then re-dispatches.
 
 ### Step 5 — Emit
 
@@ -160,7 +154,7 @@ Created: {ISO date}
 
 ## Example — rendered PRD
 
-Reference for the kind of concreteness expected at each section. Given the request `"Add 2FA to login page"` and payload `{brainstorming_output: {intent: "add", target: "login page", scope_hint: "subsystem", constraints: [], acceptance: null}, signals_matched: ["path:auth/", "keyword:login"], estimated_files: 4}`:
+Reference for the kind of concreteness expected at each section. Given the request `"Add 2FA to login page"` and payload `{brainstorming_output: {intent: "add", target: "login page", scope_hint: "subsystem", constraints: [], acceptance: null}}`:
 
 ````markdown
 # PRD — Add 2FA to login page
@@ -202,7 +196,7 @@ A returning user passes password verification on the login screen, is routed to 
 (none)
 ````
 
-Note: the example is ~34 lines including blanks and sits at the **lower end** of every range — single Goal bullet, three Non-goals, four Acceptance checkboxes, one Constraint, zero Open questions. Sessions with `scope_hint: multi-system` or `estimated_files ≥ 5` typically grow Constraints and Open questions first; other sections expand within their ranges, not beyond.
+Note: the example is ~34 lines including blanks and sits at the **lower end** of every range — single Goal bullet, three Non-goals, four Acceptance checkboxes, one Constraint, zero Open questions. Sessions with `scope_hint: multi-system` typically grow Constraints and Open questions first; other sections expand within their ranges, not beyond.
 
 ## Edge cases
 
@@ -210,12 +204,12 @@ Note: the example is ~34 lines including blanks and sits at the **lower end** of
 - **User requested one feature but payload implies multiple**: treat the payload as authoritative (classifier may have scoped it). If the mismatch is large (e.g., request mentions 3 features, payload target covers 1), add an Open question.
 - **Signals matched `auth/` or `security/`**: Constraints section *must* have an entry — downstream phases (trd-writer/task-writer, evaluator) cannot recover security requirements from code alone, and skipped constraints fail silently. Never elide, no matter how small the change feels.
 - **Request in non-English language**: body in user's language, headers / field names in English. This keeps the file machine-parseable while staying readable for the user.
-- **>2 open questions after drafting**: flag in the final JSON (`open_questions: N`) — main thread may decide to re-engage the user before the next writer runs. Do not self-escalate; the main thread owns scope decisions.
+- **>2 open questions after drafting**: note them in the PRD's Open questions section and proceed to emit `done` — the next writer (trd-writer or task-writer) re-reads the PRD and surfaces blocking questions. Do not self-escalate; scope decisions stay with the main thread.
 
 ## Boundaries
 
 - Writes only to `.planning/{session_id}/PRD.md`. **Do not touch ROADMAP.md or STATE.md** — the main thread owns those after receiving your return value.
 - Do not invoke other agents or skills. You are an endpoint.
-- Do not dispatch trd-writer or task-writer. The main thread follows flow.yaml.
+- Do not dispatch trd-writer or task-writer. The main thread follows harness-flow.yaml.
 - Do not modify source code, even if you spot bugs during exploration. Note them in Open questions if load-bearing.
-- Tool budget: ~15 Read/Grep/Glob calls total for Step 2. If you need more, something is wrong with the payload — halt and emit an error outcome.
+- Tool budget: ~15 Read/Grep/Glob calls total for Step 2. If you need more, something is wrong with the payload — halt and emit `error` with a `reason` describing the exhaustion.

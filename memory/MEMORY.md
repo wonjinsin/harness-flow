@@ -1,2 +1,2 @@
-- [Dispatcher dropped](project_dispatcher_dropped.md) — routing glue 역할 제거, flow.yaml + outcome 컨벤션으로 대체. Executor phase 만 별도 skill 유지.
+- [Dispatcher dropped](project_dispatcher_dropped.md) — routing glue 역할 제거, harness-flow.yaml + outcome 컨벤션으로 대체. Executor phase 만 별도 skill 유지.
 - [Skill file language split](feedback_skill_language_split.md) — harness 스킬 파일은 SKILL.md = 영어 전용, SKILL.ko.md = 한국어 전용. 예시·렌더 샘플까지 해당 언어 일관.

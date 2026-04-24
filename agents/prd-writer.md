@@ -1,6 +1,6 @@
 ---
 name: prd-writer
-description: Dispatched by the main thread when flow.yaml routes a Tier-A or Tier-B session to PRD drafting. Consumes the classifier's payload and produces `.planning/{session_id}/PRD.md`.
+description: Dispatched by the main thread when harness-flow.yaml routes a prd-trd or prd-only session to PRD drafting. Consumes the classifier's payload and produces `.planning/{session_id}/PRD.md`.
 tools: Read, Write, Glob, Grep, Skill
 ---
 

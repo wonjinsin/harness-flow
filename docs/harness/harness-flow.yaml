@@ -1,0 +1,60 @@
+name: harness-default-flow
+description: |
+  Skill × Agent hybrid harness. Tier classification → PRD/TRD/TASKS → execute → evaluate → doc-update.
+  Each node emits `$<id>.output.<field>` JSON. When `when:` is false the node skips → downstream cascades skip.
+
+  classifier outcome: prd-trd | prd-only | trd-only | tasks-only | pivot | exit-casual
+
+nodes:
+  - id: router
+    command: router
+
+  - id: brainstorming
+    command: brainstorming
+    depends_on: [router]
+    when: "$router.output.outcome == 'clarify'"
+
+  - id: classifier
+    command: complexity-classifier
+    depends_on: [router, brainstorming]
+    trigger_rule: one_success
+    when: "$router.output.outcome == 'plan' || $router.output.outcome == 'resume' || $brainstorming.output.outcome == 'clarified'"
+
+  - id: prd-writer
+    command: prd-writer
+    depends_on: [classifier]
+    when: "$classifier.output.outcome == 'prd-trd' || $classifier.output.outcome == 'prd-only'"
+    context: fresh
+
+  - id: trd-writer
+    command: trd-writer
+    depends_on: [classifier, prd-writer]
+    trigger_rule: one_success
+    when: "$classifier.output.outcome == 'prd-trd' || $classifier.output.outcome == 'trd-only'"
+    context: fresh
+
+  - id: task-writer
+    command: task-writer
+    depends_on: [classifier, prd-writer, trd-writer]
+    trigger_rule: one_success
+    when: >-
+      $classifier.output.outcome == 'prd-trd' ||
+      $classifier.output.outcome == 'prd-only' ||
+      $classifier.output.outcome == 'trd-only' ||
+      $classifier.output.outcome == 'tasks-only'
+    context: fresh
+
+  - id: executor
+    command: parallel-task-executor
+    depends_on: [task-writer]
+
+  - id: evaluator
+    command: evaluator
+    depends_on: [executor]
+    context: fresh
+
+  - id: doc-updater
+    command: doc-updater
+    depends_on: [evaluator]
+    when: "$evaluator.output.outcome == 'pass'"
+    context: fresh

@@ -84,7 +84,7 @@ Claude Code 위에서 동작하는 **자체 하네스**. 유저 요청을 받아
 | `stop-mechanical-check` | Hook (`.mjs`) | Track 1 — `make check` (없으면 skip) spawnSync 실행, 실패 시 block + 에러 주입 + `retry_count++`. |
 | `stop-roadmap-enforcer` | Hook (`.mjs`) | `ROADMAP.md` 체크박스 + `STATE.md` retry_count 검사 → 미완료 시 block + 다음 스킬 지시 주입. |
 | `/status` | Slash command | `ROADMAP.md` + `STATE.md` 렌더링. |
-| `/flow` | Slash command | `~/.claude/docs/harness/flow.yaml` 렌더링 (다이어그램 or 목록). |
+| `/flow` | Slash command | `~/.claude/docs/harness/harness-flow.yaml` 렌더링 (다이어그램 or 목록). |
 
 ### 4.1 Skill × Agent 분담 (D11 상세)
 
@@ -109,7 +109,7 @@ Agent 컨텍스트 (격리, 메인 히스토리 못 봄)
    ↓ "PRD.md created at .planning/{id}/PRD.md" 한 줄 요약 리턴
 메인 스레드
    ↓ 리턴값 검증 + ROADMAP 체크박스 `[x]`
-   ↓ flow.yaml 의 next 로 진행
+   ↓ harness-flow.yaml 의 next 로 진행
 ```
 
 **Skill 의 자기완결성 제약**: Agent 는 메인 대화 히스토리를 볼 수 없으므로, 호출되는 Skill 은 **payload 만으로 산출물이 결정**되어야 한다. 각 Skill SKILL.md 상단에 명시적 입력 스키마 필수:
@@ -119,13 +119,29 @@ Agent 컨텍스트 (격리, 메인 히스토리 못 봄)
 ## Input payload
 - session_id: string   # e.g. "2026-04-19-add-2fa-login"
 - request: string       # 유저 원 요청 (brainstorming 정제 후)
-- classification: A|B|C|D
-- brainstorming_output?: string  # B/C/D 는 있을 수도 없을 수도
+- brainstorming_output?: object  # router 가 직접 plan 으로 넘긴 경우 없을 수도
 
-## Output
-- file: .planning/{session_id}/PRD.md
-- return: "PRD.md created at <path>"
+## Output  (미니멀: outcome + session_id, 실패 시 reason)
+- file: .planning/{session_id}/PRD.md  # 경로는 session_id 로 결정적
+- return (done):  { "outcome": "done",  "session_id": "2026-04-19-..." }
+- return (error): { "outcome": "error", "session_id": "...", "reason": "PRD.md already exists at <path>" }
 ```
+
+**Output 스키마 원칙 — 미니멀리즘**:
+
+플로우 노드는 outcome 문자열만 읽고, 경로는 `session_id` 로 결정적이고, task-level 세부는 파일(`TASKS.md` `[Result]` 블록 등)에 살므로 JSON 에 진단 필드를 쌓지 않는다. 하류가 읽지 않는 필드는 전부 제거. 최종 형태:
+
+| 스킬 | done 페이로드 | error/escalate 페이로드 |
+|---|---|---|
+| router | `{outcome: "plan"\|"clarify"\|"resume", session_id}` (casual 은 JSON 없이 plain text 로 종료) | (해당 없음) |
+| brainstorming | `{outcome: "clarified", session_id}` | `{outcome: "pivot"\|"exit-casual", session_id, reason}` |
+| complexity-classifier | `{outcome: "prd-trd"\|"prd-only"\|"trd-only"\|"tasks-only", session_id, request, brainstorming_output}` | `{outcome: "pivot"\|"exit-casual", session_id, reason}` |
+| prd/trd/task-writer | `{outcome: "done", session_id}` | `{outcome: "error", session_id, reason}` |
+| parallel-task-executor | `{outcome: "done"\|"blocked"\|"failed", session_id}` | `{outcome: "error", session_id, reason}` |
+| evaluator | `{outcome: "pass", session_id}` | `{outcome: "escalate"\|"error", session_id, reason}` |
+| doc-updater | `{outcome: "done", session_id}` (CHANGELOG 자동 + 영향 타겟 자동 패치) | `{outcome: "error", session_id, reason}` |
+
+`artifact`, `task_count`, `completed`, `parallelism_used`, `blocked_tasks`, `failed_tasks`, `violations`, `open_questions`, `defect`, `signals_matched`, `estimated_files`, `stage`, `source` 같은 필드는 **모두 제거**. 필요한 세부는 `reason` 한 줄이나 세션 폴더의 산출물(`TASKS.md`, `PRD.md`, diff) 에서 읽어온다.
 
 **파일 쓰기 규칙**: Agent 가 `.planning/{session_id}/` 에 직접 쓴다. ROADMAP/STATE 업데이트는 메인 스레드의 dispatcher 가 리턴 받은 뒤 수행 — agent 가 이 두 파일을 동시에 건드리면 race·일관성 이슈.
 
@@ -137,13 +153,13 @@ Agent 컨텍스트 (격리, 메인 히스토리 못 봄)
 
 ---
 
-## 5. `flow.yaml` — 플로우 정의 (정적)
+## 5. `harness-flow.yaml` — 플로우 정의 (정적)
 
 **역할**: 모든 스킬이 startup 시 이 파일을 읽어 "내 다음은 누구?" 를 확인. 스킬 간 연결의 단일 소스.
 
-**위치**: `~/.claude/docs/harness/flow.yaml` (글로벌). 프로젝트별 오버라이드는 v0.3 이후 고려.
+**위치**: `~/.claude/docs/harness/harness-flow.yaml` (글로벌). 프로젝트별 오버라이드는 v0.3 이후 고려.
 
-**배치 근거**: Claude Code 스킬/훅/커맨드는 각자 정해진 디렉토리에 흩어져 존재 (`skills/`, `hooks/`, `commands/`). `flow.yaml` 은 "실행 자산" 이 아니라 **참조 문서** 성격이므로 `docs/` 에 위치. OMC 방식(흩뿌리기)과 동일한 컨벤션.
+**배치 근거**: Claude Code 스킬/훅/커맨드는 각자 정해진 디렉토리에 흩어져 존재 (`skills/`, `hooks/`, `commands/`). `harness-flow.yaml` 은 "실행 자산" 이 아니라 **참조 문서** 성격이므로 `docs/` 에 위치. OMC 방식(흩뿌리기)과 동일한 컨벤션.
 
 ```yaml
 version: 1
@@ -219,7 +235,7 @@ phases:
 ```
 
 **각 Skill SKILL.md 상단엔** 이 한 줄만:
-> `~/.claude/docs/harness/flow.yaml` 을 읽고, 이 스킬의 `routes`/`next` 에 따라 다음 phase 를 호출하라. 다음 phase 의 `runner: agent` 이면 메인의 `subagent-dispatcher` 가 해당 agent 로 dispatch 한다.
+> `~/.claude/docs/harness/harness-flow.yaml` 을 읽고, 이 스킬의 `routes`/`next` 에 따라 다음 phase 를 호출하라. 다음 phase 의 `runner: agent` 이면 메인의 `subagent-dispatcher` 가 해당 agent 로 dispatch 한다.
 
 **각 Agent definition (`agents/{name}.md`) 은 얇게**:
 ```markdown
@@ -265,7 +281,7 @@ Complexity: B (PRD → Tasks)
 - [ ] task-writer      → TASKS.md  ← 현재 여기
 - [ ] executor
 - [ ] evaluator
-- [ ] gate-2-approval
+- [ ] confirm-doc-updates
 - [ ] doc-updater
 
 ## Artifacts
@@ -318,7 +334,7 @@ CC session_id: 3a160f86-db0a-42c2-9254-43b77f44505e
 세션 종료 시도 시 `ROADMAP.md` + `STATE.md` 를 읽어:
 - `ROADMAP.md` 모든 phase `[x]` → 통과
 - `STATE.md` 의 `escalated: true` → 통과 (유저 개입 대기 중)
-- 미완료 `[ ]` 있음 → `{continue: false, decision: "block", reason: "다음 phase: <id> 를 실행하라. ~/.claude/docs/harness/flow.yaml 참고."}` 주입
+- 미완료 `[ ]` 있음 → `{continue: false, decision: "block", reason: "다음 phase: <id> 를 실행하라. ~/.claude/docs/harness/harness-flow.yaml 참고."}` 주입
 - `STATE.md` `retry_count ≥ 3` → 에스컬레이션 메시지 주입 후 `escalated: true` 기록, 통과
 - OMC 가드 그대로 수용: context_limit / user_abort / auth_error 은 **무조건 통과**
 
@@ -326,7 +342,7 @@ CC session_id: 3a160f86-db0a-42c2-9254-43b77f44505e
 `ROADMAP.md` (phase 체크박스 / artifact) + `STATE.md` (retry_count / last activity) 를 합쳐 렌더링. 프로그레스 바는 ROADMAP 기준.
 
 ### 7.3 `/flow`
-`~/.claude/docs/harness/flow.yaml` 을 Mermaid/ASCII 다이어그램으로 렌더링.
+`~/.claude/docs/harness/harness-flow.yaml` 을 Mermaid/ASCII 다이어그램으로 렌더링.
 
 ### 7.4 승인 게이트 (흡수 방식)
 - **Gate 1** (Phase 3→4): `complexity-classifier` 스킬 내부에서 Tier 추천 직후 유저 승인
@@ -341,7 +357,7 @@ CC session_id: 3a160f86-db0a-42c2-9254-43b77f44505e
 ~/.claude/
 ├── docs/
 │   └── harness/
-│       └── flow.yaml              ← 정적 플로우 정의
+│       └── harness-flow.yaml      ← 정적 플로우 정의
 ├── skills/                         ← 9개 스킬 (instruction 본체, agent 도 로드해서 사용)
 │   ├── router/SKILL.md
 │   ├── brainstorming/SKILL.md
@@ -384,7 +400,7 @@ CC session_id: 3a160f86-db0a-42c2-9254-43b77f44505e
 
 **배치 철학 (OMC 스타일 흩뿌리기)**:
 - 스킬은 `skills/`, 에이전트는 `agents/`, 훅은 `hooks/`, 커맨드는 `commands/` — Claude Code 기본 컨벤션 준수
-- `flow.yaml` 은 참조 문서라서 `docs/harness/` 에 위치 (실행 자산과 분리)
+- `harness-flow.yaml` 은 참조 문서라서 `docs/harness/` 에 위치 (실행 자산과 분리)
 - 하네스 전용 디렉토리를 별도로 만들지 않아 Claude Code 와 자연스럽게 융합
 - Agent 와 Skill 이 같은 이름 (e.g. `agents/prd-writer.md` ↔ `skills/prd-writer/SKILL.md`) 으로 1:1 대응 — 혼란 최소화
 
@@ -501,7 +517,7 @@ YYYY-MM-DD-{slug}
 ### 결정 요약
 - **파일 수 경계선**: 5 (예상 수정·신규 파일 총합)
 - **보안·아키텍처 신호 경로**: OMC `verification-tiers` 그대로 차용
-- **Tier-D 자기검증**: 강제 (superpowers 원칙)
+- **tasks-only 자기검증**: 강제 (superpowers 원칙)
 - **파일 수 추정 주체**: LLM 추정 + 유저 번복 가능 (D3 연장)
 
 ### 판정 규칙
@@ -511,15 +527,15 @@ YYYY-MM-DD-{slug}
    ↓
 Router: 키워드 + 경로 신호 감지
    ↓
-신호 목록 중 하나라도 매칭? ──── Yes ──→ Tier-A 후보 (파일 수 무관)
+신호 목록 중 하나라도 매칭? ──── Yes ──→ prd-trd 후보 (파일 수 무관)
    │
    No
    ↓
 도메인 분류
-   ├─ 신규 기능 + 예상 파일 ≥ 5  → Tier-A
-   ├─ 신규 기능 + 예상 파일 ≤ 5  → Tier-B
-   ├─ 리팩토링/기술 개선           → Tier-C
-   └─ 버그/trivial + 예상 파일 ≤ 2 → Tier-D (자기검증 필수)
+   ├─ 신규 기능 + 예상 파일 ≥ 5  → prd-trd
+   ├─ 신규 기능 + 예상 파일 ≤ 5  → prd-only
+   ├─ 리팩토링/기술 개선           → trd-only
+   └─ 버그/trivial + 예상 파일 ≤ 2 → tasks-only (자기검증 필수)
    ↓
 LLM 이 유저에게 제시 + 번복 허용
 ```
@@ -538,42 +554,76 @@ LLM 이 유저에게 제시 + 번복 허용
 - **2차**: Tier 확정 전 LLM 이 "이 작업이 위 경로를 건드릴 것 같은가" 자문
 - **3차(런타임)**: executor 가 실제로 신호 경로 수정 시 "중간 승격" 여부 — **본 버전 non-goal** (v0.3 이후)
 
-### Tier-D 자기검증 (superpowers 원칙)
+### tasks-only 자기검증 (superpowers 원칙)
 **강제 이유**: superpowers `brainstorming` SKILL.md 가 명시하는 anti-pattern "간단해 보여서 설계 스킵" 을 남용 방지.
 
 **절차**:
-1. Router/classifier 가 Tier-D 추천 시, classifier 스킬 내부에서 다음 체크리스트 통과 필요:
+1. Router/classifier 가 tasks-only 추천 시, classifier 스킬 내부에서 다음 체크리스트 통과 필요:
    - [ ] 명확히 버그 수정 또는 typo/format/주석 수준인가?
    - [ ] 예상 수정 파일 ≤ 2 인가?
    - [ ] 보안·아키텍처 신호 매칭 없는가?
    - [ ] 유저 요청에 "설계 필요" 단서(새 용어·의도 모호함)가 없는가?
-2. 하나라도 실패 → **Tier-B 로 자동 승격** (최소 PRD 작성)
-3. 모두 통과 → 유저에게 제시: `"Tier-D 로 바로 진행할까요? (설계 건너뜀)"`
+2. 하나라도 실패 → **prd-only 로 자동 승격** (최소 PRD 작성)
+3. 모두 통과 → 유저에게 제시: `"tasks-only 로 바로 진행할까요? (설계 건너뜀)"`
 
 ### 파일 수 추정
 - **주체**: LLM (classifier 스킬 내부)
 - **방식**: 유저 요청 분석 → 대략치 추출 (정수 하나)
-- **유저 제시 예시**: `"Tier-B 추천: 예상 3~4파일 수정, 보안 신호 없음. 진행할까요?"`
+- **유저 제시 예시**: `"prd-only 추천: 예상 3~4파일 수정, 보안 신호 없음. 진행할까요?"`
 - **유저 번복**:
-  - 숫자 직접 제시 (`"10파일 이상"` → Tier-A 승격)
-  - 티어 직접 지정 (`"그냥 D로"`)
+  - 숫자 직접 제시 (`"10파일 이상"` → prd-trd 승격)
+  - 경로 직접 지정 (`"그냥 tasks-only 로"`)
 
 ### 판정 예시
 
 | 요청 | LLM 추정 | 신호? | Tier |
 |---|---|---|---|
-| "버튼 색 빨강으로" | 1 | × | D |
-| "README 오타 수정" | 1 | × | D |
-| "로그인에 2FA 추가" | 4 | ✅ `auth/` | **A** (신호 승격) |
-| "GraphQL 스키마에 `User.avatar` 추가" | 2 | ✅ `schema.*` | **A** |
-| "새 대시보드 페이지" | 8 | × | A |
-| "`useState` → `useReducer` 리팩토링" | 3 | × | C |
-| "Prisma → Drizzle 마이그레이션" | 15 | ✅ `migrations/`, `package.json` | A |
+| "버튼 색 빨강으로" | 1 | × | tasks-only |
+| "README 오타 수정" | 1 | × | tasks-only |
+| "로그인에 2FA 추가" | 4 | ✅ `auth/` | **prd-trd** (신호 승격) |
+| "GraphQL 스키마에 `User.avatar` 추가" | 2 | ✅ `schema.*` | **prd-trd** |
+| "새 대시보드 페이지" | 8 | × | prd-trd |
+| "`useState` → `useReducer` 리팩토링" | 3 | × | trd-only |
+| "Prisma → Drizzle 마이그레이션" | 15 | ✅ `migrations/`, `package.json` | prd-trd |
+
+### Outcome 계약 (2026-04-22 archon-style `harness-flow.yaml` 반영)
+
+`harness-flow.yaml` 이 archon 스타일 DAG (`depends_on` + `when:`) 로 통일되면서, classifier 스킬의 최종 JSON `outcome` 필드는 경로 이름을 **직접** 담아야 한다. 메인 스레드는 후속 노드의 `when:` 식에서 이 문자열을 평가해 dispatch 여부를 결정한다:
+
+```json
+{ "outcome": "prd-trd", ... }      // prd-trd 확정: PRD → TRD → Tasks
+{ "outcome": "prd-only", ... }     // prd-only 확정: PRD → Tasks
+{ "outcome": "trd-only", ... }     // trd-only 확정: TRD → Tasks
+{ "outcome": "tasks-only", ... }   // tasks-only 확정 (자기검증 통과)
+{ "outcome": "pivot" }             // 유저가 다른 요청으로 전환
+{ "outcome": "exit-casual" }       // 작업 요청 아니었음
+```
+
+기존 안이었던 `{"outcome": "classified", "classification": "A"}` 중첩 형태 및 `A/B/C/D` 단일 문자 라벨은 **쓰지 않는다**. 경로 승격/강등 (tasks-only 자기검증 실패 → prd-only) 도 classifier 스킬 내부에서 해결한 뒤, 최종 outcome 은 승격된 경로 이름 하나를 담는다.
+
+`harness-flow.yaml` 의 후속 노드 `when:` 식:
+
+```yaml
+- id: prd-writer
+  when: "$classifier.output.outcome == 'prd-trd' || $classifier.output.outcome == 'prd-only'"
+
+- id: trd-writer
+  when: "$classifier.output.outcome == 'prd-trd' || $classifier.output.outcome == 'trd-only'"
+
+- id: task-writer
+  when: >-
+    $classifier.output.outcome == 'prd-trd' ||
+    $classifier.output.outcome == 'prd-only' ||
+    $classifier.output.outcome == 'trd-only' ||
+    $classifier.output.outcome == 'tasks-only'
+```
+
+pivot / exit-casual 일 때는 모든 후속 `when:` 이 false → 연쇄 skip → 플로우 자연 종료.
 
 ### references 근거
 - **OMC `tier-selector.ts`** (줄 45-66): `filesChanged > 20` → THOROUGH, `< 5` + `< 100 LOC` + full test → LIGHT. 우리는 경계선 5 만 차용 (LOC·테스트 커버리지는 요청 시점 미지수라 제외).
 - **OMC `verification-tiers.md`** (줄 9-38): 보안·아키텍처 경로 패턴 목록 원본.
-- **superpowers `brainstorming/SKILL.md`** (줄 16-18): "Simple projects are where unexamined assumptions cause the most wasted work" — Tier-D 자기검증 근거.
+- **superpowers `brainstorming/SKILL.md`** (줄 16-18): "Simple projects are where unexamined assumptions cause the most wasted work" — tasks-only 자기검증 근거.
 - **GSD `inline_plan_threshold: 2`**: 차용 안 함 (설계 경로 분기가 아닌 실행 분기라 목적 다름).
 - **archon / ECC**: 수치 기준 없음 → 차용 없음.
 
@@ -587,41 +637,52 @@ LLM 이 유저에게 제시 + 번복 허용
 ## 15. doc-updater 대상 파일 (R4 확정)
 
 ### 결정 요약
-**하이브리드**: `CHANGELOG.md` 는 무조건 자동, `README.md` / `CLAUDE.md` / `docs/*.md` 는 **영향 분석 후 유저 선택**.
+**전량 자동**: `CHANGELOG.md` 는 무조건, `README.md` / `CLAUDE.md` / `docs/*.md` 도 영향 감지 시 **자동 적용**. `findings.md` 는 결정 surface 가 아닌 **감사 로그**. 유저 확인 프롬프트 없음 — evaluator 가 이미 게이트했고 문서만의 편집은 `git revert` 로 복구 가능.
 
-### 처리 흐름
+### 처리 흐름 (단일 노드)
 
 ```
 doc-updater 스킬 (Phase 7)
    ↓
-[Step 1] CHANGELOG.md 자동 갱신 (무조건)
+[Step 1] TASKS.md + git diff 읽기
+   ↓
+[Step 2] CHANGELOG.md 자동 갱신 (무조건)
    - 없으면 Keep a Changelog 포맷으로 신규 생성
    - 있으면 [Unreleased] 섹션에 append
-   - 내용 출처: TASKS.md 완료 항목 + git diff 요약
    - 분류: Added / Changed / Fixed / Security / Deprecated / Removed
    ↓
-[Step 2] 영향 분석 (archon docs-impact 스타일)
-   - 스캔 대상: README.md, CLAUDE.md, docs/**/*.md (존재하는 것만)
-   - 변경된 코드 → 영향받는 문서 섹션 매칭
-   - `findings.md` 생성 (세션 폴더에): 
-     "README.md:42 'Installation' 섹션 업데이트 필요"
-     "CLAUDE.md:15 '인증 흐름' 섹션 변경 필요"
+[Step 3] README.md / CLAUDE.md / docs/**/*.md 영향 스캔
+   - 변경된 코드 → 영향받는 문서 섹션 매칭 (의미론적, archon docs-impact 스타일)
+   - 권고 형태 2종: 기존 섹션 업데이트 / 신규 섹션 추가
+   - 각 권고 ≤20 줄 편집으로 제한
    ↓
-[Step 3] findings 있으면 유저 제시
-   - "README.md, CLAUDE.md 도 업데이트 필요해 보입니다. 선택:"
-   - 유저: 전부 / 선택 / 전부 제외
+[Step 4] 권고 적용 (자동)
+   - ≤20 줄 권고는 바로 Edit 적용
+   - 전면 재작성 요구는 `not applied — structural rewrite required` 기록
+   - 권고 충돌 시 첫 번째만 적용, 나머지는 `not applied` 기록
    ↓
-[Step 4] 선택된 파일 업데이트
+[Step 5] findings.md 감사 로그 작성
+   - Scanned: 조사한 모든 파일
+   - Changes applied: 적용된 편집 (체크박스 `- [x]`)
+   - Not applied: 자동 적용 거부한 권고 + 이유 (유저 숙제)
 ```
+
+### 왜 자동 적용인가
+
+- **evaluator 가 이미 코드 게이트** — Track 1 `make check`, Track 2 rule 검증 통과한 상태. 문서만의 편집은 리스크 최하위 등급.
+- **edits 가 bounded** — 각 권고 ≤20 줄, additive 또는 append-only 중심, top-to-bottom 재작성 명시 금지.
+- **findings.md 가 감사 로그** — 유저가 원할 때 열어 "어느 파일 어느 섹션이 왜 바뀌었는지" 추적 가능.
+- **복구 비용 미미** — 유저가 싫으면 `git revert <doc-commit>` 한 번으로 원복.
+- **세션당 3노드 + 프롬프트 게이트 제거** — v0.2 미니멀리즘 정신과도 일치 (Skill × Agent hybrid 의 "격리된 에이전트 하나로 완결" 원칙).
 
 ### 대상 파일 상세
 
 | 파일 | 처리 | 없으면 |
 |---|---|---|
 | `CHANGELOG.md` | **자동 갱신** (무조건) | Keep a Changelog 포맷으로 **신규 생성** |
-| `README.md` | 영향 분석 + 유저 선택 | Skip (신규 생성 안 함) |
-| `CLAUDE.md` | 영향 분석 + 유저 선택 | Skip |
-| `docs/**/*.md` | 영향 분석 + 유저 선택 | `docs/` 없으면 Skip |
+| `README.md` | 영향 감지 시 **자동 적용** | Skip (신규 생성 안 함) |
+| `CLAUDE.md` | 영향 감지 시 **자동 적용** | Skip |
+| `docs/**/*.md` | 영향 감지 시 **자동 적용** | `docs/` 없으면 Skip |
 
 **왜 이 4개**:
 - `CHANGELOG.md` — 6 references 모두 존재 (표준)
@@ -654,14 +715,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ```
 
 **카테고리 자동 분류 규칙** (LLM 이 판단):
-- Tier-A/B (신규 기능) → `Added`
-- Tier-C (리팩토링) → `Changed`
-- Tier-D (버그) → `Fixed`
+- prd-trd / prd-only (신규 기능) → `Added`
+- trd-only (리팩토링) → `Changed`
+- tasks-only (버그) → `Fixed`
 - 보안 경로 신호 매칭 시 → `Security` 에도 중복 기록
 - 의존성 제거·API 제거 → `Removed`
 - deprecation 문구 포함 → `Deprecated`
 
-### 영향 분석 (findings.md) 포맷
+### findings.md 포맷 (감사 로그)
 
 ```markdown
 # Doc Impact Findings — 2026-04-17-add-2fa-login
@@ -672,30 +733,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - docs/auth.md ✓
 - docs/api.md ✓
 
-## Recommendations
+## Changes applied
+
+### CHANGELOG.md
+- [x] Added: 로그인 페이지에 2FA 인증 추가 (TASKS.md: task-3, task-5)
+- [x] Security: 로그인 페이지에 2FA 인증 추가 (TASKS.md: task-3, task-5)
 
 ### README.md
-- [ ] Section "Features" (line 12) — 2FA 항목 추가
-- [ ] Section "Installation" — 영향 없음
+- [x] Section "Features" (line 12) — 2FA 항목 추가
 
 ### CLAUDE.md
-- [ ] Section "Authentication flow" (line 45) — 2FA 단계 추가 설명
+- [x] Section "Authentication flow" (line 45) — 2FA 단계 추가 설명
 
 ### docs/auth.md
-- [ ] 새 "Two-Factor Authentication" 섹션 추가 권장
+- [x] 새 "Two-Factor Authentication" 섹션 추가
 
 ### docs/api.md
 - (영향 없음)
+
+## Not applied
+- docs/architecture.md — structural rewrite required: 2FA 도입이 기존 Auth 섹션 구조 변경 요구. 유저 직접 처리 필요.
 ```
 
-**유저 상호작용**:
-- 유저는 체크박스 `[ ]` → `[x]` 로 선택 후 응답
-- 모두 `[x]` → 전체 업데이트
-- 모두 `[ ]` 유지 → 건너뜀
-- 선택적 `[x]` → 선택된 것만
+**구조 해설**:
+- `## Scanned` — 조사한 모든 파일 (`✓` = 존재). 없는 타겟 생략.
+- `## Changes applied` — 실제 적용된 편집 목록. `- [x]` 고정 (결정 surface 아니므로 미선택 `[ ]` 상태가 존재하지 않음).
+- `## Not applied` — 스킬이 자동 적용 거부한 권고 + 한 줄 이유. `structural rewrite`, `conflicts with earlier change`, `translation sync not automated` 등이 전형적 사유. 비어있으면 섹션 생략.
+
+**유저 워크플로우 (사후)**:
+- 세션 완료 후 유저가 `git diff HEAD~1` 으로 적용된 편집 확인
+- 마음에 안 드는 편집이 있으면 파일 단위로 `git checkout HEAD~1 -- README.md` 또는 전체 doc 커밋 `git revert`
+- `## Not applied` 섹션의 유저 숙제 항목을 별도 처리
 
 ### references 근거
-- **archon `docs-impact-agent`** (`.archon/commands/defaults/archon-docs-impact-agent.md` 줄 1-60): CLAUDE.md + docs/ + agent 정의 스캔, 구조화된 findings 출력. → **Step 2-3 로직 전체 차용**
+- **archon `docs-impact-agent`** (`.archon/commands/defaults/archon-docs-impact-agent.md` 줄 1-60): CLAUDE.md + docs/ + agent 정의 스캔, 구조화된 findings 출력. → **Step 3 스캔 로직 차용**, 단 archon 은 권고만 출력하고 유저 적용을 맡김. 우리는 evaluator 게이트 이후라는 전제로 **자동 적용까지 확장**.
 - **get-shit-done `/gsd-docs-update`** (`commands/gsd/docs-update.md` 줄 1-50): 9종 문서 자동 업데이트. → 범위 너무 큼, **차용 안 함** (v0.3 이후 고려)
 - **everything-claude-code / gstack / OMC `CHANGELOG.md`**: Keep a Changelog 포맷 공통 → **포맷 표준 차용**
 - **6 references 모두 CHANGELOG 자동 생성 안 함** → 우리가 이 부분은 선도 (자동화 가치 큼, 리스크 낮음)
@@ -778,7 +849,7 @@ async function main() {
 
 ### Track 2 — 규칙 검증 (evaluator 스킬)
 
-**호출 시점**: Phase 6 (Track 1 통과 후 flow.yaml 에 의해 evaluator 스킬 호출)
+**호출 시점**: Phase 6 (Track 1 통과 후 harness-flow.yaml 에 의해 evaluator 스킬 호출)
 
 **동작**:
 1. `<project>/.claude/rules/*.md` 전체 로드 (없으면 skip, pass 처리)

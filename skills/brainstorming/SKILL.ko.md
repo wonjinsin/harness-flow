@@ -108,7 +108,7 @@ Clarification 단계가 없으면 router 의 `clarify` 버킷이 `complexity-cla
 
 유저가 하나를 고르면 payload 의 `request` 를 그 서브 프로젝트 설명으로 교체하고 진행한다. 나머지 서브 프로젝트는 미래 세션이 된다 — 각 세션마다 router 가 새로 돈다.
 
-유저가 다 한 세션에서 처리하자고 고집하면 진행하되 `constraints: ["deliberately-wide-scope"]` 를 기록해서 `complexity-classifier` 가 Tier-A 쪽으로 기울게 한다.
+유저가 다 한 세션에서 처리하자고 고집하면 진행하되 `constraints: ["deliberately-wide-scope"]` 를 기록해서 `complexity-classifier` 가 prd-trd 쪽으로 기울게 한다.
 
 명백히 단일 범위의 요청은 범위 체크를 생략 — "src/auth/session.ts 의 로그인 타임아웃 버그 수정" 같은 요청에 "이게 하나의 프로젝트인가요?" 를 묻지 말 것.
 
