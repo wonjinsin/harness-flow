@@ -1,0 +1,17 @@
+{
+  "name": "harness-flow",
+  "description": "Skill × Agent hybrid harness for multi-phase planning and execution. Routes user requests through a DAG defined in `harness-flow.yaml` — tier classification → PRD/TRD/TASKS → execute → evaluate → doc-update. Each node is a skill; transitions are interpreted at runtime by the using-harness meta-skill.",
+  "version": "0.2.1",
+  "author": {
+    "name": "wonjinsin"
+  },
+  "keywords": [
+    "harness",
+    "workflow",
+    "agent",
+    "orchestration",
+    "planning",
+    "prd",
+    "trd"
+  ]
+}
