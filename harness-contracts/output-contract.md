@@ -1,10 +1,12 @@
-# Writer contract — payload, output, errors, anti-patterns
+# Writer output contract
 
-Shared by `prd-writer`, `trd-writer`, `task-writer`. Every writer is loaded inside its own subagent context.
+Single source of truth for the writer family (`prd-writer`, `trd-writer`, `task-writer`). Replaces the per-skill `references/contract.md` files that previously duplicated these rules. Each writer's `SKILL.md` references this file for payload, output shape, error taxonomy, and shared anti-patterns; the writer keeps only its own concrete output example inline.
 
 ## Isolated context
 
-You run inside the writer agent's isolated context. **The main conversation history is NOT available** — your input is only the payload (and any upstream files it cites). The split exists so the writer can spend context freely on code reading without polluting the main thread; it also means you cannot recover from a thin payload by recalling earlier turns. If the payload is thin, investigate the codebase with Read/Grep/Glob; do not invent requirements, architecture, or file structure.
+Every writer runs inside its own subagent context. **The main conversation history is NOT available** — the input is only the payload (and any upstream files it cites). The split exists so the writer can spend context freely on code reading without polluting the main thread; it also means the writer cannot recover from a thin payload by recalling earlier turns. If the payload is thin, investigate the codebase with Read/Grep/Glob; do not invent requirements, architecture, or file structure.
+
+See `execution-modes.md` for the full execution-mode contract.
 
 ## Input payload
 
@@ -23,16 +25,18 @@ If a `*_path` is set but the file is unreadable or missing, halt with `error` an
 
 The final message is always one JSON object — no prose alongside. The main thread treats it as a machine-readable status line.
 
-**done** — file written:
+**done** — file written. Shape (path varies per writer; each `SKILL.md` carries the concrete example):
 
 ```json
-{ "outcome": "done", "session_id": "2026-04-19-...", "brainstorming_outcome": "prd-trd", "path": ".planning/2026-04-19-.../PRD.md" }
+{ "outcome": "done", "session_id": "<id>", "path": ".planning/<id>/<ARTIFACT>.md" }
 ```
+
+`prd-writer` additionally echoes `brainstorming_outcome` in this object so the main thread can pick the next skill without re-reading the route.
 
 **error** — payload defect, file conflict, missing upstream, or unrecoverable exploration gap:
 
 ```json
-{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "<short cause>" }
+{ "outcome": "error", "session_id": "<id>", "reason": "<short cause>" }
 ```
 
 Output is consumed by the main thread to construct the next skill's payload.

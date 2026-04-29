@@ -9,7 +9,7 @@ Reflect session code changes into project docs. Runs in the `doc-updater` agent'
 
 ## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (isolated context) — see `../../harness-contracts/execution-modes.md`.
 
 ## When NOT to use
 
@@ -56,7 +56,7 @@ Single JSON object, no prose alongside.
    ### README.md
    - [x] Section "Features" (line 12) — ...
    ### docs/api.md
-   - (영향 없음)
+   - (no impact)
 
    ## Not applied
    - docs/architecture.md — structural rewrite required

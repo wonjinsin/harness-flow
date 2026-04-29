@@ -16,7 +16,7 @@ Outcomes route per the 'Required next skill' section below: `pass` → `doc-upda
 
 ## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (isolated context) — see `../../harness-contracts/execution-modes.md`.
 
 ## Input payload
 

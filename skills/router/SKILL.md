@@ -19,7 +19,7 @@ Internal rules and prompts stay English-only; the LLM understands non-English us
 
 ## Execution mode
 
-**Main context.** 메인 thread 가 직접 실행. 격리 서브에이전트가 아님 — `.planning/` 스캐폴드 작성과 세션 슬러그 발급이 메인 컨텍스트에서 일어남.
+Main context — see `../../harness-contracts/execution-modes.md`. Router runs inline because `.planning/` scaffold creation and session-slug confirmation need the live conversation.
 
 ## Why three routes
 

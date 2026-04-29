@@ -9,13 +9,13 @@ description: Use when a planning session needs an executable TASKS list drafted 
 
 Produce **`TASKS.md`** — the executor's only source of truth. Every session ends here regardless of tier. The `parallel-task-executor` reads it, the `evaluator` gates on it, and each per-task subagent receives a task block from it in place of PRD/TRD context.
 
-See `references/contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
+See `../../harness-contracts/output-contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
 
 This skill receives `session_id`, `request` (always present), optional `prd_path`, optional `trd_path`, and optional `brainstorming_output`. If `prd_path`, `trd_path`, **and** `brainstorming_output` are all null and `request` has no actionable verb, emit `error`.
 
 ## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (isolated context) — see `../../harness-contracts/execution-modes.md`.
 
 ## Why this exists
 
@@ -78,7 +78,7 @@ See `references/template.md` for the template + Self-Review checklist, and `refe
 - **Every Acceptance bullet cites its source** in parens: `(PRD §Acceptance criteria)`, `(TRD §Interfaces & contracts)`, or `(request)`.
 - **Notes is for non-obvious constraints only.** Omit the field entirely otherwise.
 
-Task-writer-specific anti-patterns (additional to `references/contract.md`): no implementation steps (the subagent decides); no bundling unrelated surfaces; no duplicated Acceptance bullets across tasks (each criterion lives in exactly one task — TRD Risks are the exception); no `(assumed)` on Acceptance (use Notes).
+Task-writer-specific anti-patterns (additional to `../../harness-contracts/output-contract.md`): no implementation steps (the subagent decides); no bundling unrelated surfaces; no duplicated Acceptance bullets across tasks (each criterion lives in exactly one task — TRD Risks are the exception); no `(assumed)` on Acceptance (use Notes).
 
 ### Step 5 — Write the file
 
@@ -88,7 +88,11 @@ Before writing Self-Review, actually perform each check and only `[x]` boxes you
 
 ### Step 6 — Emit
 
-Emit the final JSON. That is your entire final message.
+Emit the final JSON as your entire final message. Task-writer's `done` example (shape defined in `../../harness-contracts/output-contract.md`):
+
+```json
+{ "outcome": "done", "session_id": "2026-04-19-...", "path": ".planning/2026-04-19-.../TASKS.md" }
+```
 
 ## Required next skill
 

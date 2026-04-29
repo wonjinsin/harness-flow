@@ -18,7 +18,7 @@ When a harness skill's "Required next skill" section names a follow-up, run it b
 
 ## Execution mode
 
-Each SKILL.md declares its own `## Execution mode` — either "Main context" (run inline) or "Subagent (격리 컨텍스트)" (dispatch via Task tool with the procedure as the prompt). Honor that declaration when invoking.
+Each SKILL.md declares its own `## Execution mode` — either "Main context" (run inline) or "Subagent (isolated context)" (dispatch via Task tool with the procedure as the prompt). Honor that declaration when invoking. Full contract: `harness-contracts/execution-modes.md`.
 
 ## Session artifacts
 

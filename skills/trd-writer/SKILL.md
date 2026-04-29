@@ -9,13 +9,13 @@ description: Use when a planning session needs a TRD drafted in an isolated suba
 
 Produce **`TRD.md`** — the technical design that bridges PRD-level outcomes (what) and TASKS-level steps (how). One TRD per session, one shape regardless of whether an upstream PRD exists. Solo-developer lens: enough detail to make the implementation trajectory obvious, nothing more. A reader should finish in under 3 minutes.
 
-See `references/contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
+See `../../harness-contracts/output-contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
 
 This skill receives `session_id`, `request`, optional `prd_path` (set when PRD exists upstream, else `null`), `brainstorming_outcome` (`"prd-trd"` or `"trd-only"` — required), and optional `brainstorming_output`.
 
 ## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (isolated context) — see `../../harness-contracts/execution-modes.md`.
 
 ## Why this exists
 
@@ -27,7 +27,7 @@ TRD answers "what will actually change in code and why this shape?" — distinct
 
 Re-read `request` in full. If `prd_path` is set, read the PRD end-to-end and treat its Goal, Acceptance criteria, and Constraints as hard inputs — the TRD must satisfy them, not re-derive them. Extract target and visible constraints. Note what is missing — anything you cannot answer from payload + PRD becomes Step 2 exploration or Open questions.
 
-If `prd_path` is set and the file is missing/unreadable, emit the `error` outcome per `references/contract.md`.
+If `prd_path` is set and the file is missing/unreadable, emit the `error` outcome per `../../harness-contracts/output-contract.md`.
 
 ### Step 2 — Scoped codebase exploration (budget-capped)
 
@@ -55,15 +55,19 @@ See `references/template.md` for the exact structure and `references/example.md`
 - Risks are specific: "rate limiter keyed by IP misses shared-NAT users" beats "may have security issues".
 - Tag assumptions in Open questions with `(assumed)`.
 
-TRD-specific anti-patterns (in addition to `references/contract.md`): no step-by-step task lists (that's TASKS); no re-stating PRD acceptance criteria verbatim — reference them by section.
+TRD-specific anti-patterns (in addition to `../../harness-contracts/output-contract.md`): no step-by-step task lists (that's TASKS); no re-stating PRD acceptance criteria verbatim — reference them by section.
 
 ### Step 4 — Write the file
 
-Create `.planning/{session_id}/` if needed. Write `TRD.md`. If the file already exists, halt and emit `error` per `references/contract.md`.
+Create `.planning/{session_id}/` if needed. Write `TRD.md`. If the file already exists, halt and emit `error` per `../../harness-contracts/output-contract.md`.
 
 ### Step 5 — Emit
 
-Emit the final JSON. That is your entire final message.
+Emit the final JSON as your entire final message. TRD-writer's `done` example (shape defined in `../../harness-contracts/output-contract.md`):
+
+```json
+{ "outcome": "done", "session_id": "2026-04-19-...", "path": ".planning/2026-04-19-.../TRD.md" }
+```
 
 ## Required next skill
 

@@ -38,7 +38,7 @@ digraph when {
 
 ## Execution mode
 
-**Main context.** 메인 thread 가 직접 실행. 자체가 task 들을 Task 툴로 병렬 dispatch 하는 오케스트레이터이므로 격리 컨텍스트가 아닌 메인에서 돌아야 함.
+Main context — see `../../harness-contracts/execution-modes.md`. The executor itself fans out subagent Task calls and aggregates returns, which requires the main thread.
 
 ## Procedure (summary)
 

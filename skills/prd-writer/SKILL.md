@@ -9,13 +9,13 @@ description: Use when a planning session needs a PRD drafted in an isolated suba
 
 Produce **`PRD.md`** — the product-level spec downstream writers expand into design or tasks. One PRD per session, one shape regardless of tier. Solo-developer lens: enough signal to make implementation decisions, no corporate ceremony. A reader should finish in under 2 minutes.
 
-See `references/contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
+See `../../harness-contracts/output-contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
 
 This skill receives `session_id`, `request`, `brainstorming_outcome` (`"prd-trd"` or `"prd-only"` — required), and optional `brainstorming_output`. If `brainstorming_output` is null, recover intent from the verb in `request` (first-verb rule, default `add`).
 
 ## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (isolated context) — see `../../harness-contracts/execution-modes.md`.
 
 ## Procedure
 
@@ -38,7 +38,7 @@ If the request is genuinely unknowable from code (pure UX decision, external int
 
 ### Step 3 — Draft the PRD using the template
 
-See `references/template.md` for the exact structure and `references/example.md` for a worked example. Fill each section — placeholder ranges (e.g., "1–3 sentences") are sanity checks, not quotas.
+See `references/template.md` for the exact structure and `references/example.md` for a worked example. Fill each section — placeholder ranges (e.g., "1-3 sentences") are sanity checks, not quotas.
 
 **Writing rules**:
 
@@ -48,15 +48,21 @@ See `references/template.md` for the exact structure and `references/example.md`
 - Don't restate the user's request as Goal verbatim. Goal is the *outcome* — "after this change, X is true" — not the ask.
 - Tag assumptions in Open questions with `(assumed)`.
 
-PRD-specific anti-pattern (in addition to those in `references/contract.md`): no engineering approach detail (library, interface) — that's TRD/TASKS.
+PRD-specific anti-pattern (in addition to those in `../../harness-contracts/output-contract.md`): no engineering approach detail (library, interface) — that's TRD/TASKS.
 
 ### Step 4 — Write the file
 
-Create `.planning/{session_id}/` if it doesn't exist. Write `PRD.md`. If the file already exists, halt and emit `error` per `references/contract.md`.
+Create `.planning/{session_id}/` if it doesn't exist. Write `PRD.md`. If the file already exists, halt and emit `error` per `../../harness-contracts/output-contract.md`.
 
 ### Step 5 — Emit the final JSON
 
-Emit a single JSON object as your entire final message. Required fields:
+Emit a single JSON object as your entire final message. PRD-writer's `done` example (path varies per writer; shape defined in `../../harness-contracts/output-contract.md`):
+
+```json
+{ "outcome": "done", "session_id": "2026-04-19-...", "brainstorming_outcome": "prd-trd", "path": ".planning/2026-04-19-.../PRD.md" }
+```
+
+Required fields:
 
 - `outcome: "done" | "error"`.
 - `session_id`.

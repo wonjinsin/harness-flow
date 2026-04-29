@@ -16,7 +16,7 @@ The skill never proposes solutions, never writes specs, and never drafts code. I
 
 ## Execution mode
 
-**Main context.** 메인 thread 가 직접 실행. Q&A 와 분류 단계는 사용자와의 대화가 필요해 격리 컨텍스트로 갈 수 없음.
+Main context — see `../../harness-contracts/execution-modes.md`. Brainstorming runs inline because the Q&A and classification phases need live user dialogue.
 
 ## Input
 
