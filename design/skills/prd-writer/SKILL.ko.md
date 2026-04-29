@@ -1,6 +1,6 @@
 ---
 name: prd-writer
-description: 격리 subagent 컨텍스트에서 PRD 를 작성해야 할 때 사용 — TRD 또는 task 분해 전 단계.
+description: brainstorming 이 prd-trd 또는 prd-only 를 emit 한 뒤 실행. `.planning/{session_id}/PRD.md` 초안 — Goal, Acceptance criteria, Non-goals, Constraints, Open questions. 결과 중심 ("이 변경 후 X 가 참이다") 이지 엔지니어링 상세는 아님 — 그건 TRD/TASKS 의 몫. 세션당 PRD 하나, 격리 subagent 에서 실행되어 코드베이스 탐색이 메인 thread 를 오염시키지 않는다.
 ---
 
 # PRD Writer
@@ -9,13 +9,13 @@ description: 격리 subagent 컨텍스트에서 PRD 를 작성해야 할 때 사
 
 **`PRD.md`** — 하위 writer 가 설계·태스크로 확장할 product-level 스펙을 생성한다. 세션당 PRD 하나, 세션 티어와 무관하게 동일 포맷. 솔로 개발자 관점 — 의사결정에 필요한 신호만, 기업 의식 없음. 독자가 2분 안에 읽혀야 한다.
 
-payload schema, output JSON, error taxonomy, 공통 anti-pattern 은 `references/contract.md` 참조.
+payload schema, output JSON, error taxonomy, 공통 anti-pattern 은 `../../harness-contracts/output-contract.ko.md` 참조.
 
 이 스킬은 `session_id`, `request`, `brainstorming_outcome` (`"prd-trd"` 또는 `"prd-only"` — 필수), 그리고 선택 `brainstorming_output` 을 받는다. `brainstorming_output` 이 null 이면 `request` 의 첫 동사로 intent 복원 (첫 동사 규칙, 기본 `add`).
 
-## 실행 모드
+## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (격리 컨텍스트) — `../../harness-contracts/execution-modes.ko.md` 참조.
 
 ## 절차
 
@@ -48,15 +48,19 @@ Tool 예산: **Read/Grep/Glob ~15회**. 목표는 PRD 를 실제 코드베이스
 - 유저 요청을 그대로 Goal 로 되풀이 금지. Goal 은 *결과* — "이 변경 후 X 가 참이다" 꼴, 요청 자체가 아니다.
 - 가정은 Open questions 에 `(assumed)` 태그.
 
-PRD 한정 anti-pattern (`references/contract.md` 의 공통 항목에 추가): 엔지니어링 접근 상세 (라이브러리·인터페이스) 금지 — 그건 TRD/TASKS 영역.
-
 ### Step 4 — 파일 쓰기
 
-`.planning/{session_id}/` 없으면 생성. `PRD.md` 쓰기. 파일이 이미 있으면 중단하고 `references/contract.md` 의 `error` 형식대로 emit.
+`.planning/{session_id}/` 없으면 생성. `PRD.md` 쓰기. 파일이 이미 있으면 중단하고 `../../harness-contracts/output-contract.ko.md` 의 `error` 형식대로 emit.
 
 ### Step 5 — 최종 JSON emit
 
-JSON 객체 하나를 최종 메시지로 emit. 필수 필드:
+JSON 객체 하나를 최종 메시지로 emit. PRD-writer 의 `done` 예시 (path 는 writer 마다 다름; shape 은 `../../harness-contracts/output-contract.ko.md` 정의):
+
+```json
+{ "outcome": "done", "session_id": "2026-04-19-...", "brainstorming_outcome": "prd-trd", "path": ".planning/2026-04-19-.../PRD.md" }
+```
+
+필수 필드:
 
 - `outcome: "done" | "error"`.
 - `session_id`.
@@ -66,13 +70,19 @@ JSON 객체 하나를 최종 메시지로 emit. 필수 필드:
 
 ## 필수 다음 스킬
 
-다음 스킬은 이 스킬 출력에 echo 된 `brainstorming_outcome` 에 따라 갈린다:
+다음 스킬은 이 스킬 출력에 echo 된 `brainstorming_outcome` 에 따라 갈린다 (전체 payload 계약: `../../harness-contracts/payload-contract.ko.md` § "prd-writer → *"). 경계에서의 필드 명칭 변환 (예: 이 스킬의 `path` → 다음 스킬의 `prd_path`) 은 거기서 명시:
 
 - `brainstorming_outcome == "prd-trd"` → **필수 하위 스킬:** harness-flow:trd-writer 사용
-  Payload: `{ session_id, request, prd_path, brainstorming_outcome: "prd-trd", brainstorming_output }`
+  Payload: `{ session_id, request, prd_path, brainstorming_outcome: "prd-trd", brainstorming_output }` — `prd_path` 는 이 스킬의 `path` 로부터 구성.
 - `brainstorming_outcome == "prd-only"` → **필수 하위 스킬:** harness-flow:task-writer 사용
-  Payload: `{ session_id, request, prd_path, brainstorming_output }`
+  Payload: `{ session_id, request, prd_path, trd_path: null, brainstorming_output }`
 - `outcome: "error"` 인 경우 → 흐름 종료. 사용자에게 보고하고 멈춘다.
+
+## Anti-patterns
+
+PRD 한정 (`../../harness-contracts/output-contract.ko.md` 의 공통 항목에 추가):
+
+- **엔지니어링 접근 상세 금지.** 라이브러리 선택, 인터페이스 시그니처, 데이터 shape — 그건 TRD/TASKS. PRD 는 변경 후 무엇이 참이 되는지를 말하고, TRD 는 코드에서 무엇이 바뀌는지를 말한다.
 
 ## 엣지 케이스
 
@@ -83,7 +93,7 @@ JSON 객체 하나를 최종 메시지로 emit. 필수 필드:
 
 ## 경계
 
-- `.planning/{session_id}/PRD.md` 만 쓴다. ROADMAP.md, STATE.md 는 건드리지 않는다.
+- 파일 소유권: `../../harness-contracts/file-ownership.ko.md` 참조 (이 스킬 = `PRD.md` 행 — create only; ROADMAP/STATE 는 read-or-skip; 소스 코드는 손대지 않음).
 - 다른 agent/skill 호출 금지. trd-writer·task-writer dispatch 금지 — 위의 '필수 다음 스킬' 섹션이 하류로 디스패치한다.
 - 탐색 중 버그를 발견해도 소스 코드 수정 금지. load-bearing 이면 Open questions 에.
-- 툴 예산: Read/Grep/Glob ~15회. 넘어가면 중단하고 `error` + `reason` 으로 예산 고갈을 기록.
+- Tool 예산: Read/Grep/Glob ~15회 — 범위 위치 파악 ("어디 떨어지고 무엇이 둘러싸는가") 용으로 잡힌 크기이지, 설계-깊이 탐색용이 아니다. TRD 의 ~25 예산이 더 깊은 패스를 위해 존재하므로, TRD 수준 상세가 필요하다 싶으면 그 요청은 prd-trd 경로에 속할 가능성이 크다. ~15 을 넘어가면 중단하고 `error` + `reason` 으로 예산 고갈을 기록.

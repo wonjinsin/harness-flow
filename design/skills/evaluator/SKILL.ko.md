@@ -1,6 +1,6 @@
 ---
 name: evaluator
-description: harness 세션의 executor phase 가 끝났고 doc-updater 직전에 결과를 게이트해야 할 때 사용. 메인 대화 이력이 없는 격리 agent 컨텍스트에서 실행.
+description: parallel-task-executor 가 done 을 emit 한 뒤 실행 — doc-updater 직전 게이트. TASKS.md 의 모든 `[Result]` 가 done 인지 검증하고 (아니면 첫 blocker 의 reason 을 인용해 escalate), (Track 2) 세션 diff 를 `.claude/rules/*.md` 에 대해 LLM 추론으로 판정한다. pass / escalate / error 를 emit; non-pass 는 세션을 종료시킨다 — loopback 없음. 격리된 subagent 에서 실행.
 ---
 
 # Evaluator
@@ -16,7 +16,7 @@ outcome 은 아래 '필수 다음 스킬' 섹션에 따라 라우팅: `pass` →
 
 ## 실행 모드
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (격리 컨텍스트) — `../../harness-contracts/execution-modes.ko.md` 참조.
 
 ## Input payload
 
@@ -73,9 +73,9 @@ Updated: 2026-04-21T14:23:00Z
 - 한 task 에 `[Result]` 블록이 **둘 이상** → `reason: "task-N has duplicate Result blocks — state corruption"`. parallel-task-executor 계약상 task 당 1개 보장; 중복은 corruption.
 - `Status:` 값이 `done|failed|blocked|skipped` 중 하나가 아님 → `reason: "task-N has unknown Status value: <value>"`.
 
-### Step 2 — Executor 완료 pre-check
+### Step 2 — Short-circuit on non-done executor (Track 2 skip)
 
-규칙 건드리기 전에 executor 산출물이 게이트 가능한 상태인지 판단:
+규칙 건드리기 전에 executor 산출물이 게이트 가능한 상태인지 판단한다. 어떤 task 든 `done` 에 도달하지 못했다면 단축하고 Track 2 를 통째로 skip 한다 — 반쯤 구현된 diff 에 규칙 검사를 돌리는 건 노이즈일 뿐이다.
 
 - **`Status: blocked` 어느 하나라도** → `escalate` emit, `reason` 은 첫 blocked task 의 ID + `Reason:` 라인 인용 (예: `"task-4: Acceptance bullet 2 가 bullet 4 와 모순"`). 규칙 안 읽음, Track 2 안 돌음.
 - **`Status: failed` 어느 하나라도** → `escalate` emit, `reason` 은 첫 failed task 의 ID + `Reason:` 인용. Track 2 안 돌음 — 반쯤 구현된 diff 에 규칙 들이대는 건 노이즈.
@@ -90,7 +90,7 @@ Updated: 2026-04-21T14:23:00Z
 
 1. `rules_dir` 바로 아래 `*.md` 파일 나열 (재귀 아님 — 규칙은 프로젝트당 플랫이 컨벤션). 각 파일 읽기. 첫 비공백 라인에 `<!-- evaluator: skip -->` 포함 시 연결된 rules 블록에서 제외.
 2. 설정된 diff 명령 실행 (기본 `git diff HEAD`). 명령 실패 또는 빈 출력 → `{"outcome": "error", "session_id": "...", "reason": "diff command returned <empty|nonzero>: <stderr tail>"}`. evaluator 시점에 diff 가 비어있다는 건 executor 가 파일 하나도 안 바꾸고 `done` 을 주장한 것 — pass 가 아니라 task-writer/executor 버그.
-3. LLM 프롬프트 빌드 (아래 `## Rule validation prompt` 참조). 네 자신의 추론으로 실행 — 네가 LLM 이다.
+3. 규칙 판단 프롬프트 빌드 (아래 `## Rule validation prompt` 참조) 후 네 자신의 추론으로 적용. 별도 모델 호출은 없다 — evaluator 의 바깥쪽 절차 추론과 규칙 판단은 같은 thread 에서 돈다.
 4. 응답 파싱:
    - **첫 비공백 라인** 이 정확히 `PASS` 또는 정확히 `FAIL` 이어야 함. 끝 공백 허용; 그 외는 unparseable.
    - `PASS` → 이후 라인은 진단(위반 아님)으로 취급, 무시. 응답은 pass.
@@ -114,7 +114,7 @@ executor pre-check (Step 2) 와 규칙 결과 (Step 3) 조합:
 
 ## Rule validation prompt
 
-Step 3 의 LLM 판단에 쓰는 구조. 내적 독백으로 취급 — 너는 바깥 스킬과 이 안쪽 체크를 동시에 실행하는 모델:
+Step 3 규칙 판단에 쓰는 구조. 규칙 판단은 이 스킬의 나머지와 같은 추론 thread 에서 실행된다 (별도 모델 호출이 아님); 아래 프롬프트는 내적 독백으로 취급:
 
 ```
 아래 코드 diff 가 나열된 규칙 중 어느 것이라도 위반하는지 판정하라.
@@ -227,19 +227,18 @@ Updated: 2026-04-21T10:05:00Z
 
 ## 필수 다음 스킬
 
-이 스킬이 `outcome: "pass"` 를 emit 할 때:
+이 스킬이 `outcome: "pass"` 를 emit 할 때 (전체 payload 계약: `../../harness-contracts/payload-contract.ko.md` § "evaluator → doc-updater"):
 
 - **필수 하위 스킬:** harness-flow:doc-updater 사용
-  Payload: `{ session_id, tasks_path, diff_command }`
+  Payload: `{ session_id, tasks_path, diff_command? }`
 
 `outcome: "escalate"` 또는 `"error"` 일 때: 플로우 종료. 유저에게 판정 (`reason` 과 규칙 위반 사항 포함) 을 보고하고 멈춘다. 문서 업데이트는 통과한 평가에 게이팅됨 — escalate 시 절대 자동 emit 하지 않는다.
 
 ## Boundaries
 
-- `tasks_path`, `rules_dir/*.md`, `diff_command` 출력 읽음. **어떤 파일도 쓰지 않음** — TASKS.md 도, STATE.md 도, ROADMAP.md 도. 영속화는 메인 스레드 소유.
-- **STATE.md 읽지 않음.** 세션 레벨 retry 가 더 이상 컨셉이 아니므로 `retry_count` 도 참조 안 함.
-- `make check` 나 어떤 쉘 명령도 재실행하지 않음 (단 설정된 `diff_command` 는 예외). Track 1 은 Stop 훅; 이 스킬은 Track 2 전용.
-- 다른 agent 나 skill 호출 안 함. endpoint.
+- 파일 소유권: `../../harness-contracts/file-ownership.ko.md` 참조. Evaluator 는 모든 세션 산출물 (TASKS, STATE, ROADMAP) 에 대해 **read-only** 이고 PRD/TRD 는 참조하지 않는다 — task-writer 가 이미 어휘를 TASKS.md Acceptance 에 박았으므로, evaluator 의 grep 타겟이 거기 있다. evaluator 리턴 시 영속화는 메인 스레드 소유.
+- `tasks_path`, `rules_dir/*.md`, 그리고 `diff_command` 의 출력만 읽는다.
+- 설정된 `diff_command` 외에는 `make check` 나 어떤 쉘 명령도 재실행하지 않음. Track 1 은 Stop 훅; 이 스킬은 Track 2 전용.
+- 다른 agent 나 skill 호출 안 함. 엔드포인트.
 - 위반이 명확해도 소스 코드 수정 안 함. 재-dispatch 없음 — escalate 는 세션을 종료하고, 유저가 원하면 다시 드라이브.
-- PRD.md / TRD.md 직접 참조 안 함. task-writer 가 이미 어휘를 TASKS.md Acceptance 에 박았다; evaluator grep 타겟이 거기 있다. 상류 문서 재열람은 scope 밖이고 drift 부른다.
 - 규칙 판단은 LLM 전용. 유혹되더라도 정규식 룰 엔진 쓰지 말 것 — 규칙 의도에서 조용히 drift 한다.

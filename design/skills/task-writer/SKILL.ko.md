@@ -1,6 +1,6 @@
 ---
 name: task-writer
-description: 격리 subagent 컨텍스트에서 실행 가능한 TASKS 리스트를 작성해야 할 때 사용 — 상류 PRD/TRD 의 유무와 무관.
+description: 실행 직전 마지막 planning 단계로 실행 — trd-writer 뒤 (prd-trd 또는 trd-only 경로), prd-writer 뒤 (prd-only 경로), 또는 brainstorming 직후 (tasks-only 경로). `.planning/{session_id}/TASKS.md` 초안 — executor 의 유일한 진실 원천. 각 task 는 fresh subagent 가 재질의 없이 한 번에 끝낼 수 있는 PR-sized 단위이며, evaluator 가 PRD/TRD 어휘로 grep 하므로 어휘는 verbatim 보존. 격리 subagent 에서 실행.
 ---
 
 # Task Writer
@@ -9,13 +9,13 @@ description: 격리 subagent 컨텍스트에서 실행 가능한 TASKS 리스트
 
 **`TASKS.md`** — executor 의 유일한 진실 원천. 모든 세션은 tier 와 무관하게 여기서 끝난다. `parallel-task-executor` 가 읽고, `evaluator` 가 게이트하며, task 마다 dispatch 되는 subagent 가 PRD/TRD 컨텍스트 대신 자기 task 블록을 받는다.
 
-payload schema, output JSON, error taxonomy, 공통 anti-pattern 은 `references/contract.md` 참조.
+payload schema, output JSON, error taxonomy, 공통 anti-pattern 은 `../../harness-contracts/output-contract.ko.md` 참조.
 
 이 스킬은 `session_id`, `request` (항상 존재), optional `prd_path`, optional `trd_path`, 그리고 optional `brainstorming_output` 을 받는다. `prd_path`, `trd_path`, **그리고** `brainstorming_output` 이 모두 null 이고 `request` 에 actionable verb 가 없으면 `error` emit.
 
-## 실행 모드
+## Execution mode
 
-**Subagent (격리 컨텍스트).** 메인 thread 가 Skill 툴로 SKILL.md 를 로드한 뒤 Task 툴로 별도 dispatch. 서브에이전트는 payload 외 메인 대화 히스토리에 접근 불가.
+Subagent (격리 컨텍스트) — `../../harness-contracts/execution-modes.ko.md` 참조.
 
 ## 왜 이 스킬이 존재하나
 
@@ -61,7 +61,9 @@ Task 1개 = fresh subagent 가 재질의 없이 한 번에 완결할 수 있는 
 
 쪼개기: 공유 context 없는 두 파일; 의존 코드 전에 먼저 들어가야 할 config/migration; 한 커밋 안의 리팩터+동작 변경. 쪼개지 않기: 새 파일과 그 테스트; 함수와 그 단일 caller (서로 명확히 다른 서브시스템 아니면).
 
-3–8 task 가 건강한 범위. 3 미만 = 묶었음; 8 초과 = 과다 분할. 변경 ≤2 파일이면 1 task 가 정답인 경우 많음 — 구조를 억지로 만들지 말 것.
+3–8 task 가 여러 파일·서브시스템을 건드리는 세션의 건강한 범위. 3 미만 = 묶었거나 분해 부족; 8 초과 = 과다 분할.
+
+**예외, 우선 적용**: 전체 변경이 ≤2 파일이면 1 task 가 정답인 경우가 많다 — 구조를 억지로 만들지 말 것. 자연스러운 세분이 없는 1-파일 변경은 task 1 개이지, "task-1: 편집" / "task-2: 테스트 작성" 으로 쪼개면 trivially 직렬화될 뿐이다. 3–8 휴리스틱은 substantial 한 범위를 가정하므로, trivial 한 범위에서는 휴리스틱을 건너뛴다.
 
 ID: `task-1`, `task-2`, ... 위상 순서로. Evaluator 와 executor 는 ID 로 참조; 이름 바꾸면 상태 추적 깨짐.
 
@@ -78,8 +80,6 @@ ID: `task-1`, `task-2`, ... 위상 순서로. Evaluator 와 executor 는 ID 로 
 - **Acceptance bullet 각각은 출처 인용** 괄호로: `(PRD §Acceptance criteria)`, `(TRD §Interfaces & contracts)`, 또는 `(request)`.
 - **Notes 는 비자명한 제약 전용.** 쓸 말 없으면 필드 자체 생략.
 
-Task-writer 한정 anti-pattern (`references/contract.md` 의 공통 항목에 추가): 구현 단계 쓰기 금지 (subagent 가 결정); 관련 없는 surface 묶기 금지; Acceptance bullet 을 여러 task 에 중복 금지 (각 criterion 은 정확히 한 task — TRD Risks 는 예외); Acceptance 에 `(assumed)` 금지 (가정은 Notes 에).
-
 ### Step 5 — 파일 쓰기
 
 `.planning/{session_id}/` 없으면 만들고 `TASKS.md` 작성. 파일이 이미 있으면 `error` emit.
@@ -88,16 +88,29 @@ Self-Review 쓰기 전에 각 체크를 실제로 수행하고, 정직하게 cer
 
 ### Step 6 — Emit
 
-최종 JSON emit. 이게 최종 메시지 전부.
+최종 JSON 을 최종 메시지로 emit. Task-writer 의 `done` 예시 (shape 은 `../../harness-contracts/output-contract.ko.md` 정의):
+
+```json
+{ "outcome": "done", "session_id": "2026-04-19-...", "path": ".planning/2026-04-19-.../TASKS.md" }
+```
 
 ## 필수 다음 스킬
 
-이 스킬이 `outcome: "done"` 을 emit 하면:
+이 스킬이 `outcome: "done"` 을 emit 하면 (전체 payload 계약: `../../harness-contracts/payload-contract.ko.md` § "task-writer → parallel-task-executor"). 경계에서의 명세는 거기서 명시:
 
 - **필수 하위 스킬:** harness-flow:parallel-task-executor 사용
-  Payload: `{ session_id }` — executor 가 `.planning/{session_id}/TASKS.md` 를 직접 읽는다.
+  Payload: `{ session_id }` — executor 가 `.planning/{session_id}/TASKS.md` 를 디스크에서 직접 읽으므로 `path` 는 따로 넘기지 않는다.
 
 `outcome: "error"` 인 경우: 흐름 종료. 사용자에게 보고하고 멈춘다.
+
+## Anti-patterns
+
+Task-writer 한정 (`../../harness-contracts/output-contract.ko.md` 의 공통 항목에 추가):
+
+- **구현 단계 쓰기 금지.** 어떻게 할지는 subagent 가 결정. Task 는 어떤 surface 를 바꾸고 무엇이 acceptance 를 통과시키는지를 말한다.
+- **관련 없는 surface 묶기 금지.** 다른 이유로 다른 파일을 건드리는 두 변경은 두 task.
+- **Task 간 Acceptance bullet 중복 금지.** 각 criterion 은 정확히 한 task 에 산다. TRD Risks 는 문서화된 예외 — Risk 가 여러 task 에 걸치면 영향 받는 각 task 의 Notes 에 반복.
+- **Acceptance 에 `(assumed)` 태그 금지.** 가정 위에서 criterion 을 써야 한다면 그 항목은 Acceptance 가 아니라 Notes 에 — Acceptance 는 executor 와 evaluator 가 작업을 평가하는 기준이다.
 
 ## Edge cases
 
@@ -109,7 +122,7 @@ Self-Review 쓰기 전에 각 체크를 실제로 수행하고, 정직하게 cer
 
 ## Boundaries
 
-- `.planning/{session_id}/TASKS.md` 에만 쓴다. PRD.md, TRD.md, ROADMAP.md, STATE.md 는 건드리지 말 것 — PRD/TRD 는 상류 read-only.
+- 파일 소유권: `../../harness-contracts/file-ownership.ko.md` 참조 (이 스킬 = `TASKS.md` 행 — create only; PRD/TRD 는 상류 read-only; 소스 코드는 손대지 않음). 참고: parallel-task-executor 가 나중에 이 파일에 `[Result]` 블록을 append 하지만, 미리 자리를 만들지 말 것.
 - 다른 agent/skill 호출 금지. Executor dispatch 금지 — 위의 '필수 다음 스킬' 섹션이 하류로 디스패치한다.
 - 탐색 중 버그를 발견해도 소스 코드 수정 금지. load-bearing 이면 Notes 에.
-- Tool 예산: Read/Grep/Glob ~20회. 더 필요하면 중단하고 `error` + `reason` 으로 기록.
+- Tool 예산: Read/Grep/Glob ~20회 — PRD 의 범위 위치 ~15 와 TRD 의 설계-깊이 ~25 사이에 잡힌 크기. Task-writer 는 파일 존재 확인 (Glob) 과 분해 분기점 찾기를 해야 하지만 TRD 의 설계 작업을 다시 하지는 않는다. 더 필요하면 중단하고 `error` + `reason` 으로 기록.

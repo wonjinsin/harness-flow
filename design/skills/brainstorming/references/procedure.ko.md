@@ -92,7 +92,7 @@ Last activity: 2026-04-19 13:44 — brainstorming clarify exit (user-skip); miss
 
 정수 하나 N — 수정 + 신규 파일의 베스트-게스 합계.
 
-Calibration:
+Calibration (각 모양의 완료된 프로젝트들에서 나오는 일반적인 시그널 — 경계가 아니다; 정밀도가 목표가 아닌 이유는 파일 수만으로는 절대 tier 를 결정하지 않고 그저 nudge 하기 때문):
 
 - 오타 / 포맷 / 주석만 → 1
 - 단일 서브시스템 버그 수정 → 1–3

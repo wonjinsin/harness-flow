@@ -35,7 +35,7 @@ task 그래프 위상 정렬. 결과는 **레이어** 시퀀스 — 레이어 N 
 
 **`Files:` 항목에서 경로 추출하는 법**: 백틱 안의 문자열만 취한다. 비교 전에 `:N-M` 라인-범위 suffix 는 제거 (즉 `src/foo.ts:10-20` 과 `src/foo.ts:50-80` 은 둘 다 `src/foo.ts` 로 해석되어 겹침으로 본다 — 두 subagent 가 같은 파일을 심지어 disjoint 라인 범위라도 동시에 편집할 수 없다. 서로의 변경을 보지 못하기 때문). `(also rename to ...)` 같은 괄호 주석은 무시.
 
-**그 다음 concurrency cap 적용**: 파일 겹침 직렬화 후에도 어떤 dispatch 그룹이 5개 초과면 task ID 오름차순으로 ≤5 sub-그룹으로 쪼갠다. sub-그룹은 순차 실행. 이렇게 하면 "dispatch 그룹" 개념이 단일 의미로 유지된다: dispatch 그룹은 항상 파일 겹침 없는 ≤5개 task 집합으로, 한 assistant turn 에 실행된다.
+**그 다음 concurrency cap 적용**: 파일 겹침 직렬화 후에도 어떤 dispatch 그룹이 5개 초과면 task ID 오름차순으로 ≤5 sub-그룹으로 쪼갠다. sub-그룹은 순차 실행. 이렇게 하면 "dispatch 그룹" 개념이 단일 의미로 유지된다: dispatch 그룹은 항상 파일 겹침 없는 ≤5개 task 집합으로, 한 assistant turn 에 실행된다. 왜 5인가: cap 이 더 높으면 부모 assistant turn 이 모든 병렬 리턴을 집계하기 전에 만료될 위험이 있고, 일반적인 task DAG width 를 넘어서면 병렬화 효과도 체감된다.
 
 결과는 **dispatch 그룹** 의 순서 있는 리스트 — 그룹은 순차 실행; 그룹 내 모든 Task 호출은 같은 assistant turn 에 들어간다.
 
