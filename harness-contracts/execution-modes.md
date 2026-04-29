@@ -4,9 +4,9 @@ Single source of truth for the two execution modes a harness skill can declare. 
 
 ## Subagent (isolated context)
 
-The main thread loads the skill via the Skill tool, then dispatches a fresh subagent via the Task tool with the skill's procedure as the prompt. **The subagent has no access to the main conversation history** — its entire input is the payload it was dispatched with (plus any upstream files the payload cites).
+The main thread loads the skill via the Skill tool, then dispatches a fresh subagent via the Task tool with the skill's procedure as the prompt. **The subagent has no access to the main conversation history** — its entire input is the dispatch prompt it was dispatched with (plus any upstream files the prompt cites).
 
-Why isolation: writers and gatekeepers spend a lot of context on code reading and rule reasoning. Letting that pollute the main thread would crowd out the user-facing conversation. The trade-off is that the skill cannot recover from a thin payload by recalling earlier turns — the payload must be self-sufficient or the skill must investigate via Read/Grep/Glob.
+Why isolation: writers and gatekeepers spend a lot of context on code reading and rule reasoning. Letting that pollute the main thread would crowd out the user-facing conversation. The trade-off is that the skill cannot recover from a thin dispatch prompt by recalling earlier turns — the prompt must be self-sufficient or the skill must investigate via Read/Grep/Glob.
 
 Skills that declare this mode: `prd-writer`, `trd-writer`, `task-writer`, `evaluator`, `doc-updater`.
 

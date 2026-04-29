@@ -8,6 +8,7 @@
 |---|---|---|---|
 | `ROADMAP.md` | `router` (빈 스켈레톤, Step 4) | `brainstorming` (Complexity 라인, brainstorming 행), `parallel-task-executor` (phase 마무리, Step 7) | `trd-writer`, `task-writer`, `evaluator` |
 | `STATE.md` | `router` (빈 스켈레톤, Step 4) | `brainstorming` (Current Position, Last activity), `parallel-task-executor` (resume 상태), 메인 thread (`escalated`, `last_eval`, `last_eval_at`, `last_eval_excerpt` — evaluator 리턴 시) | `evaluator` *(STATE.md 를 읽지 않음)* |
+| `brainstorming.md` | `brainstorming` (Phase B7, Gate 1 승인 후) | — (추가 쓰기 없음; 재생성은 삭제 후 재디스패치) | `prd-writer`, `trd-writer`, `task-writer` |
 | `PRD.md` | `prd-writer` | — (추가 쓰기 없음; 재생성은 삭제 후 재디스패치) | `trd-writer`, `task-writer` |
 | `TRD.md` | `trd-writer` | — | `task-writer` |
 | `TASKS.md` | `task-writer` | `parallel-task-executor` (task 별 `[Result]` 블록만; 본문 절대 손대지 않음) | `evaluator`, `doc-updater` |

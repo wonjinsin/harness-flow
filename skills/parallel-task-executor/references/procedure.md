@@ -4,15 +4,15 @@ The full Steps 1-7 body for `parallel-task-executor`. Each step is anchored so S
 
 ## Step 1 — Load and validate TASKS.md
 
-Read `TASKS.md` in full. If the file is missing, halt: `{"outcome": "error", "session_id": "...", "reason": "TASKS.md not found at .planning/{session_id}/TASKS.md"}` (task-writer did not emit its artifact).
+Read `TASKS.md` in full. If the file is missing, halt with the terminal message `## Status: error` + `## Reason: TASKS.md not found at .planning/{session_id}/TASKS.md` (task-writer did not emit its artifact).
 
 Extract every `task-N` entry with its `Depends:`, `Files:`, and `Acceptance:` blocks. Also note the `## Goal` and `## Architecture` sections — these do not go into subagent prompts (too broad), but they help you reason about whether a subagent's return is plausible.
 
 **Environment checks** (infrastructure — failures here emit `error`):
 
-- Verify `{executor-skill-path}/references/test-driven-development.md` exists. If not, halt: `{"outcome": "error", "session_id": "...", "reason": "TDD reference file missing at <path>"}`. Subagents cannot complete tasks without it.
+- Verify `{executor-skill-path}/references/test-driven-development.md` exists. If not, halt with `## Status: error` + `## Reason: TDD reference file missing at <path>`. Subagents cannot complete tasks without it.
 
-**TASKS.md shape validation** (task-writer's artifact is wrong — failures here emit `blocked`; task-level reasons are written into TASKS.md `[Result]` blocks, not the final JSON):
+**TASKS.md shape validation** (task-writer's artifact is wrong — failures here emit `## Status: blocked`; task-level reasons are written into TASKS.md `[Result]` blocks, not the final terminal message):
 
 - **Empty TASKS.md** (zero `task-N` entries): emit `error` with `reason: "TASKS.md contains no tasks"` — no tasks to mark.
 - **Cycle in `Depends:` graph**: mark all cycle members as `[Result: blocked, reason: "cycle: task-A → task-B → task-A"]`, then proceed (nothing dispatches).
@@ -69,7 +69,7 @@ Parse the `[Result]` block from each return. Four terminal states are possible:
 
 - **done**: `status: done` and every Acceptance bullet appears in `evidence` with a verification method. Mark `[Result: done]` with the summary.
 - **blocked**: `status: blocked` OR `status: done` but evidence is missing/vague OR the subagent asked a clarifying question OR **the `[Result]` block is missing / malformed / contains an unrecognized status value**. The task description (or the subagent's protocol adherence) is wrong — retry will not help. Mark `[Result: blocked, reason: <blockers text or "malformed Result block">]` and do not re-dispatch automatically.
-- **failed**: `status: failed` OR a per-task Task-tool error (subagent started but could not complete cleanly — timeout, context-limit exceeded, subagent crash mid-run). Mark `[Result: failed, attempt: N, reason: …]` and apply the retry policy below. **Distinct from infrastructure errors** — if the Task tool itself cannot dispatch (invalid `subagent_type`, filesystem denied, framework-level error wrapper in place of a subagent return), halt the entire run with `{"outcome": "error", "session_id": "...", "reason": "..."}` and do not mark individual tasks.
+- **failed**: `status: failed` OR a per-task Task-tool error (subagent started but could not complete cleanly — timeout, context-limit exceeded, subagent crash mid-run). Mark `[Result: failed, attempt: N, reason: …]` and apply the retry policy below. **Distinct from infrastructure errors** — if the Task tool itself cannot dispatch (invalid `subagent_type`, filesystem denied, framework-level error wrapper in place of a subagent return), halt the entire run with `## Status: error` + `## Reason: ...` and do not mark individual tasks.
 - **skipped**: assigned (not returned) when a task's dependency terminated as `blocked` or `failed`. Set in Step 3 without dispatching. Mark `[Result: skipped, reason: depends on task-N which {blocked|failed}]`. No retry, no evidence field.
 
 **Retry policy for FAILED** (not BLOCKED, not skipped):

@@ -19,7 +19,7 @@ Additional dialogue patterns referenced from `SKILL.md`. The trd-only auth-refac
 > User: "ok"
 > Brainstorming: "Recommend **prd-only** (PRD → Tasks). Estimated 3 files (greenfield), no security signals. Proceed?"
 > User: "네"
-> Brainstorming: [commits, emits `{"outcome": "prd-only", ..., "exploration_findings": {...}}`]
+> Brainstorming: [updates ROADMAP/STATE, writes `.planning/{id}/brainstorming.md`, ends with `## Status: prd-only` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to prd-writer."]
 
 ## Good — intake path with A1.6 grounded refinement
 
@@ -34,17 +34,17 @@ Additional dialogue patterns referenced from `SKILL.md`. The trd-only auth-refac
 > User: "ok"
 > Brainstorming: "Recommend **prd-only** (PRD → Tasks). Estimated 4 files. Proceed?"
 > User: "yes"
-> Brainstorming: [commits, emits `{"outcome": "prd-only", ..., "exploration_findings": {...}}`]
+> Brainstorming: [updates ROADMAP/STATE, writes `.planning/{id}/brainstorming.md`, ends with `## Status: prd-only` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to prd-writer."]
 >
 > Note how A1.6 turned a vague "rate limiter 손봐주세요" into a question grounded in actual call sites. Without the peek, brainstorming would have asked "어디까지 영향이 가나요?" — which the user can't precisely answer without rereading the codebase themselves.
 
 ## Good — plan path (skip Phase A), signal promotion to prd-trd
 
-> Router output: `{outcome: "plan", request: "add 2FA to login", session_id: "..."}`
+> Router terminal: `## Status: plan` + `## Session: {id}` (request "add 2FA to login")
 > Brainstorming: [skips Phase A; B1 hits `auth/` + `keyword:login`]
 > Brainstorming: "Recommend **prd-trd** (PRD → TRD → Tasks). Estimated 4 files, touches `auth/` (security-sensitive). Proceed?"
 > User: "yeah"
-> Brainstorming: [commits, emits `{"outcome": "prd-trd", ...}`]
+> Brainstorming: [updates ROADMAP/STATE, writes `.planning/{id}/brainstorming.md`, ends with `## Status: prd-trd` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to prd-writer."]
 
 ## Good — tasks-only self-check fails, demoted to prd-only
 
@@ -57,7 +57,7 @@ Additional dialogue patterns referenced from `SKILL.md`. The trd-only auth-refac
 > Brainstorming: "Recommend prd-only …"
 > User: "Nah, just tasks-only, it's one line"
 > Brainstorming: "Got it — tasks-only, user override. Skipping design. Proceeding to task-writer."
-> [commits with `user_overrode: true`]
+> [updates ROADMAP/STATE with `user_overrode: true`, writes `.planning/{id}/brainstorming.md`, ends with `## Status: tasks-only` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to task-writer."]
 
 ## Good — catching multi-project scope before drilling into fields
 

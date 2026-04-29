@@ -1,6 +1,6 @@
 # Rendered TASKS.md example (PRD + TRD both present)
 
-Given the session from trd-writer's example (`2026-04-19-add-2fa-login`) with payload `{prd_path: ".planning/2026-04-19-add-2fa-login/PRD.md", trd_path: ".planning/2026-04-19-add-2fa-login/TRD.md"}`:
+Given the session from trd-writer's example (`2026-04-19-add-2fa-login`) with `.planning/2026-04-19-add-2fa-login/PRD.md` and `.planning/2026-04-19-add-2fa-login/TRD.md` already present:
 
 ````markdown
 # TASKS — Add 2FA to login page

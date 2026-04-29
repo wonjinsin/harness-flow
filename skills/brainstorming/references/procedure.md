@@ -4,9 +4,11 @@ The complete Q&A protocol referenced from `SKILL.md`. Step 0 → Phase A (A1–A
 
 ## Step 0 — Resume short-circuit
 
-If `resume: true`, read `.planning/{session_id}/ROADMAP.md`. If it contains a `Complexity: X` line (X ∈ prd-trd / prd-only / trd-only / tasks-only) **and** the `brainstorming` phase is `[x]`, do **not** re-intake. Emit a route payload that points downstream to the next incomplete phase (the main thread follows the "Required next skill" markers from there) and end. Rationale: re-asking the user "which route?" when they already decided it last session wastes a turn and erodes trust.
+If `resume: true`, check `.planning/{session_id}/brainstorming.md` first. If the file exists and contains `user approved: yes` under `## Recommendation`, do **not** re-intake — read the route off the file's `## Recommendation` block, end the turn with the standard route terminal message (`## Status: {route}` + `## Path: .planning/{session_id}/brainstorming.md` + "Proceeding to {next-skill}."). Main thread dispatches the writer for the next incomplete phase per the "Required next skill" markers. Rationale: re-asking the user "which route?" when they already decided it last session wastes a turn and erodes trust.
 
-If `resume: true` but classification is missing (e.g., session was interrupted mid-Gate-1), proceed normally — skip Phase A (router only picks `resume` when prior signal is sufficient) and start Phase B.
+Fallback: if `brainstorming.md` is missing but `.planning/{session_id}/ROADMAP.md` contains a `Complexity: X` line (X ∈ prd-trd / prd-only / trd-only / tasks-only) **and** the `brainstorming` phase is `[x]`, treat the session as approved at that route, write `brainstorming.md` from the available state (use `- (skipped — resumed without prior file)` for `## A1.6 findings`), and emit the route terminal message. This covers sessions started before the file-based handoff existed.
+
+If `resume: true` but classification is missing entirely (e.g., session was interrupted mid-Gate-1), proceed normally — skip Phase A (router only picks `resume` when prior signal is sufficient) and start Phase B.
 
 ## Phase A — Clarify (only when `route == "clarify"`)
 
@@ -22,7 +24,7 @@ Before asking anything, do both in order:
 
 > "This looks like several distinct sub-projects: {list}. One session should own one coherent piece. Which one do you want to start with? The others can be separate sessions."
 
-If the user picks one, update `request` in the payload to describe just that sub-project and proceed. The other sub-projects become future sessions — router will fire fresh on each one.
+If the user picks one, treat the chosen sub-project as the working `request` (it lands under `## Request` in `brainstorming.md` at B7) and proceed. The other sub-projects become future sessions — router will fire fresh on each one.
 
 If the user insists on tackling all of it as one session, proceed but record `constraints: ["deliberately-wide-scope"]` so Phase B leans toward `prd-trd`.
 
@@ -67,8 +69,8 @@ Stuck after ~3 rounds without convergence:
 
 Early exit and pivot apply identically:
 
-- "그냥 시작해줘" / "skip" / "you decide" → A3 (early exit). Jump to Phase B with whatever fields are filled (likely thin payload — log in STATE).
-- User pivots to an unrelated topic → emit `pivot` payload, end skill (router fires next turn).
+- "그냥 시작해줘" / "skip" / "you decide" → A3 (early exit). Jump to Phase B with whatever fields are filled (thin `## Brainstorming output` — log in STATE).
+- User pivots to an unrelated topic → end with the `pivot` terminal block (no file written), router fires next turn.
 
 Boundary that keeps explore safe in this skill (crossing the line erodes the brainstorming → writer separation):
 
@@ -80,7 +82,7 @@ Boundary that keeps explore safe in this skill (crossing the line erodes the bra
 
 ### A1.6 — Scoped codebase peek
 
-Run once intent + target are pinned. Skip only when the request has no resolvable target (pure UX decision, brand-new external integration with no local analog) — proceed straight to A2 with `exploration_findings: null`.
+Run once intent + target are pinned. Skip only when the request has no resolvable target (pure UX decision, brand-new external integration with no local analog) — proceed straight to A2; at B7 the `## A1.6 findings` section in `brainstorming.md` carries the body `- (skipped — no resolvable target)`.
 
 **Tool budget: ~10 Read/Grep/Glob calls.** Peek, not design pass. Stop the moment the question is answered.
 
@@ -95,21 +97,20 @@ Typical spend: 1–2 Glob/Grep to locate, 2–4 Read on target + immediate deps 
 
 This step is **not** for designing the solution, counting LOC, proposing implementation choices, or modifying files — see SKILL.md "Out of scope" for the full boundary.
 
-Output: draft `exploration_findings` held in working memory, finalised at B7, emitted in the route payload:
+Output: draft A1.6 findings held in working memory, finalised at B7, written into the `## A1.6 findings` section of `.planning/{session_id}/brainstorming.md`:
 
-```json
-{
-  "files_visited": ["src/auth/session.ts:42-78", "src/auth/middleware.ts"],
-  "key_findings": [
-    "issueSession() in src/auth/session.ts:42 — currently issues without TOTP check",
-    "middleware.ts:18 reads Bearer token only — no MFA hook"
-  ],
-  "code_signals": ["auth/", "schema:session"],
-  "open_questions": ["Should refresh tokens be revoked on TOTP enable?"]
-}
+```markdown
+## A1.6 findings
+- files visited: src/auth/session.ts:42-78, src/auth/middleware.ts
+- key findings:
+  - issueSession() in src/auth/session.ts:42 — currently issues without TOTP check
+  - middleware.ts:18 reads Bearer token only — no MFA hook
+- code signals: auth/, schema:session
+- open questions:
+  - Should refresh tokens be revoked on TOTP enable?
 ```
 
-`code_signals` lists path patterns AND concept-level signals (auth/login/schema/migration/config/dependency) the code visibly involves. `open_questions` here = things the **user** should answer in A2 or Gate 1 — distinct from PRD/TRD/TASKS Open questions (those are for human review of the written doc).
+`code signals` lists path patterns AND concept-level signals (auth/login/schema/migration/config/dependency) the code visibly involves. `open questions` here = things the **user** should answer in A2 or Gate 1 — distinct from PRD/TRD/TASKS Open questions (those are for human review of the written doc).
 
 After A1.6, transition to A2.
 
@@ -117,7 +118,7 @@ After A1.6, transition to A2.
 
 **Reference A1.6 findings when relevant.** Questions land better when grounded in concrete code: instead of "what's the scope?", ask "I see `issueSession` is called from `login.ts`, `oauth.ts`, and `refresh.ts` — does this change need to update all three or just login?" The user can correct your reading of the code in the same turn that they answer the field. Findings also let you skip questions whose answers are now visible (e.g., don't ask "single-file or subsystem?" when A1.6 already shows three callers).
 
-Promote `exploration_findings.open_questions` items to A2 questions when they are blocking — the user is the cheapest place to resolve them.
+Promote A1.6 open-question items to A2 questions when they are blocking — the user is the cheapest place to resolve them.
 
 Priority order — **first unfilled field wins, but only after re-running A1(a) on the latest answer.** A single user reply often fills multiple fields at once (e.g., "refactor session handling for clarity" fills intent + target + partial scope). After every user turn, re-extract from the whole conversation before choosing the next question. Don't walk the list top-to-bottom blindly.
 
@@ -137,13 +138,13 @@ Rules:
 
 ### A3 — Early exit
 
-If the user says anything like "just start", "go ahead", "skip it", "whatever, you decide" — stop asking immediately and proceed to Phase B with whatever is filled. Record skipped fields in `STATE.md` under `Last activity` so downstream knows the payload is thin:
+If the user says anything like "just start", "go ahead", "skip it", "whatever, you decide" — stop asking immediately and proceed to Phase B with whatever is filled. Record skipped fields in `STATE.md` under `Last activity` so downstream knows `brainstorming.md` will be thin:
 
 ```
 Last activity: 2026-04-19 13:44 — brainstorming clarify exit (user-skip); missing: acceptance
 ```
 
-Thin payload is not a failure — it is a user signal that they want velocity over precision. Phase B and writers handle thin payloads by asking their own narrow questions at the moment the missing info becomes blocking.
+A thin file is not a failure — it is a user signal that they want velocity over precision. Phase B and writers handle thin `## Brainstorming output` sections by asking their own narrow questions at the moment the missing info becomes blocking.
 
 ### A4 — Confirm, then proceed
 
@@ -155,7 +156,7 @@ The confirmation is its own message — do not bundle the route recommendation w
 
 - Accept ("yes", "looks good", silence/no correction) → proceed to Phase B (start at B1).
 - Correct a field → loop back to A2 for *that field only* and re-confirm. Revising ≠ restarting; do not re-ask fields they already answered correctly.
-- Pivot or reveal it was a question → emit `pivot` / `exit-casual` payload (see Edge cases) and end.
+- Pivot or reveal it was a question → end with the `pivot` / `exit-casual` terminal block (see Edge cases); no file written.
 
 ## Phase B — Classify + Gate 1
 
@@ -163,7 +164,7 @@ The confirmation is its own message — do not bundle the route recommendation w
 
 Three kinds of signals:
 
-**(a) Path signals — literal, language-agnostic.** Scan `request`, `target`, `constraints`, and `exploration_findings.code_signals` for these file-path patterns:
+**(a) Path signals — literal, language-agnostic.** Scan `request`, `target`, `constraints`, and the A1.6 `code signals` (held in working memory pre-B7) for these file-path patterns:
 
 - `auth/`, `security/` — authentication/authorization
 - `schema.*`, `*/schema/` — DB or API schemas
@@ -179,7 +180,7 @@ Paths are filesystem literals — match them the same in any language. Record hi
 
 ### B2 — File-count estimate
 
-Single integer N — best-guess modified + newly created files. When `exploration_findings.files_visited` is non-empty, use as floor; extrapolate for callers/tests not yet visited.
+Single integer N — best-guess modified + newly created files. When A1.6 visited any files, use that count as floor; extrapolate for callers/tests not yet visited.
 
 Calibration (rough — file count alone never decides tier, only nudges):
 
@@ -227,7 +228,7 @@ Examples:
 - `"Recommend prd-trd (PRD → TRD → Tasks). Estimated 4 files, touches auth/ (security-sensitive). Proceed?"`
 - `"Recommend tasks-only. Typo fix, 1 file, no signals. Skip design and go straight to tasks?"`
 
-Standalone message — don't bundle output JSON. Offer MC implicitly (accept / change route / adjust file count). Wait for next turn.
+Standalone message — don't bundle the terminal status block. Offer MC implicitly (accept / change route / adjust file count). Wait for next turn.
 
 ### B6 — Handle the response (next user turn)
 
@@ -236,11 +237,11 @@ Classify into one of four:
 - **Accept** ("yes", "proceed", silence) → B7, `user_overrode: false`.
 - **Route override** ("make it prd-trd") → B7 with user's route, `user_overrode: true`. Don't argue.
 - **File-count override** ("more like 10 files") → re-run B3 with new N, loop back to B5 **once only**. Second change uses the value without another recomputation.
-- **Pivot or casual** — emit `{"outcome": "pivot", ...}` ("This looks like a new request; stepping back to routing.") or `{"outcome": "exit-casual", ...}` (was a question, not work). Do NOT update ROADMAP/STATE on pivot.
+- **Pivot or casual** — end with the pivot / exit-casual terminal block (`## Status: pivot|exit-casual` + `## Reason: …`); no `brainstorming.md` written. "This looks like a new request; stepping back to routing." vs "Was a question, not work." Do NOT update ROADMAP/STATE on pivot.
 
 Do **not** re-ask `intent` / `target` / `scope_hint` here — Phase A's job. Missing and load-bearing → pick conservative route (prd-only for add-like, trd-only for refactor-like); writer surfaces gaps later.
 
-### B7 — Commit + emit (route outcome path only)
+### B7 — Commit + write file + emit terminal message (route outcome path only)
 
 On acceptance (including override):
 
@@ -250,4 +251,49 @@ On acceptance (including override):
 2. **Update `STATE.md`**:
    - `Current Position: {next phase — the route name implies the writer}`
    - `Last activity: {ISO timestamp} — classified as {route}{, user-overrode if applicable}`
-3. **Emit the route payload** as the final message — `outcome` is the route name (`prd-trd` / `prd-only` / `trd-only` / `tasks-only` / `pivot` / `exit-casual`). Include `exploration_findings` in the payload if A1.6 ran (`null` otherwise). The main thread reads SKILL.md's "Required next skill" section to dispatch the correct writer.
+3. **Write `.planning/{session_id}/brainstorming.md`** to disk with the mandatory structure (see SKILL.md "Terminal message" or `../../harness-contracts/output-contract.md`):
+
+   ```markdown
+   # Brainstorming — {session_id}
+
+   ## Request
+   "{user's verbatim request}"
+
+   ## A1.6 findings
+   - files visited: {file:line, ...}
+   - key findings:
+     - {finding 1}
+     - {finding 2}
+   - code signals: {signal-1, signal-2}
+   - open questions:
+     - {question 1}
+
+   ## Brainstorming output
+   - intent: {add|fix|refactor|migrate|remove|other}
+   - target: {short phrase}
+   - scope: {single-file|subsystem|multi-system}
+   - constraints:
+     - {constraint 1}
+   - acceptance: {one sentence}
+
+   ## Recommendation
+   - route: {prd-trd|prd-only|trd-only|tasks-only}
+   - estimated files: {N}
+   - user approved: yes
+   ```
+
+   When A1.6 was skipped, the body of `## A1.6 findings` is the single line `- (skipped — no resolvable target)`. `user approved: yes` is mandatory — the file is written only after Gate 1 acceptance in B6.
+
+4. **End the turn** with the route terminal message:
+
+   ```markdown
+   ## Status
+   {prd-trd|prd-only|trd-only|tasks-only}
+
+   ## Path
+   .planning/{session_id}/brainstorming.md
+
+   Proceeding to {next-skill}.
+   ```
+
+   The main thread reads `## Status` to dispatch per SKILL.md's "Required next skill" table; the writer reads `brainstorming.md` from disk.

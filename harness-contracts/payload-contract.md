@@ -1,6 +1,11 @@
 # Harness payload contract
 
-Single source of truth for what flows between skills. Each skill emits its own JSON status (defined in that skill's `SKILL.md`); the **main thread** constructs the downstream skill's payload by combining the emission with session-wide context fields. This file documents every edge so all three sources of truth (skill emissions, "Required next skill" sections, main-thread dispatch logic) can be checked against one place.
+Single source of truth for what flows between skills. The harness uses a two-tier model:
+
+- **Planning artifacts** flow through **files** in `.planning/{session_id}/`. Downstream writers Read upstream files via the Read tool; dispatch prompts shrink to bare-minimum context (session_id, request, paths to read).
+- **Execution status** flows through **markdown in the conversation**. Each skill's terminal message uses standard section headers (`## Status`, `## Path`, `## Reason`, …) so the main thread can decide what to dispatch next without parsing prose.
+
+This file documents every edge so all three sources of truth (skill terminal messages, "Required next skill" sections, main-thread dispatch logic) can be checked against one place.
 
 ## Node graph
 
@@ -34,136 +39,149 @@ Single source of truth for what flows between skills. Each skill emits its own J
               END
 ```
 
-Non-pass terminals: `router → casual` (no JSON, inline reply), `brainstorming → pivot|exit-casual`, `*-writer → error`, `executor → blocked|failed|error`, `evaluator → escalate|error`. Each ends the session — main thread reports to the user and stops.
+Non-pass terminals: `router → casual` (plain prose, no markdown headers), `brainstorming → pivot|exit-casual`, `*-writer → error`, `executor → blocked|failed|error`, `evaluator → escalate|error`. Each ends the session — main thread reports to the user and stops.
 
-## Session-wide fields
+## Planning artifacts
 
-The main thread carries these forward across the chain. They are not part of any single skill's emission.
+The handoff between skills is anchored by files. Each downstream writer reads upstream files directly; the dispatch prompt only names the session and which files to consult.
 
-| Field | Source | Lifetime |
+| File | Owner | Read by |
 |---|---|---|
-| `session_id` | router (Step 3) | Whole session |
-| `request` | user's original turn, captured at router | Whole session |
-| `brainstorming_output` | brainstorming emission `brainstorming_output` | From brainstorming onward |
-| `brainstorming_outcome` | brainstorming emission `outcome` (`prd-trd`/`prd-only`/`trd-only`/`tasks-only`) | From brainstorming onward |
-| `exploration_findings` | brainstorming emission `exploration_findings` | From brainstorming onward |
+| `.planning/{session_id}/brainstorming.md` | `brainstorming` (Phase B7, after Gate 1 approval) | `prd-writer`, `trd-writer`, `task-writer` |
+| `.planning/{session_id}/PRD.md` | `prd-writer` | `trd-writer`, `task-writer` |
+| `.planning/{session_id}/TRD.md` | `trd-writer` | `task-writer` |
+| `.planning/{session_id}/TASKS.md` | `task-writer` | `parallel-task-executor`, `evaluator`, `doc-updater` |
 
-`exploration_findings` shape — emitted by brainstorming after its scoped codebase peek, then carried forward into every writer's payload so writers can verify rather than re-explore:
+`brainstorming.md` carries forward what used to live in dispatch payloads as session-wide fields. Its mandatory sections — `## Request`, `## A1.6 findings`, `## Brainstorming output`, `## Recommendation` — give writers the verbatim request, the verify-first exploration ground, the intent/target/scope/constraints/acceptance, and the route. Writers treat every section as authoritative.
 
-```json
-{
-  "files_visited": ["src/auth/session.ts:42", "src/auth/middleware.ts"],
-  "key_findings": [
-    "issueSession() in src/auth/session.ts currently issues without TOTP check",
-    "middleware reads Bearer token only — no MFA hook"
-  ],
-  "code_signals": ["auth/", "schema:session"],
-  "open_questions": ["Should refresh tokens be revoked on TOTP enable?"]
-}
-```
+If brainstorming's scoped codebase peek did not run (router routed `plan` directly with no resolvable target), the `## A1.6 findings` body is `- (skipped — no resolvable target)`. Writers see the explicit "skipped" marker and switch to full-mode exploration.
 
-May be `null` when brainstorming was skipped (router routed `plan` directly with no Q&A) or when the request had no resolvable target. Writers fall back to their own (smaller) Step 2 budget when null.
+## Per-edge handoff
 
-## Per-edge payloads
-
-Each entry: **emission** (what the upstream skill writes) → **payload** (what the main thread sends downstream). Renames and additions are called out explicitly so drift is detectable.
+Each entry: **trigger** (what the upstream skill's terminal message looks like) → **dispatch prompt** (what the main thread sends downstream).
 
 ### router → brainstorming
 
-- Trigger: emission `outcome ∈ {clarify, plan, resume}`. (`casual` ends inline; no downstream.)
-- Emission: `{ outcome, session_id }`.
-- Payload: `{ session_id, request, route, resume? }`.
-  - `route` = emission `outcome`. Renamed because `brainstorming` uses `route` semantically (the requested intake mode), reserving `outcome` for its own emission.
-  - `resume` = `true` iff emission `outcome == "resume"`; absent otherwise.
-  - `request` = the user's verbatim turn (session-wide).
+- Trigger: `router` ends with `## Status: clarify | plan | resume`. (`casual` ends inline; no downstream.)
+- Dispatch:
+  ```
+  Skill(brainstorming, args: "session_id={id} request={text} route={status} resume={true|false}")
+  ```
+- `route` carries the router's terminal status name. `resume=true` only when status is `resume`.
+- brainstorming runs in main context (Skill, not Task).
 
 ### brainstorming → prd-writer
 
-- Trigger: emission `outcome ∈ {prd-trd, prd-only}` AND Gate 2 user approval (see "User review gates" below).
-- Emission: `{ outcome, session_id, request, brainstorming_output, exploration_findings }`.
-- Payload: `{ session_id, request, brainstorming_outcome, brainstorming_output, exploration_findings }`.
-  - `brainstorming_outcome` = emission `outcome`. Renamed so prd-writer's own `outcome` field can carry its terminal status without collision.
+- Trigger: `.planning/{session_id}/brainstorming.md` exists with `## Recommendation` route `prd-trd` or `prd-only`. Gate 1 approval is already absorbed inside brainstorming Phase B6 before B7 writes the file.
+- Dispatch:
+  ```
+  Task(prd-writer, prompt: "Draft PRD for session {id}. Read .planning/{id}/brainstorming.md as authoritative ground.")
+  ```
 
-### brainstorming → trd-writer
+### brainstorming → trd-writer (trd-only route)
 
-- Trigger: emission `outcome == "trd-only"` AND Gate 2 user approval.
-- Emission: same shape as above.
-- Payload: `{ session_id, request, brainstorming_outcome: "trd-only", brainstorming_output, exploration_findings, prd_path: null }`.
+- Trigger: `## Recommendation` route is `trd-only`.
+- Dispatch:
+  ```
+  Task(trd-writer, prompt: "Draft TRD for session {id}. Read .planning/{id}/brainstorming.md. No PRD will exist for this route.")
+  ```
 
-### brainstorming → task-writer
+### brainstorming → task-writer (tasks-only route)
 
-- Trigger: emission `outcome == "tasks-only"` AND Gate 2 user approval.
-- Emission: same shape as above.
-- Payload: `{ session_id, request, brainstorming_output, exploration_findings, prd_path: null, trd_path: null }`.
+- Trigger: `## Recommendation` route is `tasks-only`.
+- Dispatch:
+  ```
+  Task(task-writer, prompt: "Draft TASKS for session {id}. Read .planning/{id}/brainstorming.md. No PRD or TRD will exist for this route.")
+  ```
 
-### prd-writer → trd-writer
+### prd-writer → trd-writer (prd-trd route, after Gate 2 approve)
 
-- Trigger: prd-writer emission `outcome: "done"` AND `brainstorming_outcome: "prd-trd"` AND Gate 2 user approval.
-- Emission: `{ outcome, session_id, brainstorming_outcome, path }`.
-- Payload: `{ session_id, request, prd_path, brainstorming_outcome: "prd-trd", brainstorming_output, exploration_findings }`.
-  - `prd_path` = emission `path` (rename: the writer reports its written file; downstream consumes it as the upstream PRD).
+- Trigger: prd-writer ends with `## Status: done` and brainstorming.md route is `prd-trd`.
+- Dispatch:
+  ```
+  Task(trd-writer, prompt: "Draft TRD for session {id}. Read .planning/{id}/brainstorming.md and .planning/{id}/PRD.md.")
+  ```
 
-### prd-writer → task-writer
+### prd-writer → task-writer (prd-only route, after Gate 2 approve)
 
-- Trigger: prd-writer emission `outcome: "done"` AND `brainstorming_outcome: "prd-only"` AND Gate 2 user approval.
-- Emission: same as above.
-- Payload: `{ session_id, request, prd_path, trd_path: null, brainstorming_output, exploration_findings }`.
+- Trigger: prd-writer ends with `## Status: done` and brainstorming.md route is `prd-only`.
+- Dispatch:
+  ```
+  Task(task-writer, prompt: "Draft TASKS for session {id}. Read .planning/{id}/brainstorming.md and .planning/{id}/PRD.md. No TRD for this route.")
+  ```
 
-### trd-writer → task-writer
+### trd-writer → task-writer (after Gate 2 approve)
 
-- Trigger: trd-writer emission `outcome: "done"` AND Gate 2 user approval.
-- Emission: `{ outcome, session_id, path }`.
-- Payload: `{ session_id, request, prd_path, trd_path, brainstorming_output, exploration_findings }`.
-  - `trd_path` = emission `path`. `prd_path` is whatever the trd-writer received (may be `null` for trd-only routes).
+- Trigger: trd-writer ends with `## Status: done`.
+- Dispatch:
+  ```
+  Task(task-writer, prompt: "Draft TASKS for session {id}. Read .planning/{id}/brainstorming.md, .planning/{id}/PRD.md (if exists), and .planning/{id}/TRD.md.")
+  ```
 
-### task-writer → parallel-task-executor
+Writers should always check for `PRD.md` existence on disk rather than rely on the dispatch prompt. The `## Recommendation` route in `brainstorming.md` disambiguates.
 
-- Trigger: task-writer emission `outcome: "done"` AND Gate 2 user approval.
-- Emission: `{ outcome, session_id, path }`.
-- Payload: `{ session_id }`.
-  - The executor reads `.planning/{session_id}/TASKS.md` from disk; it does not need `path` in the payload.
+### task-writer → parallel-task-executor (after Gate 2 approve)
+
+- Trigger: task-writer ends with `## Status: done`.
+- Dispatch:
+  ```
+  Skill(parallel-task-executor, args: "session_id={id}")
+  ```
+- parallel-task-executor runs in main context (Skill, not Task). It reads `.planning/{session_id}/TASKS.md` from disk.
 
 ### parallel-task-executor → evaluator
 
-- Trigger: executor emission `outcome: "done"`. (`blocked`/`failed`/`error` terminate.)
-- Emission: `{ outcome, session_id }`.
-- Payload: `{ session_id, tasks_path, rules_dir?, diff_command? }`.
-  - `tasks_path` = `.planning/{session_id}/TASKS.md` (deterministic; main thread constructs).
-  - `rules_dir`, `diff_command` come from main-thread configuration; both are optional.
+- Trigger: executor ends with `## Status: done`. (`blocked` / `failed` / `error` terminate the session.)
+- Dispatch:
+  ```
+  Task(evaluator, prompt: "Evaluate session {id}. Read .planning/{id}/TASKS.md and the diff.")
+  ```
 
 ### evaluator → doc-updater
 
-- Trigger: evaluator emission `outcome: "pass"`. (`escalate`/`error` terminate.)
-- Emission: `{ outcome, session_id }` (plus optional `reason` on non-pass).
-- Payload: `{ session_id, tasks_path, diff_command? }`.
+- Trigger: evaluator ends with `## Status: pass`. (`escalate` / `error` terminate.)
+- Dispatch:
+  ```
+  Task(doc-updater, prompt: "Reflect session {id} into docs. Read .planning/{id}/TASKS.md.")
+  ```
 
 ### doc-updater (terminal)
 
-- Emission: `{ outcome, session_id }` (plus `reason` on `error`).
 - No downstream — the harness reports to the user and stops.
 
 ## User review gates
 
-Two explicit user-facing gates exist in the chain. Both are owned by the **main thread** — no skill writes them; the main thread holds the user reply between an upstream emission and the downstream dispatch.
+Two explicit user-facing gates exist in the chain. Both are owned by the **main thread** — no skill writes them; the main thread holds the user reply between an upstream terminal message and the downstream dispatch.
 
-- **Gate 1 — route approval** (after `brainstorming` Phase B5). The user accepts / overrides the recommended route and (optionally) the file-count estimate. Detailed flow lives in `skills/brainstorming/SKILL.md` Phase B; brainstorming itself drives the message and waits for the reply, then emits the route payload only after acceptance.
-- **Gate 2 — spec review** (after each writer emits `outcome: "done"`). The main thread surfaces the written file path and any Open questions to the user, then waits for one of:
-  - **approve** — main thread dispatches the next skill per the upstream's `## Required next skill` section.
-  - **revise** — main thread deletes the written file (`.planning/{session_id}/<ARTIFACT>.md`) and re-dispatches the same writer with a `revision_note` field appended to the payload (`{...original_payload, revision_note: "<user's correction>"}`). Writers MUST honour `revision_note` when present.
+- **Gate 1 — route approval** (inside `brainstorming` Phase B6, before B7). The user accepts / overrides the recommended route and (optionally) the file-count estimate. Detailed flow lives in `skills/brainstorming/SKILL.md` Phase B; brainstorming itself drives the message and waits for the reply, then writes `brainstorming.md` only after acceptance.
+- **Gate 2 — spec review** (after each writer ends with `## Status: done`). The main thread reads the writer's `## Path`, surfaces it (and any Open questions in the file body) to the user, then waits for one of:
+  - **approve** — main thread dispatches the next skill per the edge rules above.
+  - **revise** — main thread deletes the written file (`.planning/{session_id}/<ARTIFACT>.md`) and re-dispatches the same writer with an extra `Revision note from user: {note}` line in the dispatch prompt:
+    ```
+    Task(prd-writer, prompt: "Draft PRD for session {id}. Read .planning/{id}/brainstorming.md. Revision note from user: {note}")
+    ```
+    Writers MUST honour the revision note when present.
   - **abort** — main thread updates `STATE.md` `Last activity` with the abort reason and stops; no further skill is dispatched.
 
-Gate 2 fires after `prd-writer`, `trd-writer`, and `task-writer` `done` emissions. It does not fire on `error` (those terminate immediately) or after `parallel-task-executor` (executor results go to evaluator, not user — the user already approved the plan at the TASKS gate).
+Gate 2 fires after `prd-writer`, `trd-writer`, and `task-writer` `done` terminals. It does not fire on `error` (those terminate immediately) or after `parallel-task-executor` (executor results go to evaluator, not user — the user already approved the plan at the TASKS gate).
 
 Each writer's `## Required next skill` section names its specific Gate 2 prompt and the next skill to dispatch on approval.
 
 ## Conventions
 
-- **Skill `outcome` is universal.** Every skill's emission has an `outcome` field naming its terminal state. The next skill receives any *payload* the main thread builds; it never reads the upstream's `outcome` directly under that name.
-- **Path → typed name on rename.** When a writer emits `path`, the downstream payload renames it to `prd_path` / `trd_path` so receivers can tell which document they are getting at field-name level (the receiver may have multiple upstream docs).
-- **`null` is preferred over absent fields** for documents that are conceptually expected but not produced this session (e.g., `prd_path: null` on the trd-only route). This lets receivers branch on `payload.prd_path === null` rather than `'prd_path' in payload`.
+- **Standard markdown sections.** Every skill's terminal message uses these section headers consistently:
+  - `## Status` — required. Single line value drawn from the skill's terminal vocabulary (`done`, `error`, `clarify`, `plan`, `resume`, `pivot`, `exit-casual`, `pass`, `escalate`, `blocked`, `failed`).
+  - `## Path` — when a file was written (writers, brainstorming).
+  - `## Reason` — when status is `error`, `escalate`, `blocked`, `failed`, `pivot`, `exit-casual`, etc.
+  - `## Session` — only the first message that introduces a `session_id` (router).
+  - Skill-specific sections may be added (e.g., parallel-task-executor's `## Tasks` block, doc-updater's `## Updated` block) — defined in each `SKILL.md`.
+- **Files own the planning content; messages own the status.** Writers' actual output is the file at `## Path`. The terminal message is purely a status signal for the main thread; it never duplicates artifact content.
+- **Dispatch prompts stay minimal.** Pass `session_id` and the paths to read; do not inline content the downstream skill can Read from disk. This keeps the main-thread context lean and makes `brainstorming.md` the single rehydration point for every writer.
+- **`null` is implicit when a file is absent.** A writer that expects a PRD checks `.planning/{session_id}/PRD.md` directly; absence means the route did not produce one. Dispatch prompts call out the absence in prose (e.g., "No PRD will exist for this route") for human readers.
 
 ## See also
 
 - `execution-modes.md` — Subagent vs Main context contract.
-- `output-contract.md` — Writer-family payload/output/error shape.
+- `output-contract.md` — Writer handoff contract (what writers Read, Write, and emit as terminal message).
+- `file-ownership.md` — Per-file create/update/read rights including `brainstorming.md`.
 - Each skill's `## Required next skill` section — the per-skill view of the same edges.

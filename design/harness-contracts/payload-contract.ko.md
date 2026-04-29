@@ -1,6 +1,11 @@
 # 하네스 payload 계약 (Harness payload contract)
 
-스킬 사이에 흐르는 것의 단일 출처. 각 스킬은 자신의 JSON 상태를 emit 하고 (그 스킬의 `SKILL.md` 에 정의), **메인 thread** 는 그 emission 을 세션-와이드 컨텍스트 필드와 합쳐서 다운스트림 스킬의 payload 를 구성한다. 이 파일은 모든 엣지를 문서화하므로, 세 진실 출처 (스킬 emission, "Required next skill" 섹션, 메인 thread 디스패치 로직) 를 한 곳에 대조할 수 있다.
+스킬 사이에 흐르는 것의 단일 출처. 하네스는 두 계층 모델을 사용한다:
+
+- **계획 산출물**은 `.planning/{session_id}/` 의 **파일**을 통해 흐른다. 다운스트림 writer 는 Read 도구로 업스트림 파일을 직접 읽고, 디스패치 프롬프트는 최소한의 컨텍스트 (session_id, request, 읽을 경로) 만 담는다.
+- **실행 상태**는 **대화 속 마크다운**으로 흐른다. 각 스킬의 터미널 메시지는 표준 섹션 헤더 (`## Status`, `## Path`, `## Reason`, …) 를 사용하므로, 메인 thread 가 산문을 파싱하지 않고도 다음에 무엇을 디스패치할지 결정할 수 있다.
+
+이 파일은 모든 엣지를 문서화하므로, 세 진실 출처 (스킬 터미널 메시지, "Required next skill" 섹션, 메인 thread 디스패치 로직) 를 한 곳에 대조할 수 있다.
 
 ## 노드 그래프
 
@@ -34,136 +39,149 @@
               END
 ```
 
-비-pass 종료점: `router → casual` (JSON 없음, 인라인 응답), `brainstorming → pivot|exit-casual`, `*-writer → error`, `executor → blocked|failed|error`, `evaluator → escalate|error`. 각각 세션을 종료한다 — 메인 thread 가 사용자에게 보고하고 멈춘다.
+비-pass 종료점: `router → casual` (마크다운 헤더 없는 일반 산문), `brainstorming → pivot|exit-casual`, `*-writer → error`, `executor → blocked|failed|error`, `evaluator → escalate|error`. 각각 세션을 종료한다 — 메인 thread 가 사용자에게 보고하고 멈춘다.
 
-## 세션-와이드 필드
+## 계획 산출물
 
-메인 thread 가 체인 전체에 걸쳐 운반하는 필드. 단일 스킬의 emission 에 포함되지 않는다.
+스킬 간 핸드오프는 파일에 닻을 내린다. 각 다운스트림 writer 는 업스트림 파일을 직접 읽으며, 디스패치 프롬프트는 세션과 참조할 파일만 명시한다.
 
-| 필드 | 출처 | 수명 |
+| 파일 | 소유자 | 읽는 자 |
 |---|---|---|
-| `session_id` | router (Step 3) | 세션 전체 |
-| `request` | 사용자의 원본 턴, router 에서 캡처 | 세션 전체 |
-| `brainstorming_output` | brainstorming emission `brainstorming_output` | brainstorming 이후 |
-| `brainstorming_outcome` | brainstorming emission `outcome` (`prd-trd`/`prd-only`/`trd-only`/`tasks-only`) | brainstorming 이후 |
-| `exploration_findings` | brainstorming emission `exploration_findings` | brainstorming 이후 |
+| `.planning/{session_id}/brainstorming.md` | `brainstorming` (Phase B7, Gate 1 승인 후) | `prd-writer`, `trd-writer`, `task-writer` |
+| `.planning/{session_id}/PRD.md` | `prd-writer` | `trd-writer`, `task-writer` |
+| `.planning/{session_id}/TRD.md` | `trd-writer` | `task-writer` |
+| `.planning/{session_id}/TASKS.md` | `task-writer` | `parallel-task-executor`, `evaluator`, `doc-updater` |
 
-`exploration_findings` 형태 — brainstorming 이 코드베이스 peek 후 emit, 이후 모든 writer payload 로 전파되어 writer 가 재탐색 대신 검증만 하도록 한다:
+`brainstorming.md` 는 예전에 디스패치 payload 의 세션-와이드 필드로 운반되던 내용을 그대로 이어 받는다. 필수 섹션 — `## Request`, `## A1.6 findings`, `## Brainstorming output`, `## Recommendation` — 이 writer 에게 사용자의 그대로의 요청, verify-first 탐색 ground, intent/target/scope/constraints/acceptance, 그리고 route 를 제공한다. writer 는 모든 섹션을 권위 있는 것으로 취급한다.
 
-```json
-{
-  "files_visited": ["src/auth/session.ts:42", "src/auth/middleware.ts"],
-  "key_findings": [
-    "issueSession() in src/auth/session.ts currently issues without TOTP check",
-    "middleware reads Bearer token only — no MFA hook"
-  ],
-  "code_signals": ["auth/", "schema:session"],
-  "open_questions": ["Should refresh tokens be revoked on TOTP enable?"]
-}
-```
+brainstorming 의 범위 한정 코드베이스 peek 이 실행되지 않은 경우 (router 가 해결 가능한 target 없이 `plan` 으로 직접 라우팅), `## A1.6 findings` 본문은 `- (skipped — no resolvable target)` 이 된다. writer 는 명시적 "skipped" 마커를 보고 풀 모드 탐색으로 전환한다.
 
-brainstorming 이 스킵된 경우 (router 가 `plan` 으로 직접 라우팅, Q&A 없음) 또는 요청에 해결 가능한 target 이 없는 경우 `null` 일 수 있다. `null` 일 때 writer 는 자체 (더 작은) Step 2 budget 으로 폴백.
+## 엣지별 핸드오프
 
-## 엣지별 payload
-
-각 항목: **emission** (업스트림 스킬이 쓰는 것) → **payload** (메인 thread 가 다운스트림에 보내는 것). 이름 변경과 추가는 명시적으로 표시 — drift 가 감지되도록.
+각 항목: **트리거** (업스트림 스킬의 터미널 메시지 형태) → **디스패치 프롬프트** (메인 thread 가 다운스트림에 보내는 것).
 
 ### router → brainstorming
 
-- 트리거: emission `outcome ∈ {clarify, plan, resume}`. (`casual` 은 인라인 종료; 다운스트림 없음.)
-- Emission: `{ outcome, session_id }`.
-- Payload: `{ session_id, request, route, resume? }`.
-  - `route` = emission `outcome`. `brainstorming` 이 `route` 를 의미적으로 사용 (요청된 인테이크 모드) 하기 때문에 이름이 바뀜 — `outcome` 은 자기 emission 용으로 예약.
-  - `resume` = emission `outcome == "resume"` 일 때 `true`; 그 외에는 부재.
-  - `request` = 사용자의 그대로의 턴 (세션-와이드).
+- 트리거: `router` 가 `## Status: clarify | plan | resume` 으로 종료. (`casual` 은 인라인 종료; 다운스트림 없음.)
+- 디스패치:
+  ```
+  Skill(brainstorming, args: "session_id={id} request={text} route={status} resume={true|false}")
+  ```
+- `route` 는 router 의 터미널 상태 이름을 운반한다. `resume=true` 는 상태가 `resume` 일 때만.
+- brainstorming 은 메인 컨텍스트에서 실행 (Skill, Task 아님).
 
 ### brainstorming → prd-writer
 
-- 트리거: emission `outcome ∈ {prd-trd, prd-only}` 그리고 Gate 2 사용자 승인 (아래 "사용자 review 게이트" 섹션 참조).
-- Emission: `{ outcome, session_id, request, brainstorming_output, exploration_findings }`.
-- Payload: `{ session_id, request, brainstorming_outcome, brainstorming_output, exploration_findings }`.
-  - `brainstorming_outcome` = emission `outcome`. prd-writer 자신의 `outcome` 필드가 종료 상태를 운반할 수 있게 이름 변경 (충돌 방지).
+- 트리거: `.planning/{session_id}/brainstorming.md` 가 존재하고 `## Recommendation` route 가 `prd-trd` 또는 `prd-only`. Gate 1 승인은 brainstorming Phase B6 안에서 이미 흡수되어 B7 이 파일을 쓴다.
+- 디스패치:
+  ```
+  Task(prd-writer, prompt: "Draft PRD for session {id}. Read .planning/{id}/brainstorming.md as authoritative ground.")
+  ```
 
-### brainstorming → trd-writer
+### brainstorming → trd-writer (trd-only route)
 
-- 트리거: emission `outcome == "trd-only"` 그리고 Gate 2 사용자 승인.
-- Emission: 위와 같은 형태.
-- Payload: `{ session_id, request, brainstorming_outcome: "trd-only", brainstorming_output, exploration_findings, prd_path: null }`.
+- 트리거: `## Recommendation` route 가 `trd-only`.
+- 디스패치:
+  ```
+  Task(trd-writer, prompt: "Draft TRD for session {id}. Read .planning/{id}/brainstorming.md. No PRD will exist for this route.")
+  ```
 
-### brainstorming → task-writer
+### brainstorming → task-writer (tasks-only route)
 
-- 트리거: emission `outcome == "tasks-only"` 그리고 Gate 2 사용자 승인.
-- Emission: 위와 같은 형태.
-- Payload: `{ session_id, request, brainstorming_output, exploration_findings, prd_path: null, trd_path: null }`.
+- 트리거: `## Recommendation` route 가 `tasks-only`.
+- 디스패치:
+  ```
+  Task(task-writer, prompt: "Draft TASKS for session {id}. Read .planning/{id}/brainstorming.md. No PRD or TRD will exist for this route.")
+  ```
 
-### prd-writer → trd-writer
+### prd-writer → trd-writer (prd-trd route, Gate 2 approve 이후)
 
-- 트리거: prd-writer emission `outcome: "done"` 그리고 `brainstorming_outcome: "prd-trd"` 그리고 Gate 2 사용자 승인.
-- Emission: `{ outcome, session_id, brainstorming_outcome, path }`.
-- Payload: `{ session_id, request, prd_path, brainstorming_outcome: "prd-trd", brainstorming_output, exploration_findings }`.
-  - `prd_path` = emission `path` (이름 변경: writer 는 자기 작성 파일을 보고; 다운스트림은 그것을 업스트림 PRD 로 소비).
+- 트리거: prd-writer 가 `## Status: done` 으로 종료, brainstorming.md route 가 `prd-trd`.
+- 디스패치:
+  ```
+  Task(trd-writer, prompt: "Draft TRD for session {id}. Read .planning/{id}/brainstorming.md and .planning/{id}/PRD.md.")
+  ```
 
-### prd-writer → task-writer
+### prd-writer → task-writer (prd-only route, Gate 2 approve 이후)
 
-- 트리거: prd-writer emission `outcome: "done"` 그리고 `brainstorming_outcome: "prd-only"` 그리고 Gate 2 사용자 승인.
-- Emission: 위와 같음.
-- Payload: `{ session_id, request, prd_path, trd_path: null, brainstorming_output, exploration_findings }`.
+- 트리거: prd-writer 가 `## Status: done` 으로 종료, brainstorming.md route 가 `prd-only`.
+- 디스패치:
+  ```
+  Task(task-writer, prompt: "Draft TASKS for session {id}. Read .planning/{id}/brainstorming.md and .planning/{id}/PRD.md. No TRD for this route.")
+  ```
 
-### trd-writer → task-writer
+### trd-writer → task-writer (Gate 2 approve 이후)
 
-- 트리거: trd-writer emission `outcome: "done"` 그리고 Gate 2 사용자 승인.
-- Emission: `{ outcome, session_id, path }`.
-- Payload: `{ session_id, request, prd_path, trd_path, brainstorming_output, exploration_findings }`.
-  - `trd_path` = emission `path`. `prd_path` 는 trd-writer 가 받은 그대로 (trd-only 경로에서는 `null` 가능).
+- 트리거: trd-writer 가 `## Status: done` 으로 종료.
+- 디스패치:
+  ```
+  Task(task-writer, prompt: "Draft TASKS for session {id}. Read .planning/{id}/brainstorming.md, .planning/{id}/PRD.md (if exists), and .planning/{id}/TRD.md.")
+  ```
 
-### task-writer → parallel-task-executor
+writer 는 디스패치 프롬프트에 의존하지 말고 항상 디스크에서 `PRD.md` 존재를 확인해야 한다. `brainstorming.md` 의 `## Recommendation` route 가 모호성을 해소한다.
 
-- 트리거: task-writer emission `outcome: "done"` 그리고 Gate 2 사용자 승인.
-- Emission: `{ outcome, session_id, path }`.
-- Payload: `{ session_id }`.
-  - executor 는 `.planning/{session_id}/TASKS.md` 를 디스크에서 읽는다; payload 에 `path` 가 필요 없다.
+### task-writer → parallel-task-executor (Gate 2 approve 이후)
+
+- 트리거: task-writer 가 `## Status: done` 으로 종료.
+- 디스패치:
+  ```
+  Skill(parallel-task-executor, args: "session_id={id}")
+  ```
+- parallel-task-executor 는 메인 컨텍스트에서 실행 (Skill, Task 아님). `.planning/{session_id}/TASKS.md` 를 디스크에서 읽는다.
 
 ### parallel-task-executor → evaluator
 
-- 트리거: executor emission `outcome: "done"`. (`blocked`/`failed`/`error` 는 종료.)
-- Emission: `{ outcome, session_id }`.
-- Payload: `{ session_id, tasks_path, rules_dir?, diff_command? }`.
-  - `tasks_path` = `.planning/{session_id}/TASKS.md` (결정적; 메인 thread 가 구성).
-  - `rules_dir`, `diff_command` 는 메인 thread 설정에서; 둘 다 선택.
+- 트리거: executor 가 `## Status: done` 으로 종료. (`blocked` / `failed` / `error` 는 세션을 종료한다.)
+- 디스패치:
+  ```
+  Task(evaluator, prompt: "Evaluate session {id}. Read .planning/{id}/TASKS.md and the diff.")
+  ```
 
 ### evaluator → doc-updater
 
-- 트리거: evaluator emission `outcome: "pass"`. (`escalate`/`error` 는 종료.)
-- Emission: `{ outcome, session_id }` (비-pass 시 `reason` 추가 가능).
-- Payload: `{ session_id, tasks_path, diff_command? }`.
+- 트리거: evaluator 가 `## Status: pass` 로 종료. (`escalate` / `error` 는 종료.)
+- 디스패치:
+  ```
+  Task(doc-updater, prompt: "Reflect session {id} into docs. Read .planning/{id}/TASKS.md.")
+  ```
 
 ### doc-updater (terminal)
 
-- Emission: `{ outcome, session_id }` (`error` 시 `reason`).
 - 다운스트림 없음 — 하네스가 사용자에게 보고하고 멈춘다.
 
 ## 사용자 review 게이트
 
-체인에 두 개의 명시적 사용자 게이트가 있다. 둘 다 **메인 thread** 가 소유 — 어떤 스킬도 게이트를 직접 작성하지 않는다; 메인 thread 가 업스트림 emission 과 다운스트림 디스패치 사이에 사용자 응답을 보유한다.
+체인에 두 개의 명시적 사용자 게이트가 있다. 둘 다 **메인 thread** 가 소유 — 어떤 스킬도 게이트를 직접 작성하지 않는다; 메인 thread 가 업스트림 터미널 메시지와 다운스트림 디스패치 사이에 사용자 응답을 보유한다.
 
-- **Gate 1 — route 승인** (`brainstorming` Phase B5 직후). 사용자가 추천 route 와 (선택적으로) 파일 수 추정을 승인 / 오버라이드. 자세한 흐름은 `skills/brainstorming/SKILL.md` Phase B 참조; brainstorming 자체가 메시지를 보내고 응답을 기다린 뒤, 승인이 있어야 route payload 를 emit 한다.
-- **Gate 2 — spec review** (각 writer 가 `outcome: "done"` emit 직후). 메인 thread 가 작성된 파일 경로와 Open questions 를 사용자에게 노출하고 셋 중 하나를 기다린다:
-  - **approve** — 메인 thread 가 업스트림 `## Required next skill` 섹션대로 다음 스킬 디스패치.
-  - **revise** — 메인 thread 가 작성된 파일 (`.planning/{session_id}/<ARTIFACT>.md`) 을 삭제하고 동일 writer 를 `revision_note` 가 추가된 payload 로 재디스패치 (`{...original_payload, revision_note: "<사용자의 수정사항>"}`). writer 는 `revision_note` 가 있을 때 이를 우선 처리해야 한다.
-  - **abort** — 메인 thread 가 `STATE.md` `Last activity` 에 abort 사유 기록 후 종료; 다음 스킬 디스패치 없음.
+- **Gate 1 — route 승인** (`brainstorming` Phase B6 안, B7 이전). 사용자가 추천 route 와 (선택적으로) 파일 수 추정을 승인 / 오버라이드한다. 자세한 흐름은 `skills/brainstorming/SKILL.md` Phase B 참조; brainstorming 자체가 메시지를 보내고 응답을 기다린 뒤, 승인이 있어야 `brainstorming.md` 를 작성한다.
+- **Gate 2 — spec review** (각 writer 가 `## Status: done` 으로 종료한 직후). 메인 thread 가 writer 의 `## Path` 를 읽어 사용자에게 노출하고 (파일 본문의 Open questions 와 함께), 셋 중 하나를 기다린다:
+  - **approve** — 메인 thread 가 위 엣지 규칙대로 다음 스킬을 디스패치한다.
+  - **revise** — 메인 thread 가 작성된 파일 (`.planning/{session_id}/<ARTIFACT>.md`) 을 삭제하고, 디스패치 프롬프트에 `Revision note from user: {note}` 한 줄을 추가하여 동일 writer 를 재디스패치한다:
+    ```
+    Task(prd-writer, prompt: "Draft PRD for session {id}. Read .planning/{id}/brainstorming.md. Revision note from user: {note}")
+    ```
+    writer 는 revision note 가 있을 때 반드시 우선 처리해야 한다.
+  - **abort** — 메인 thread 가 `STATE.md` `Last activity` 에 abort 사유를 기록 후 종료; 다음 스킬 디스패치 없음.
 
-Gate 2 는 `prd-writer`, `trd-writer`, `task-writer` 의 `done` emission 후 발동. `error` 후에는 발동하지 않으며 (즉시 종료), `parallel-task-executor` 후에도 발동하지 않는다 (executor 결과는 사용자가 아닌 evaluator 로 — 사용자는 TASKS 게이트에서 이미 plan 을 승인했음).
+Gate 2 는 `prd-writer`, `trd-writer`, `task-writer` 의 `done` 종료점 후 발동한다. `error` 후에는 발동하지 않으며 (즉시 종료), `parallel-task-executor` 후에도 발동하지 않는다 (executor 결과는 사용자가 아닌 evaluator 로 — 사용자는 TASKS 게이트에서 이미 plan 을 승인했음).
 
 각 writer 의 `## Required next skill` 섹션은 자기 Gate 2 프롬프트와 승인 시 디스패치할 다음 스킬을 명시한다.
 
 ## 컨벤션
 
-- **스킬 `outcome` 은 보편적이다.** 모든 스킬 emission 에 종료 상태를 가리키는 `outcome` 필드가 있다. 다음 스킬은 메인 thread 가 만든 *payload* 를 받지; 업스트림의 `outcome` 을 그 이름으로 직접 읽지 않는다.
-- **이름 변경 시 path → 타입 명시.** writer 가 `path` 를 emit 하면 다운스트림 payload 가 `prd_path` / `trd_path` 로 이름 변경한다 — 수신자가 어떤 문서를 받았는지 필드명 수준에서 알 수 있도록 (수신자가 여러 업스트림 문서를 가질 수 있음).
-- **부재보다 `null` 선호.** 개념적으로 기대되지만 이번 세션에서 생산되지 않은 문서 (예: trd-only 경로의 `prd_path: null`). 수신자가 `'prd_path' in payload` 대신 `payload.prd_path === null` 로 분기할 수 있게 한다.
+- **표준 마크다운 섹션.** 모든 스킬의 터미널 메시지는 다음 섹션 헤더를 일관되게 사용한다:
+  - `## Status` — 필수. 스킬의 터미널 어휘에서 가져온 한 줄 값 (`done`, `error`, `clarify`, `plan`, `resume`, `pivot`, `exit-casual`, `pass`, `escalate`, `blocked`, `failed`).
+  - `## Path` — 파일이 작성된 경우 (writer, brainstorming).
+  - `## Reason` — 상태가 `error`, `escalate`, `blocked`, `failed`, `pivot`, `exit-casual` 등일 때.
+  - `## Session` — `session_id` 를 처음 도입하는 메시지에서만 (router).
+  - 스킬-특화 섹션이 추가될 수 있음 (예: parallel-task-executor 의 `## Tasks` 블록, doc-updater 의 `## Updated` 블록) — 각 `SKILL.md` 에 정의.
+- **계획 내용은 파일이, 상태는 메시지가 소유한다.** writer 의 실제 출력은 `## Path` 의 파일이다. 터미널 메시지는 메인 thread 를 위한 순수 상태 신호일 뿐이며, 산출물 내용을 절대 중복하지 않는다.
+- **디스패치 프롬프트는 최소로 유지한다.** `session_id` 와 읽을 경로를 전달하라; 다운스트림 스킬이 디스크에서 Read 할 수 있는 내용을 인라인으로 넣지 마라. 이로써 메인 thread 컨텍스트가 가벼워지고, `brainstorming.md` 가 모든 writer 의 단일 재수화 (rehydration) 지점이 된다.
+- **파일이 부재하면 `null` 이 암묵적이다.** PRD 를 기대하는 writer 는 `.planning/{session_id}/PRD.md` 를 직접 확인한다; 부재는 그 route 가 PRD 를 생산하지 않았다는 뜻이다. 디스패치 프롬프트는 부재를 산문으로 명시한다 (예: "No PRD will exist for this route") — 사람 독자를 위한 안내.
 
 ## 함께 보기
 
-- `execution-modes.md` — Subagent vs Main context 계약.
-- `output-contract.md` — writer 패밀리 payload/output/error 형태.
+- `execution-modes.ko.md` — Subagent vs Main context 계약.
+- `output-contract.ko.md` — Writer 핸드오프 계약 (writer 가 무엇을 Read·Write 하고 터미널 메시지로 무엇을 보내는지).
+- `file-ownership.ko.md` — `brainstorming.md` 를 포함한 파일별 생성/갱신/읽기 권한.
 - 각 스킬의 `## Required next skill` 섹션 — 같은 엣지의 per-skill 뷰.

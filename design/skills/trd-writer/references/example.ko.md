@@ -1,6 +1,6 @@
 # 렌더된 TRD 예시 (상류 PRD 있음)
 
-prd-writer 예시 세션 (`2026-04-19-add-2fa-login`) 을 이어받는 payload `{prd_path: ".planning/2026-04-19-add-2fa-login/PRD.md"}` 가 주어진 경우:
+prd-writer 예시 세션 (`2026-04-19-add-2fa-login`) 을 이어받아 `.planning/2026-04-19-add-2fa-login/PRD.md` 가 이미 존재하는 경우:
 
 ````markdown
 # TRD — 로그인 페이지에 2FA 추가

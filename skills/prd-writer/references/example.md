@@ -1,6 +1,6 @@
 # Rendered PRD example
 
-Reference for the kind of concreteness expected at each section. Given the request `"Add 2FA to login page"` and payload `{brainstorming_output: {intent: "add", target: "login page", scope_hint: "subsystem", constraints: [], acceptance: null}}`:
+Reference for the kind of concreteness expected at each section. Given the request `"Add 2FA to login page"` and a `brainstorming.md` whose `## Brainstorming output` lists intent: add, target: login page, scope: subsystem, constraints: (none), acceptance: (open):
 
 ````markdown
 # PRD — Add 2FA to login page

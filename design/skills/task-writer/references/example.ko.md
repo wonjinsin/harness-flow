@@ -1,6 +1,6 @@
 # 렌더된 TASKS.md 예시 (PRD · TRD 둘 다 있음)
 
-trd-writer 예시 (`2026-04-19-add-2fa-login`) 을 이어받는 payload `{prd_path: ".planning/2026-04-19-add-2fa-login/PRD.md", trd_path: ".planning/2026-04-19-add-2fa-login/TRD.md"}`:
+trd-writer 예시 (`2026-04-19-add-2fa-login`) 을 이어받아 `.planning/2026-04-19-add-2fa-login/PRD.md` 와 `.planning/2026-04-19-add-2fa-login/TRD.md` 가 이미 존재하는 경우:
 
 ````markdown
 # TASKS — 로그인 페이지에 2FA 추가

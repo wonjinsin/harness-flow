@@ -1,6 +1,6 @@
 # 렌더링된 PRD 예시
 
-각 섹션에 기대하는 구체성 수준 참조용. 요청 `"로그인 페이지에 2FA 추가"` 및 payload `{brainstorming_output: {intent: "add", target: "로그인 페이지", scope_hint: "subsystem", constraints: [], acceptance: null}}` 일 때:
+각 섹션에 기대하는 구체성 수준 참조용. 요청 `"로그인 페이지에 2FA 추가"` 와, `## Brainstorming output` 에 intent: add, target: 로그인 페이지, scope: subsystem, constraints: (없음), acceptance: (열림) 이 적힌 `brainstorming.md` 가 주어진 경우:
 
 ````markdown
 # PRD — 로그인 페이지 2FA 추가

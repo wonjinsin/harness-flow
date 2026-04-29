@@ -1,6 +1,6 @@
 ---
 name: evaluator
-description: Run after parallel-task-executor emits done — the gate before doc-updater. Verifies every TASKS.md `[Result]` reads done (else escalate, quoting the first blocker's reason) and (Track 2) judges the session diff against `.claude/rules/*.md` via LLM reasoning. Emits pass / escalate / error; non-pass terminates the session — there is no loopback. Runs in an isolated subagent.
+description: Run after parallel-task-executor emits done — the gate before doc-updater. Verifies every TASKS.md `[Result]` reads done (else escalate, quoting the first blocker's reason) and (Track 2) judges the session diff against `.claude/rules/*.md` via LLM reasoning. Terminal message uses `## Status: pass | escalate | error` (and `## Reason` when non-pass). Non-pass terminates the session — there is no loopback. Runs in an isolated subagent.
 model: opus
 ---
 
@@ -13,36 +13,49 @@ Gate the executor's output before `doc-updater` runs. Two things to verify:
 1. **Executor completion shape** — TASKS.md `[Result]` blocks say every task is `done`. If any task is `blocked` (task description wrong) or `failed` (task-local Attempt cap hit), the evaluator escalates directly — no session-level retry exists.
 2. **Project rule compliance** (Track 2 per PRD §16) — the diff introduced by this session does not violate `<project>/.claude/rules/*.md`. Track 1 (mechanical, `make check`) already ran as a Stop hook before control reached here; this skill does not re-run commands.
 
-Outcomes route per the 'Required next skill' section below: `pass` → `doc-updater`, `escalate` → END (main thread writes `escalated: true` to STATE.md and surfaces the reason to the user), `error` → END (unrecoverable — payload defect or infra failure). There is no `fail` outcome and no loopback to executor; any non-pass condition terminates the session.
+Outcomes route per the 'Required next skill' section below: `## Status: pass` → `doc-updater`, `## Status: escalate` → END (main thread writes `escalated: true` to STATE.md and surfaces the reason to the user), `## Status: error` → END (unrecoverable — dispatch-prompt defect or infra failure). There is no `fail` status and no loopback to executor; any non-pass condition terminates the session.
 
 ## Execution mode
 
 Subagent (isolated context) — see `../../harness-contracts/execution-modes.md`.
 
-## Input payload
+## Input
 
-You are loaded by the `evaluator` agent. The payload is your entire input:
+You are loaded by the `evaluator` agent. The dispatch prompt is your entire input. Expected fields:
 
 - `session_id`: `"YYYY-MM-DD-{slug}"` — determines which session folder to read.
-- `tasks_path`: `".planning/{session_id}/TASKS.md"` — where executor's `[Result]` blocks live.
+- `tasks_path`: `".planning/{session_id}/TASKS.md"` — where executor's `[Result]` blocks live (deterministic from `session_id`; the dispatch prompt may omit it).
 - `rules_dir` *(optional)*: `"<project>/.claude/rules"` — directory to load `*.md` from. If omitted or the directory is absent/empty, Track 2 is skipped; executor-completion check still runs.
 - `diff_command` *(optional)*: shell command to produce the diff (defaults to `git diff HEAD`). Used verbatim — the main thread chooses the baseline.
 
 No `state_path` — this skill does not read STATE.md. Session-level retry is not a concept anymore, and the main thread owns STATE.md writes.
 
-If `tasks_path` is missing or unreadable, emit `error` at step-1. Do not guess.
+If `tasks_path` is missing or unreadable, emit `## Status: error` at step-1. Do not guess.
 
 ## Output
 
-Emit a single JSON object — your entire final message. No prose alongside.
+The terminal message uses standard markdown sections. It is the entire final assistant message; no surrounding prose.
 
-```json
-{ "outcome": "pass|escalate|error", "session_id": "2026-04-19-...", "reason": "<omit on pass>" }
+**Pass**:
+
+```markdown
+## Status
+pass
 ```
 
-- `pass` — every task `[Result: done]` and (if rules exist) zero violations.
-- `escalate` — any classifiable non-pass condition (blocked task, Attempt:3 task, rule violation). `reason` quotes the first blocker's `Reason:` line, or `{rule-file}: {path:line} — {claim}` for rule violations.
-- `error` — payload defect or unrecoverable infra issue (missing files, unreadable diff, unparseable LLM response, internally inconsistent state).
+**Escalate / error**:
+
+```markdown
+## Status
+{escalate|error}
+
+## Reason
+{short cause}
+```
+
+- `pass` — every task `[Result: done]` and (if rules exist) zero violations. No `## Reason` line.
+- `escalate` — any classifiable non-pass condition (blocked task, Attempt:3 task, rule violation). `## Reason` quotes the first blocker's `Reason:` line, or `{rule-file}: {path:line} — {claim}` for rule violations.
+- `error` — dispatch-prompt defect or unrecoverable infra issue (missing files, unreadable diff, unparseable LLM response, internally inconsistent state). `## Reason` carries the one-line cause.
 
 ## Procedure
 
@@ -67,20 +80,20 @@ Parse by finding each `[Result]` line and reading the labeled fields until the n
 
 Count tasks by `Status` value: `done`, `failed`, `blocked`, `skipped`, `(no [Result] block)`.
 
-**Error conditions at step-1** (emit `{"outcome": "error", "session_id": "...", "reason": "..."}`):
+**Error conditions at step-1** (emit `## Status: error` + `## Reason: ...`):
 
-- `tasks_path` missing or unreadable → `reason: "TASKS.md not found at <path>"`.
-- Any task has no `[Result]` block → `reason: "task-N has no Result block — executor did not finalize"`.
-- Any task has **two or more** `[Result]` blocks → `reason: "task-N has duplicate Result blocks — state corruption"`. parallel-task-executor's contract guarantees one per task; duplicates signal corruption.
-- `Status:` value is not one of `done|failed|blocked|skipped` → `reason: "task-N has unknown Status value: <value>"`.
+- `tasks_path` missing or unreadable → reason: `TASKS.md not found at <path>`.
+- Any task has no `[Result]` block → reason: `task-N has no Result block — executor did not finalize`.
+- Any task has **two or more** `[Result]` blocks → reason: `task-N has duplicate Result blocks — state corruption`. parallel-task-executor's contract guarantees one per task; duplicates signal corruption.
+- `Status:` value is not one of `done|failed|blocked|skipped` → reason: `task-N has unknown Status value: <value>`.
 
 ### Step 2 — Short-circuit on non-done executor (Track 2 skip)
 
 Before touching rules, decide whether executor's output is gate-able. If any task did not reach `done`, short-circuit and skip Track 2 entirely — running rule checks on a half-implemented diff is noise.
 
-- **Any `Status: blocked`** → emit `escalate` with `reason` quoting the first blocked task's ID and `Reason:` line (e.g., `"task-4: Acceptance bullet 2 contradicts bullet 4"`). Do not read rules; do not run Track 2.
-- **Any `Status: failed`** → emit `escalate` with `reason` quoting the first failed task's ID and `Reason:` line. Do not run Track 2 — rules on a half-implemented diff are noise.
-- **All `Status: done` or `skipped`** → proceed to Step 3. Note: if every non-done task is `skipped`, that means its root cause was a prior `blocked`/`failed` that should have been caught above. Reaching this branch with `skipped` tasks present means the `[Result]` state is internally inconsistent — emit `error` with reason `"skipped tasks present without blocked/failed root"`.
+- **Any `Status: blocked`** → emit `## Status: escalate` with `## Reason` quoting the first blocked task's ID and `Reason:` line (e.g., `task-4: Acceptance bullet 2 contradicts bullet 4`). Do not read rules; do not run Track 2.
+- **Any `Status: failed`** → emit `## Status: escalate` with `## Reason` quoting the first failed task's ID and `Reason:` line. Do not run Track 2 — rules on a half-implemented diff are noise.
+- **All `Status: done` or `skipped`** → proceed to Step 3. Note: if every non-done task is `skipped`, that means its root cause was a prior `blocked`/`failed` that should have been caught above. Reaching this branch with `skipped` tasks present means the `[Result]` state is internally inconsistent — emit `## Status: error` with reason `skipped tasks present without blocked/failed root`.
 - **All `Status: done`** → proceed to Step 3, normal path.
 
 ### Step 3 — Track 2 rule validation
@@ -90,24 +103,24 @@ If `rules_dir` is unset or the directory has no `*.md` files, skip this step and
 Otherwise:
 
 1. List `*.md` files directly under `rules_dir` (not recursive — rules are flat-per-project by convention). For each, read the file. If the first non-blank line contains `<!-- evaluator: skip -->`, exclude the file from the concatenated rules block.
-2. Run the configured diff command (default `git diff HEAD`). If the command errors or returns empty output, emit `{"outcome": "error", "session_id": "...", "reason": "diff command returned <empty|nonzero>: <stderr tail>"}`. An empty diff at evaluator time means the executor claimed `done` without modifying any file — that is a task-writer/executor bug, not a pass.
+2. Run the configured diff command (default `git diff HEAD`). If the command errors or returns empty output, emit `## Status: error` + `## Reason: diff command returned <empty|nonzero>: <stderr tail>`. An empty diff at evaluator time means the executor claimed `done` without modifying any file — that is a task-writer/executor bug, not a pass.
 3. Build the rule-judgment prompt (see `## Rule validation prompt` below) and apply it via your own reasoning. There is no separate model invocation here — the evaluator's outer-procedure reasoning and the rule judgment run in the same thread.
 4. Parse the response:
    - The **first non-blank line** must be exactly `PASS` or exactly `FAIL`. Trailing whitespace is allowed; anything else on that line → unparseable.
    - If `PASS`: any subsequent lines are treated as diagnostics (not violations) and ignored. The response is a pass.
-   - If `FAIL`: each subsequent non-blank line must match the violation format `- {rule-file}: {path:line} — {claim}`. Lines that don't match are ignored (diagnostic noise), but **at least one** well-formed violation line is required or the response is unparseable. Keep the first well-formed violation line — it becomes the `reason` in Step 4.
-   - Neither `PASS` nor `FAIL + ≥1 valid violation` → emit `{"outcome": "error", "session_id": "...", "reason": "rule-judgment response unparseable: <first 200 chars>"}`.
+   - If `FAIL`: each subsequent non-blank line must match the violation format `- {rule-file}: {path:line} — {claim}`. Lines that don't match are ignored (diagnostic noise), but **at least one** well-formed violation line is required or the response is unparseable. Keep the first well-formed violation line — it becomes the `## Reason` in Step 4.
+   - Neither `PASS` nor `FAIL + ≥1 valid violation` → emit `## Status: error` + `## Reason: rule-judgment response unparseable: <first 200 chars>`.
 
 ### Step 4 — Determine outcome and emit
 
 Combine executor pre-check (Step 2) and rule result (Step 3):
 
-| Step 2 result | Step 3 result | Outcome | `reason` |
+| Step 2 result | Step 3 result | `## Status` | `## Reason` |
 |---|---|---|---|
 | escalate (blocked) | n/a (skipped) | `escalate` | first blocked task's ID + `Reason:` |
 | escalate (failed) | n/a (skipped) | `escalate` | first failed task's ID + `Reason:` |
-| error (inconsistent skipped) | n/a (skipped) | `error` | `"skipped tasks present without blocked/failed root"` |
-| clean | PASS | `pass` | (omit) |
+| error (inconsistent skipped) | n/a (skipped) | `error` | `skipped tasks present without blocked/failed root` |
+| clean | PASS | `pass` | (omit `## Reason` entirely) |
 | clean | FAIL | `escalate` | first violation line as `{rule-file}: {path:line} — {claim}` |
 | clean | error (diff empty / unparseable) | `error` | step-3 reason |
 
@@ -147,7 +160,7 @@ No prose outside this format. No commentary. No recommendations.
 
 ### Example 1 — Pass, rules present
 
-Payload `{session_id: "2026-04-19-rename-getUser", tasks_path: ".planning/2026-04-19-rename-getUser/TASKS.md", rules_dir: ".claude/rules"}`. TASKS.md contains one task with:
+Dispatch prompt: `Evaluate session 2026-04-19-rename-getUser. Read .planning/2026-04-19-rename-getUser/TASKS.md and the diff. rules_dir: .claude/rules`. TASKS.md contains one task with:
 
 ```markdown
 [Result]
@@ -163,13 +176,14 @@ Updated: 2026-04-19T14:10:00Z
 - Step 2: clean.
 - Step 3: read `.claude/rules/code-style.md` (1 file, no opt-out). Run `git diff HEAD`. Judge against the rule. All violations absent.
 
-```json
-{ "outcome": "pass", "session_id": "2026-04-19-rename-getUser" }
+```markdown
+## Status
+pass
 ```
 
 ### Example 2 — Escalate on rule violation
 
-Same payload. Diff introduces a `console.log(...)` in `src/auth/login.ts:42`.
+Same dispatch prompt. Diff introduces a `console.log(...)` in `src/auth/login.ts:42`.
 
 Step 3 LLM response:
 ```
@@ -177,15 +191,15 @@ FAIL
 - code-style.md: src/auth/login.ts:42 — production `console.log(user)` forbidden
 ```
 
-```json
-{
-  "outcome": "escalate",
-  "session_id": "2026-04-19-rename-getUser",
-  "reason": "code-style.md: src/auth/login.ts:42 — production `console.log(user)` forbidden"
-}
+```markdown
+## Status
+escalate
+
+## Reason
+code-style.md: src/auth/login.ts:42 — production `console.log(user)` forbidden
 ```
 
-Main thread: writes `escalated: true`, halts session, surfaces `reason` to the user. The user re-reads the diff to see all violations — the skill carries only the one-liner.
+Main thread: writes `escalated: true`, halts session, surfaces the `## Reason` to the user. The user re-reads the diff to see all violations — the terminal message carries only the one-liner.
 
 ### Example 3 — Escalate on executor-blocked
 
@@ -209,31 +223,31 @@ Updated: 2026-04-21T10:05:00Z
 
 - Step 2: blocked task found → short-circuit. Do not read rules. The user re-reads TASKS.md `[Result]` blocks to see task-5's skip.
 
-```json
-{
-  "outcome": "escalate",
-  "session_id": "2026-04-19-add-2fa-login",
-  "reason": "task-4: Acceptance bullet 2 contradicts bullet 4"
-}
+```markdown
+## Status
+escalate
+
+## Reason
+task-4: Acceptance bullet 2 contradicts bullet 4
 ```
 
-The same shape applies when the source is `Status: failed` — only the `reason` differs (quote the `Attempt:3` line).
+The same shape applies when the source is `Status: failed` — only the `## Reason` differs (quote the `Attempt:3` line).
 
 ## Edge cases
 
 - **`rules_dir` absent or empty**: Track 2 skipped. Pass on rules alone (executor completion check still runs). `rules_dir` pointing to a file (not directory) is treated identically — skip.
 - **Diff empty but tasks claim `done`**: error outcome at step-3. A done task that produced zero diff is a lie; the main thread re-investigates.
 - **Rule file opts out** (`<!-- evaluator: skip -->` on the first non-blank line): file is not loaded into the concatenated rules block. If all rule files opt out, Track 2 passes trivially.
-- **Non-English content in diff/rules**: rule files and diff contents stay verbatim; the skill frame (outcome JSON keys, step names) stays English. The `reason` field mirrors the rule file's language for rule-violation cases.
+- **Non-English content in diff/rules**: rule files and diff contents stay verbatim; the skill frame (status values, section headers, step names) stays English. The `## Reason` body mirrors the rule file's language for rule-violation cases.
 
 ## Required next skill
 
-When this skill emits `outcome: "pass"` (full payload contract: `../../harness-contracts/payload-contract.md` § "evaluator → doc-updater"):
+When this skill emits `## Status: pass` (full handoff contract: `../../harness-contracts/payload-contract.md` § "evaluator → doc-updater"):
 
 - **REQUIRED SUB-SKILL:** Use harness-flow:doc-updater
-  Payload: `{ session_id, tasks_path, diff_command? }`
+  Dispatch (subagent — Task, not Skill): `Task(doc-updater, prompt: "Reflect session {session_id} into docs. Read .planning/{session_id}/TASKS.md.")` — main-thread overrides for `diff_command` may be appended to the prompt as plain lines.
 
-On `outcome: "escalate"` or `"error"`: flow terminates. Report the verdict to the user (with the `reason` and any rule violations) and stop. Doc updates are gated on a passing evaluation — never auto-emit on escalate.
+On `## Status: escalate` or `## Status: error`: flow terminates. Report the verdict to the user (with the `## Reason` line and any rule violations) and stop. Doc updates are gated on a passing evaluation — never auto-emit on escalate.
 
 ## Boundaries
 

@@ -15,7 +15,7 @@ harness 는 feature/bug 요청을 PRD/TRD/TASKS 로 만들고, 실행하고, 검
 
 ## 스킬 우선순위
 
-harness 스킬의 "Required next skill" 섹션이 후속 스킬을 지정하면, 대화에서 매칭될 다른 스킬보다 먼저 실행. 체인은 load-bearing — 중간 단계 스킵(예: brainstorming 에서 바로 executor) 은 엣지별 payload 계약을 깸. 전체 그래프는 `harness-contracts/payload-contract.ko.md` 참조.
+harness 스킬의 "Required next skill" 섹션이 후속 스킬을 지정하면, 대화에서 매칭될 다른 스킬보다 먼저 실행. 체인은 load-bearing — 중간 단계 스킵(예: brainstorming 에서 바로 executor) 은 엣지별 핸드오프 계약 (handoff contract) 을 깸. 전체 그래프는 `harness-contracts/payload-contract.ko.md` 참조.
 
 ## 실행 모드
 
@@ -23,4 +23,4 @@ harness 스킬의 "Required next skill" 섹션이 후속 스킬을 지정하면,
 
 ## 세션 산출물
 
-`.planning/{session_id}/` (사용자 CWD 기준 상대): `ROADMAP.md`, `STATE.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`.
+`.planning/{session_id}/` (사용자 CWD 기준 상대): `ROADMAP.md`, `STATE.md`, `brainstorming.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`.

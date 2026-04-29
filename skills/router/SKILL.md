@@ -1,6 +1,6 @@
 ---
 name: router
-description: Always run first at the start of a user turn unless another harness skill is mid-flow with a named next skill. Classifies the request as casual (reply inline, no JSON), clarify (brainstorming will Q&A), plan (brainstorming has enough signal), or resume (matched against an existing `.planning/` session). Bootstraps the session slug and `.planning/{session_id}/` skeleton on fresh plan/clarify routes.
+description: Always run first at the start of a user turn unless another harness skill is mid-flow with a named next skill. Classifies the request as casual (reply inline as plain prose), clarify (brainstorming will Q&A), plan (brainstorming has enough signal), or resume (matched against an existing `.planning/` session). Bootstraps the session slug and `.planning/{session_id}/` skeleton on fresh plan/clarify routes.
 model: haiku
 ---
 
@@ -45,7 +45,7 @@ If both signals are present:
 1. Read `.planning/`. If the directory doesn't exist, there are no sessions — fall through to fresh-session flow.
 2. For each subdirectory, read `ROADMAP.md`. Keep only sessions with at least one `- [ ]` unchecked item.
 3. Match the request against candidates using slug similarity plus overlap with the session's goal/title.
-4. **One match** → load that session. Emit `outcome: "resume"` with `session_id` set. Brainstorming's Step 0 short-circuits and jumps to the next incomplete phase.
+4. **One match** → load that session. Emit `## Status: resume` with `## Session: {session_id}`. Brainstorming's Step 0 short-circuits and jumps to the next incomplete phase.
 5. **Multiple matches** → ask the user to pick. Format: `{slug} — {one-line goal}`.
 6. **No match, or user rejects the proposed match** → fall through to fresh-session flow.
 
@@ -79,18 +79,18 @@ Leave the files empty of task content. Downstream skills (`prd-writer`, `trd-wri
 
 ### Step 5 — Emit
 
-Build a single JSON object with two fields and emit it as the entire final message: `{ outcome, session_id }`. **Skip JSON entirely for `casual`** — reply to the user in plain text and end.
+The terminal message uses standard markdown sections (`## Status`, `## Session`). **For `casual`, skip the markdown sections entirely** — reply to the user in plain prose and end.
 
-| Outcome | Emission |
-|---------|----------|
-| `casual` | — (no JSON, inline reply) |
-| `clarify` | `{ "outcome": "clarify", "session_id": "..." }` |
-| `plan` | `{ "outcome": "plan", "session_id": "..." }` |
-| `resume` | `{ "outcome": "resume", "session_id": "..." }` |
+| Outcome | Terminal message |
+|---------|------------------|
+| `casual` | plain prose reply, no headers |
+| `clarify` | `## Status: clarify` + `## Session: {session_id}` |
+| `plan` | `## Status: plan` + `## Session: {session_id}` |
+| `resume` | `## Status: resume` + `## Session: {session_id}` |
 
-`resume` is its own outcome — not a boolean flag on `plan`. When Step 1 matches an existing session, emit `outcome: "resume"`; otherwise `plan`.
+`resume` is its own status — not a boolean flag on `plan`. When Step 1 matches an existing session, emit `## Status: resume`; otherwise `## Status: plan`.
 
-The downstream payload that the main thread constructs from this emission (renaming `outcome` → `route` and adding `request`/`resume?`) is documented in `../../harness-contracts/payload-contract.md` under "router → brainstorming".
+How the main thread reads `## Status` and dispatches `brainstorming` with a short prompt is documented in `../../harness-contracts/payload-contract.md` under "router → brainstorming".
 
 ## Classification signals
 
@@ -174,56 +174,68 @@ Bare resume verbs with no anaphor default to current-turn continuation (e.g. use
 
 ## Input
 
-Router is the entry point — no upstream skill calls it, so there is no cross-skill payload to consume. Its operational inputs are:
+Router is the entry point — no upstream skill calls it, so there is no cross-skill dispatch prompt to consume. Its operational inputs are:
 
 - **Current turn** — the user's request, in any language.
 - **Prior-turn transcript** — used only to disambiguate bare resume verbs (see "Anaphoric resume signals"). Router does not read beyond the current conversation.
 - **`.planning/`** — scanned during Step 1 resume detection.
 
-Router runs in the main thread and has full access to the live conversation context. This is intentional: detecting whether `continue` means "resume prior session" vs "continue what you just said" requires seeing the assistant's previous turn. Downstream agent-dispatched skills do not have this access and must be driven by explicit payload.
+Router runs in the main thread and has full access to the live conversation context. This is intentional: detecting whether `continue` means "resume prior session" vs "continue what you just said" requires seeing the assistant's previous turn. Downstream agent-dispatched skills do not have this access and must be driven by an explicit dispatch prompt.
 
 ## Output
 
-Two emission modes depending on `outcome`:
+Two terminal-message modes depending on the route:
 
-**casual** — respond to the user directly as plain text and end the skill. No JSON, no downstream flow. Example response: *"I'm a task-oriented harness — you describe a change, I plan it, break it into tasks, and help you execute. What would you like to work on?"*
+**casual** — respond to the user directly as plain prose and end the skill. No status headers, no downstream flow. Example response: *"I'm a task-oriented harness — you describe a change, I plan it, break it into tasks, and help you execute. What would you like to work on?"*
 
-**clarify / plan / resume** — emit a single JSON object as the final message. No surrounding prose.
+**clarify / plan / resume** — the final message uses standard markdown sections (`## Status`, `## Session`). No surrounding prose.
 
-Schema:
+Sections:
 
-- `outcome`: `"clarify"`, `"plan"`, or `"resume"`
-- `session_id`: `"YYYY-MM-DD-slug"`
+- `## Status` — single line value: `clarify`, `plan`, or `resume`
+- `## Session` — single line value: `YYYY-MM-DD-slug`
 
 ### Examples
 
-Input: `hi claude, what can you build?` — casual: router replies with plain text. No JSON emitted.
+Input: `hi claude, what can you build?` — casual: router replies with plain prose. No status headers emitted.
 
 Input: `add 2FA to login`
 
-```json
-{"outcome":"plan","session_id":"2026-04-19-add-2fa-login"}
+```markdown
+## Status
+plan
+
+## Session
+2026-04-19-add-2fa-login
 ```
 
 Input: `make the auth code better`
 
-```json
-{"outcome":"clarify","session_id":"2026-04-19-improve-auth"}
+```markdown
+## Status
+clarify
+
+## Session
+2026-04-19-improve-auth
 ```
 
 Input: `let's continue the 2FA work from yesterday` (match found in `.planning/2026-04-18-add-2fa-login/`)
 
-```json
-{"outcome":"resume","session_id":"2026-04-18-add-2fa-login"}
+```markdown
+## Status
+resume
+
+## Session
+2026-04-18-add-2fa-login
 ```
 
 ## Required next skill
 
-The next skill depends on `outcome` (full payload contract: `../../harness-contracts/payload-contract.md` § "router → brainstorming"):
+The next skill depends on `## Status` (full handoff contract: `../../harness-contracts/payload-contract.md` § "router → brainstorming"):
 
-- `outcome == "clarify"` or `"plan"` or `"resume"` → **REQUIRED SUB-SKILL:** Use harness-flow:brainstorming
-  Payload: `{ session_id, request, route: <outcome>, resume?: true }` — the main thread renames `outcome` → `route` because brainstorming reserves `outcome` for its own emission.
-- `outcome == "casual"` → no JSON emitted; flow does not engage. Reply directly to the user and stop.
+- `## Status: clarify | plan | resume` → **REQUIRED SUB-SKILL:** Use harness-flow:brainstorming
+  Dispatch (main context — Skill, not Task): `Skill(brainstorming, args: "session_id={id} request={text} route={status} resume={true|false}")`. The route arg carries the router's `## Status` value verbatim; `resume=true` only when status is `resume`.
+- `## Status` absent (casual) → no headers emitted; flow does not engage. Reply directly to the user and stop.
 
 ## Keyword catalogue
 

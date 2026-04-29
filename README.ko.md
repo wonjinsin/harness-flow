@@ -9,13 +9,14 @@ Claude Code 플러그인. 유저 요청을 **router → brainstorming → PRD/TR
 - **스킬 메타데이터 자체가 라우팅 소스.** 각 `skills/<name>/SKILL.md` 는 끝 부분에 `## Required next skill` 섹션을 가지고, 메인 스레드가 그걸 읽어 다음 단계를 디스패치한다. superpowers 스타일 마커에서 영감.
 - **`harness-contracts/` 가 공유 계약 레이어.** repo 루트의 4개 파일이 스킬간 합의를 고정한다:
   - `execution-modes.md` — 어떤 스킬이 메인 컨텍스트에서 돌고 어떤 스킬이 격리 subagent 에서 도는지, 그리고 그 이유
-  - `payload-contract.md` — 개념적 DAG: 모든 엣지와 거기서 흐르는 payload 모양
-  - `output-contract.md` — writer 계열 입출력 스키마 + 에러 분류
+  - `payload-contract.md` — 개념적 DAG: 모든 엣지와 거기서 흐르는 핸드오프 모양 (디스크의 플래닝 산출물 + 대화 마크다운으로 흐르는 상태)
+  - `output-contract.md` — 모든 스킬의 종료 메시지 모양 (`## Status` / `## Path` / `## Reason` / `## Session`) + 에러 분류
   - `file-ownership.md` — 세션 산출물별 생성/수정/읽기 권한이 누구에게 있는지
 - **Skill 9개 × Agent 4개.** 경량 단계 (router, brainstorming, parallel-task-executor) 는 메인 컨텍스트 Skill, 무거운 산출물 단계 (PRD/TRD/TASKS writer, evaluator, doc-updater) 는 격리된 subagent.
-- **세션 = 폴더.** 모든 산출물은 유저 프로젝트의 `.planning/{YYYY-MM-DD-slug}/` 하위 (`ROADMAP.md`, `STATE.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`).
-- **두 사용자 게이트.** Gate 1 (경로 승인, brainstorming Phase B 에 흡수) 이 어떤 spec 스택을 만들지 결정. Gate 2 (spec review, 각 `*-writer` 가 `done` emit 직후) 가 작성된 `PRD.md` / `TRD.md` / `TASKS.md` 를 사용자가 approve / revise / abort 할 수 있게 한다. revise 시 writer 가 `revision_note` 와 함께 재디스패치되어 그 노트만 surgical 하게 처리한다.
-- **Brainstorming 이 질문을 코드에 ground.** intent + target 이 잡히면 brainstorming 이 ~10 Read/Grep/Glob 칼로 코드베이스 peek 을 한 번 돌려 `exploration_findings` 로 emit. writer 들은 이를 권위 있는 ground 로 받아들이고 작은 verify-first 예산으로 동작 (재탐색 없음).
+- **세션 = 폴더.** 모든 산출물은 유저 프로젝트의 `.planning/{YYYY-MM-DD-slug}/` 하위 (`ROADMAP.md`, `STATE.md`, `brainstorming.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`).
+- **핸드오프 = 파일 + 마크다운 섹션.** 플래닝 산출물은 단계 간에 디스크로 흐른다 (각 writer 가 직전 단계 파일을 `.planning/{session_id}/` 에서 읽음). 실행 상태는 스킬의 종료 메시지에서 고정 섹션 (`## Status`, `## Path`, `## Reason`, `## Session`) 으로 흐른다. 메인 스레드가 `## Status` 를 읽고 다음 디스패치를 결정한다.
+- **두 사용자 게이트.** Gate 1 (경로 승인, brainstorming Phase B 에 흡수) 이 어떤 spec 스택을 만들지 결정. Gate 2 (spec review, 각 `*-writer` 가 `## Status: done` 으로 종료한 직후) 가 작성된 `PRD.md` / `TRD.md` / `TASKS.md` 를 사용자가 approve / revise / abort 할 수 있게 한다. revise 시 writer 가 revision note 와 함께 재디스패치되어 그 노트만 surgical 하게 처리한다.
+- **Brainstorming 이 질문을 코드에 ground.** intent + target 이 잡히면 brainstorming 이 ~10 Read/Grep/Glob 콜로 코드베이스 peek 을 돌리고 `.planning/{session_id}/brainstorming.md` (Request, A1.6 findings, Brainstorming output, Recommendation) 를 작성한다. writer 들은 이 파일을 권위 있는 ground 로 받아들이고 작은 verify-first 예산으로 동작 (재탐색 없음).
 
 ---
 
@@ -166,17 +167,17 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
 
 ## 스킬
 
-**using-harness** — 세션 시작 시 훅을 통해 주입되는 메타 스킬. 하네스 체인을 가동할지 (build/fix/refactor/migrate 요청) 인라인으로 답할지 (casual 대화) 를 결정한다. 각 스킬의 "Required next skill" 마커는 load-bearing — 단계를 건너뛰면 엣지별 payload 계약이 깨진다.
+**using-harness** — 세션 시작 시 훅을 통해 주입되는 메타 스킬. 하네스 체인을 가동할지 (build/fix/refactor/migrate 요청) 인라인으로 답할지 (casual 대화) 를 결정한다. 각 스킬의 "Required next skill" 마커는 load-bearing — 단계를 건너뛰면 엣지별 핸드오프 계약 (다음 단계가 디스크에서 기대하는 파일, 그리고 디스패치 기준이 되는 `## Status`) 이 깨진다.
 
 **router** — 모든 유저 요청의 진입점. 입력을 `casual`, `clarify`, `plan`, `resume` 중 하나로 분류하고, 새 세션이면 `.planning/{session_id}/` 폴더 스켈레톤을 생성한다.
 
-**brainstorming** — 모호함, 코드베이스 grounding, 라우팅을 처리하는 인테이크 단계. Phase A 에서 요청을 명확화하고 A1.6 (~10 Read/Grep/Glob 코드베이스 peek) 을 돌려 질문이 실재하는 코드를 참조하게 한다. Phase B 에서 작업을 네 가지 경로 (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) 중 하나로 분류한 뒤 Gate 1 에서 유저 승인을 받는다. 하류 writer 를 위해 `exploration_findings` 를 emit.
+**brainstorming** — 모호함, 코드베이스 grounding, 라우팅을 처리하는 인테이크 단계. Phase A 에서 요청을 명확화하고 A1.6 (~10 Read/Grep/Glob 코드베이스 peek) 을 돌려 질문이 실재하는 코드를 참조하게 한다. Phase B 에서 작업을 네 가지 경로 (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) 중 하나로 분류한 뒤 Gate 1 에서 유저 승인을 받는다. 승인 후 `.planning/{session_id}/brainstorming.md` (Request, A1.6 findings, Brainstorming output, Recommendation) 를 작성해 하류 writer 가 읽도록 한다.
 
-**prd-writer** — 격리된 subagent 에서 `PRD.md` 를 작성한다. 목표, 인수 기준, Non-goals, 제약 조건, 열린 질문을 담는다. 엔지니어링 상세가 아닌 outcome 관점으로 작성한다. `exploration_findings` 가 있으면 verify-first (~5 calls), 없으면 full mode (~15).
+**prd-writer** — 격리된 subagent 에서 `PRD.md` 를 작성한다. 목표, 인수 기준, Non-goals, 제약 조건, 열린 질문을 담는다. 엔지니어링 상세가 아닌 outcome 관점으로 작성한다. `brainstorming.md` 가 있으면 verify-first (~5 calls), 없으면 full mode (~15).
 
-**trd-writer** — 격리된 subagent 에서 `TRD.md` 를 작성한다. 영향받는 파일/함수 이름, 인터페이스 & 계약, 데이터 모델, 리스크를 코드 형태 수준으로 기술한다. PRD 와 구분되는 레이어다. `exploration_findings` 가 있으면 verify-first (~10 calls), 없으면 full mode (~25).
+**trd-writer** — 격리된 subagent 에서 `TRD.md` 를 작성한다. 영향받는 파일/함수 이름, 인터페이스 & 계약, 데이터 모델, 리스크를 코드 형태 수준으로 기술한다. PRD 와 구분되는 레이어다. `brainstorming.md` 가 있으면 verify-first (~10 calls), 없으면 full mode (~25).
 
-**task-writer** — 격리된 subagent 에서 `TASKS.md` 를 작성한다. 작업을 PR 단위로 분해한다 (3–8개가 적정). PRD/TRD 용어를 그대로 유지해야 evaluator 가 grep 할 수 있다. 상류 컨텍스트 (TRD 또는 `exploration_findings`) 가 있으면 verify-first (~10 calls), 없으면 full mode (~20).
+**task-writer** — 격리된 subagent 에서 `TASKS.md` 를 작성한다. 작업을 PR 단위로 분해한다 (3–8개가 적정). PRD/TRD 용어를 그대로 유지해야 evaluator 가 grep 할 수 있다. 상류 컨텍스트 (TRD 또는 `brainstorming.md`) 가 있으면 verify-first (~10 calls), 없으면 full mode (~20).
 
 **parallel-task-executor** — Task 툴을 통해 태스크별로 새 subagent 를 디스패치한다. 가능하면 병렬 실행, 파일 겹침이 있으면 직렬화, 그룹당 최대 5개. 태스크마다 `[Result]` 블록을 기록하고 `ROADMAP.md` 를 마무리한다.
 
@@ -192,6 +193,7 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
     └── {YYYY-MM-DD-slug}/
         ├── ROADMAP.md
         ├── STATE.md
+        ├── brainstorming.md
         ├── PRD.md
         ├── TRD.md
         ├── TASKS.md

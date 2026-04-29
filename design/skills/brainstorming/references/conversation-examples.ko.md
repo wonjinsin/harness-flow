@@ -19,7 +19,7 @@
 > User: "ok"
 > Brainstorming: "**prd-only** (PRD → Tasks) 추천. 예상 3파일 (greenfield), 보안 신호 없음. 진행할까요?"
 > User: "네"
-> Brainstorming: [확정, `{"outcome": "prd-only", ..., "exploration_findings": {...}}` emit]
+> Brainstorming: [ROADMAP/STATE 갱신, `.planning/{id}/brainstorming.md` 작성, `## Status: prd-only` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to prd-writer." 로 종료]
 
 ## 좋은 예 — intake 경로 + A1.6 grounded refinement
 
@@ -34,17 +34,17 @@
 > User: "ok"
 > Brainstorming: "**prd-only** (PRD → Tasks) 추천. 예상 4파일. 진행할까요?"
 > User: "네"
-> Brainstorming: [확정, `{"outcome": "prd-only", ..., "exploration_findings": {...}}` emit]
+> Brainstorming: [ROADMAP/STATE 갱신, `.planning/{id}/brainstorming.md` 작성, `## Status: prd-only` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to prd-writer." 로 종료]
 >
 > A1.6 가 모호한 "rate limiter 손봐주세요" 를 실제 호출 지점에 ground 된 질문으로 바꿨음에 주목. peek 없이는 brainstorming 이 "어디까지 영향이 가나요?" 를 물었을 텐데 — 사용자도 코드를 다시 안 읽고는 정확히 답할 수 없는 질문.
 
 ## 좋은 예 — plan 경로 (Phase A 스킵), 신호 승격
 
-> Router output: `{outcome: "plan", request: "로그인에 2FA 추가", session_id: "..."}`
+> Router 터미널: `## Status: plan` + `## Session: {id}` (요청 "로그인에 2FA 추가")
 > Brainstorming: [Phase A 스킵; B1 이 `auth/` + `keyword:login` 히트]
 > Brainstorming: "**prd-trd** (PRD → TRD → Tasks) 추천. 예상 4파일, `auth/` 를 건드림 (보안 민감). 진행할까요?"
 > User: "좋아"
-> Brainstorming: [확정, `{"outcome": "prd-trd", ...}` emit]
+> Brainstorming: [ROADMAP/STATE 갱신, `.planning/{id}/brainstorming.md` 작성, `## Status: prd-trd` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to prd-writer." 로 종료]
 
 ## 좋은 예 — tasks-only 자기검증 실패 후 prd-only 로 강등
 
@@ -57,25 +57,25 @@
 > Brainstorming: "prd-only 추천…"
 > User: "아니 그냥 tasks-only 로, 한 줄짜리야"
 > Brainstorming: "알겠습니다 — tasks-only, 유저 번복. 설계 건너뛰고 task-writer 로 진행."
-> [`user_overrode: true` 로 확정]
+> [`user_overrode: true` 로 ROADMAP/STATE 갱신, `.planning/{id}/brainstorming.md` 작성, `## Status: tasks-only` + `## Path: .planning/{id}/brainstorming.md` + "Proceeding to task-writer." 로 종료]
 
 ## 좋은 예 — 필드 파기 전에 다중 프로젝트를 잡아냄
 
 > User: "리드 / 딜 / 리포팅 / 이메일 통합 / 모바일 앱이 있는 완전한 CRM 을 만들자"
-> Brainstorming: "이건 여러 서브 프로젝트로 보입니다: 리드/딜 관리, 리포팅, 이메일 통합, 모바일 앱. 한 세션은 하나의 일관된 조각을 소유해야 합니다 — 어떤 것부터 시작하시겠어요?"
+> Brainstorming: "이건 여러 서브 프로젝트로 보입니다: 리드/딜 관리, 리포팅, 이메일 통합, 모바일 앱. 한 세션은 하나의 일관된 조각을 소유해야 합니다 — 어떤 것부터 시작하시겠어요? 나머지는 별도 세션이 됩니다."
 
 ## 나쁜 예 — 질문 폭격
 
 > Brainstorming: "다음을 알려주세요: (1) intent, (2) target, (3) scope, (4) constraints, (5) acceptance — 다섯 개 다 부탁합니다."
 
-## 나쁜 예 — 접근법 제안
+## 나쁜 예 — 접근법 제안 (이 스킬의 일이 아님)
 
 > Brainstorming: "세 가지 방법이 있습니다: A) 이름만 바꾸기 B) 함수 추출 C) 전면 재작성. 뭐가 좋을까요?"
 
 ## 나쁜 예 — explore 모드가 구현으로 넘어감
 
 > User: "AI로 뭔가 만들어보고 싶어"
-> Brainstorming: "OpenAI API / Anthropic API / 로컬 Ollama 중에 어디로 갈까요?" ← 구현 선택; prd-writer / trd-writer 의 몫. intent + target 이 잡힐 때까지 문제 공간에 머물 것 ("어떤 문제를 풀고 싶으세요?").
+> Brainstorming: "OpenAI API / Anthropic API / 로컬 Ollama 중에 어디로 갈까요?" ← 구현 선택; prd-writer / trd-writer 의 몫. intent + target 이 잡힐 때까지 문제 공간에 머물 것 ("어떤 문제를 풀고 싶으세요?"), 그 다음 핸드오프.
 
 ## 나쁜 예 — 요청에 이미 있는 걸 되묻기
 

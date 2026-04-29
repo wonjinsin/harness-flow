@@ -9,13 +9,14 @@ A Claude Code plugin. Routes user requests through **router → brainstorming �
 - **Skill metadata is the routing source.** Each `skills/<name>/SKILL.md` ends with a `## Required next skill` section; the main thread reads it and dispatches the next stage. Inspired by superpowers-style markers.
 - **`harness-contracts/` is the shared contract layer.** Four files at repo root pin down the cross-skill agreements:
   - `execution-modes.md` — which skill runs in main context vs. as an isolated subagent, and why
-  - `payload-contract.md` — the conceptual DAG: every edge plus the payload shape it carries
-  - `output-contract.md` — input/output shape for the writer family + error taxonomy
+  - `payload-contract.md` — the conceptual DAG: every edge plus the handoff shape (planning artifacts on disk, conversation markdown for status)
+  - `output-contract.md` — terminal-message shape for every skill (`## Status` / `## Path` / `## Reason` / `## Session`) + error taxonomy
   - `file-ownership.md` — who creates/updates/reads each session artifact
 - **9 skills × 4 agents.** Lightweight stages (router, brainstorming, parallel-task-executor) run in the main context; heavy artifact stages (PRD/TRD/TASKS writers, evaluator, doc-updater) run as isolated subagents.
-- **Session = folder.** All artifacts live under the user's project at `.planning/{YYYY-MM-DD-slug}/` (`ROADMAP.md`, `STATE.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`).
-- **Two explicit user gates.** Gate 1 (route approval, absorbed by brainstorming Phase B) decides which spec stack to produce. Gate 2 (spec review, after each `*-writer` emits `done`) lets the user approve / revise / abort the written `PRD.md` / `TRD.md` / `TASKS.md` before the next stage runs. On revise, the writer is re-dispatched with a `revision_note` and surgically addresses just that note.
-- **Brainstorming grounds questions in code.** Once intent + target are pinned, brainstorming runs a scoped codebase peek (~10 Read/Grep/Glob calls) and emits the findings as `exploration_findings`. Writers consume them as authoritative ground and run on a small verify-first budget instead of re-exploring.
+- **Session = folder.** All artifacts live under the user's project at `.planning/{YYYY-MM-DD-slug}/` (`ROADMAP.md`, `STATE.md`, `brainstorming.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`).
+- **Handoff = files + markdown sections.** Planning artifacts move stage-to-stage on disk (each writer reads the prior stage's file from `.planning/{session_id}/`), and execution status flows through the skill's terminal message using fixed sections (`## Status`, `## Path`, `## Reason`, `## Session`). The main thread reads `## Status` to decide what to dispatch next.
+- **Two explicit user gates.** Gate 1 (route approval, absorbed by brainstorming Phase B) decides which spec stack to produce. Gate 2 (spec review, after each `*-writer` ends with `## Status: done`) lets the user approve / revise / abort the written `PRD.md` / `TRD.md` / `TASKS.md` before the next stage runs. On revise, the writer is re-dispatched with a revision note and surgically addresses just that note.
+- **Brainstorming grounds questions in code.** Once intent + target are pinned, brainstorming runs a scoped codebase peek (~10 Read/Grep/Glob calls) and writes `.planning/{session_id}/brainstorming.md` (Request, A1.6 findings, Brainstorming output, Recommendation). Writers consume that file as authoritative ground and run on a small verify-first budget instead of re-exploring.
 
 ---
 
@@ -166,17 +167,17 @@ Once a session is created, progress follows the `ROADMAP.md` checkboxes. If you 
 
 ## Skills
 
-**using-harness** — Meta-skill injected at session start via hook. Decides whether to engage the harness chain (build/fix/refactor/migrate) or reply inline (casual chat). Each skill's "Required next skill" marker is load-bearing — skipping a step breaks the per-edge payload contract.
+**using-harness** — Meta-skill injected at session start via hook. Decides whether to engage the harness chain (build/fix/refactor/migrate) or reply inline (casual chat). Each skill's "Required next skill" marker is load-bearing — skipping a step breaks the per-edge handoff contract (which file the next stage expects on disk, and which `## Status` it dispatches on).
 
 **router** — Entry point for every user request. Classifies input as `casual`, `clarify`, `plan`, or `resume`, and creates the `.planning/{session_id}/` folder skeleton for new sessions.
 
-**brainstorming** — Intake stage that handles ambiguity, codebase grounding, and routing. Phase A clarifies the request and runs A1.6 (a scoped ~10-call codebase peek) so questions reference what actually exists; Phase B classifies the work into one of four routes (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) and holds Gate 1 for user approval. Emits `exploration_findings` for downstream writers.
+**brainstorming** — Intake stage that handles ambiguity, codebase grounding, and routing. Phase A clarifies the request and runs A1.6 (a scoped ~10-call codebase peek) so questions reference what actually exists; Phase B classifies the work into one of four routes (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) and holds Gate 1 for user approval. After approval, writes `.planning/{session_id}/brainstorming.md` (Request, A1.6 findings, Brainstorming output, Recommendation) for downstream writers to consume.
 
-**prd-writer** — Drafts `PRD.md` in an isolated subagent. Captures Goal, Acceptance criteria, Non-goals, Constraints, and Open questions. Outcome-framed, not engineering-detailed. Verify-first when `exploration_findings` is present (~5 calls), full-mode otherwise (~15).
+**prd-writer** — Drafts `PRD.md` in an isolated subagent. Captures Goal, Acceptance criteria, Non-goals, Constraints, and Open questions. Outcome-framed, not engineering-detailed. Verify-first when `brainstorming.md` is present (~5 calls), full-mode otherwise (~15).
 
-**trd-writer** — Drafts `TRD.md` in an isolated subagent. Maps affected surfaces to concrete file/function names, interfaces & contracts, data model, and risks. Code-shape level, distinct from PRD. Verify-first when `exploration_findings` is present (~10 calls), full-mode otherwise (~25).
+**trd-writer** — Drafts `TRD.md` in an isolated subagent. Maps affected surfaces to concrete file/function names, interfaces & contracts, data model, and risks. Code-shape level, distinct from PRD. Verify-first when `brainstorming.md` is present (~10 calls), full-mode otherwise (~25).
 
-**task-writer** — Drafts `TASKS.md` in an isolated subagent. Decomposes the work into PR-sized, executor-ready tasks (3–8 is healthy). Preserves PRD/TRD vocabulary verbatim — evaluator greps on it. Verify-first when upstream context (TRD or `exploration_findings`) is present (~10 calls), full-mode otherwise (~20).
+**task-writer** — Drafts `TASKS.md` in an isolated subagent. Decomposes the work into PR-sized, executor-ready tasks (3–8 is healthy). Preserves PRD/TRD vocabulary verbatim — evaluator greps on it. Verify-first when upstream context (TRD or `brainstorming.md`) is present (~10 calls), full-mode otherwise (~20).
 
 **parallel-task-executor** — Dispatches one fresh subagent per task via the Task tool. Runs tasks in parallel where possible, serializes on file overlap, caps at 5 per group. Writes `[Result]` blocks per task and finalizes `ROADMAP.md`.
 
@@ -192,6 +193,7 @@ After install, the only thing that appears in your project is:
     └── {YYYY-MM-DD-slug}/
         ├── ROADMAP.md
         ├── STATE.md
+        ├── brainstorming.md
         ├── PRD.md
         ├── TRD.md
         ├── TASKS.md

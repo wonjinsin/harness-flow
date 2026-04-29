@@ -8,6 +8,7 @@ Single source of truth for which skill is allowed to create, update, or only rea
 |---|---|---|---|
 | `ROADMAP.md` | `router` (empty skeleton, Step 4) | `brainstorming` (Complexity line, brainstorming row), `parallel-task-executor` (phase finalization, Step 7) | `trd-writer`, `task-writer`, `evaluator` |
 | `STATE.md` | `router` (empty skeleton, Step 4) | `brainstorming` (Current Position, Last activity), `parallel-task-executor` (resume state), main thread (`escalated`, `last_eval`, `last_eval_at`, `last_eval_excerpt` on evaluator return) | `evaluator` *(does not read STATE.md)* |
+| `brainstorming.md` | `brainstorming` (Phase B7, after Gate 1 approval) | — (no further writes; regeneration deletes and re-dispatches) | `prd-writer`, `trd-writer`, `task-writer` |
 | `PRD.md` | `prd-writer` | — (no further writes; regeneration deletes and re-dispatches) | `trd-writer`, `task-writer` |
 | `TRD.md` | `trd-writer` | — | `task-writer` |
 | `TASKS.md` | `task-writer` | `parallel-task-executor` (`[Result]` blocks per task; never the body) | `evaluator`, `doc-updater` |

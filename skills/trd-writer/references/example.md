@@ -1,6 +1,6 @@
 # Rendered TRD example (upstream PRD present)
 
-Given the session from prd-writer's example (`2026-04-19-add-2fa-login`) with payload `{prd_path: ".planning/2026-04-19-add-2fa-login/PRD.md"}`:
+Given the session from prd-writer's example (`2026-04-19-add-2fa-login`) with `.planning/2026-04-19-add-2fa-login/PRD.md` already present:
 
 ````markdown
 # TRD — Add 2FA to login page
