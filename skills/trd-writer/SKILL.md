@@ -1,7 +1,7 @@
 ---
 name: trd-writer
-description: Run after prd-writer (prd-trd route) or directly after brainstorming (trd-only route). Drafts `.planning/{session_id}/TRD.md` — Affected surfaces with concrete file/function names, Interfaces & contracts, Data model, Risks. Code-shape level: distinct from PRD's outcome framing and TASKS's step-by-step instructions. One TRD per session; runs in an isolated subagent.
-model: opus
+description: Run after prd-writer (prd-trd route) or directly after brainstorming (trd-only route). Drafts `.planning/{session_id}/TRD.md` — Affected surfaces with concrete file/function names, Interfaces & contracts, Data model, Risks. Code-shape level: distinct from PRD's outcome framing and TASKS's step-by-step instructions. Consumes brainstorming's `exploration_findings` (and PRD when present) as authoritative ground; only verifies and digs into interfaces within a ~10-call budget. One TRD per session; runs in an isolated subagent.
+model: sonnet
 ---
 
 # TRD Writer
@@ -12,7 +12,7 @@ Produce **`TRD.md`** — the technical design that bridges PRD-level outcomes (w
 
 See `../../harness-contracts/output-contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
 
-This skill receives `session_id`, `request`, optional `prd_path` (set when PRD exists upstream, else `null`), `brainstorming_outcome` (`"prd-trd"` or `"trd-only"` — required), and optional `brainstorming_output`.
+This skill receives `session_id`, `request`, optional `prd_path` (set when PRD exists upstream, else `null`), `brainstorming_outcome` (`"prd-trd"` or `"trd-only"` — required), optional `brainstorming_output`, optional `exploration_findings` (brainstorming's codebase peek — when present, the authoritative starting point), and optional `revision_note` (only when re-dispatched after a Gate 2 revise — see Step 1).
 
 ## Execution mode
 
@@ -26,18 +26,32 @@ TRD answers "what will actually change in code and why this shape?" — distinct
 
 ### Step 1 — Read the payload (and PRD if present)
 
-Re-read `request` in full. If `prd_path` is set, read the PRD end-to-end and treat its Goal, Acceptance criteria, and Constraints as hard inputs — the TRD must satisfy them, not re-derive them. Extract target and visible constraints. Note what is missing — anything you cannot answer from payload + PRD becomes Step 2 exploration or Open questions.
+Re-read `request` in full. If `prd_path` is set, read the PRD end-to-end and treat its Goal, Acceptance criteria, and Constraints as hard inputs — the TRD must satisfy them, not re-derive them.
+
+If `revision_note` is present, this is a Gate 2 re-dispatch — the user reviewed the previous TRD and asked for a correction. **Anchor on the note**: which section does the correction touch (Affected surfaces, Interfaces, Data model, Risks)? Treat the rest of the doc as basically right; surgically address what the note flagged.
+
+If `exploration_findings` is present, treat it as **authoritative ground**:
+
+- `files_visited` and `key_findings` are the change surface — Step 2 starts from there, only verifying and going deeper into interfaces.
+- `code_signals` informs Risks (auth/migration/schema concerns must surface in §7 Risks).
+- `open_questions` flags things brainstorming could not resolve — promote relevant ones to TRD Open questions.
+
+Extract target and visible constraints. Note what is missing from payload + PRD + findings — that's the candidate set for Step 2 verification or Open questions.
 
 If `prd_path` is set and the file is missing/unreadable, emit the `error` outcome per `../../harness-contracts/output-contract.md`.
 
-### Step 2 — Scoped codebase exploration (budget-capped)
+### Step 2 — Scoped codebase exploration (budget-capped, verify-first)
 
-Tool budget: **~25 Read/Grep/Glob calls**. TRD decisions need actual function signatures, existing abstractions, and data shapes — deeper than a scope-locating pass — which is why the budget is larger. Stop as soon as the design question is answered.
+Tool budget: **~10 Read/Grep/Glob calls when `exploration_findings` is present, ~25 when absent**. The findings already encode brainstorming's main-thread peek — re-running it would waste tokens and risk inconsistent reads. The smaller cap when findings are present is enough because TRD's job is mostly to dig into interfaces brainstorming surfaced, not re-discover the change surface.
 
-Target-directed: locate the primary file/module using, in order, `brainstorming_output.target` (if present), the PRD's subject (if `prd_path` set), or the first noun-phrase in `request`. Then decide width:
+When findings present (verify-first mode):
 
-- `scope_hint: multi-system` → walk outward to direct callers, sibling modules, and any shared abstractions the change touches.
-- Otherwise → stay within the target file/module and its immediate dependencies.
+- Confirm `files_visited` paths and the function/class names in `key_findings` still exist and match.
+- Spend remaining budget reading the actual function signatures, request/response shapes, and shared abstractions referenced — these are the TRD's substance and brainstorming's peek typically did not record them in detail.
+- Walk outward to direct callers / sibling modules ONLY for surfaces brainstorming did not visit.
+- If a finding is wrong, record the correction in Open questions and pick a defensible default marked `(assumed)`.
+
+When findings absent (full mode, ~25 calls): locate the primary file/module using, in order, `brainstorming_output.target` (if present), the PRD's subject (if `prd_path` set), or the first noun-phrase in `request`. Then decide width — `scope_hint: multi-system` → walk outward to direct callers, sibling modules, and any shared abstractions the change touches; otherwise stay within the target file/module and its immediate dependencies.
 
 Stop when you can answer: (1) what concretely changes in code (file-level, with function/class names visible)? (2) what existing interfaces does it consume or expose? (3) what data flows through, in what shape? (4) what else in the codebase depends on the surfaces you're touching?
 
@@ -70,12 +84,18 @@ Emit the final JSON as your entire final message. TRD-writer's `done` example (s
 
 ## Required next skill
 
-When this skill emits `outcome: "done"` (full payload contract: `../../harness-contracts/payload-contract.md` § "trd-writer → task-writer"):
+On `outcome: "done"`, the **main thread runs Gate 2** before dispatching anything: it surfaces the written `TRD.md` path (and any Open questions inside it) to the user with a prompt like:
 
-- **REQUIRED SUB-SKILL:** Use harness-flow:task-writer
-  Payload: `{ session_id, request, prd_path, trd_path, brainstorming_output }` — `trd_path` is constructed from this skill's `path`. `prd_path` may be `null` on the trd-only route.
+> "Wrote `.planning/{session_id}/TRD.md`. Review and let me know — approve to continue, or tell me what to revise."
 
-On `outcome: "error"`: flow terminates. Report to the user and stop.
+Three branches (full contract: `../../harness-contracts/payload-contract.md` § "User review gates"):
+
+- **approve** → **REQUIRED SUB-SKILL:** Use harness-flow:task-writer
+  Payload: `{ session_id, request, prd_path, trd_path, brainstorming_output, exploration_findings }` — `trd_path` is constructed from this skill's `path`. `prd_path` may be `null` on the trd-only route.
+- **revise** → main thread deletes `.planning/{session_id}/TRD.md` and re-dispatches **trd-writer** with the original payload + `revision_note: "<user's correction>"`. Step 1 detects the field and anchors on the note.
+- **abort** → main thread updates `STATE.md` `Last activity` and stops.
+
+On `outcome: "error"` → flow terminates immediately (no Gate 2). Main thread reports the reason and stops.
 
 ## Anti-patterns
 
@@ -97,4 +117,4 @@ TRD-specific (additional to those in `../../harness-contracts/output-contract.md
 - File ownership: see `../../harness-contracts/file-ownership.md` (this skill = `TRD.md` row — create only; PRD is upstream read-only; source code untouched).
 - Do not invoke other agents or skills. Do not dispatch task-writer — the 'Required next skill' section above dispatches downstream.
 - Do not modify source code, even if you spot bugs. Note them in Open questions if load-bearing.
-- Tool budget: ~25 Read/Grep/Glob calls. If you need more, halt and emit `error` with a `reason`.
+- Tool budget: **~10 Read/Grep/Glob calls when `exploration_findings` is present** (verify-first + interface deepening), **~25 when absent** (full design-deep mode). If you need more than the applicable cap, halt and emit `error` with a `reason`.

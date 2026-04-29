@@ -1,21 +1,24 @@
 ---
 name: brainstorming
-description: router 가 clarify, plan, 또는 resume 를 방출한 직후 harness intake 단계로 실행. 요청에 신호가 부족할 때(clarify 경로) 짧은 Q&A 루프를 돌린다 — 전제 자체가 모호하면 문제 공간을 먼저 발산하고, 그 뒤 필드 단위 인테이크로 좁힘. 네 가지 하위 경로(prd-trd, prd-only, trd-only, tasks-only) 중 하나로 분류한 뒤 아티팩트 생성 전 Gate 1 유저 승인을 흡수. 구현 해결책 제안·스펙 작성·코드베이스 탐색은 하지 않음 — target 이름 모호성 해소를 위한 최소 탐색만 허용. 산출물은 prd-writer / trd-writer / task-writer 가 신뢰할 수 있는 단일 경로 payload.
-model: opus
+description: router 가 clarify, plan, 또는 resume 를 방출한 직후 harness intake 단계로 실행. 요청에 신호가 부족할 때(clarify 경로) 짧은 Q&A 루프를 돌리며, 코드베이스 peek (~10 Read/Grep/Glob calls) 로 질문을 실제 코드에 ground 시킨 뒤, 네 가지 하위 경로(prd-trd, prd-only, trd-only, tasks-only) 중 하나로 분류하고 아티팩트 생성 전 Gate 1 유저 승인을 흡수. 구현 해결책 제안·스펙 작성은 하지 않음 — 산출물은 경로 payload + exploration_findings 묶음으로, prd-writer / trd-writer / task-writer 가 코드베이스를 재탐색하지 않고 검증만 하면 되도록 한다.
+model: sonnet
 ---
 
 # Brainstorming
 
 ## 목적
 
-Brainstorming 은 하네스의 **인테이크 스킬**이다. 두 가지 책임을 한 스킬에서 소유한다:
+Brainstorming 은 하네스의 **인테이크 스킬**이다. 세 가지 책임을 한 스킬에서 소유한다:
 
 1. **요청 명확화** — router 가 `clarify` 로 라우팅하면, 분류·드래프팅에 필요한 신호가 다 모일 때까지 짧은 Q&A 루프를 돈다. Phase A 는 두 모드 중 하나로 진행:
    - **Intake** (기본) — 요청에 intent 와 target 이 이미 보이면 남은 필드를 한 번에 하나씩 채운다.
    - **Explore** — 요청이 아직 아이디어 단계라면 잠깐 발산해서 *문제 공간*을 매핑한 뒤, intake 로 수렴한다.
-2. **경로 분류** — `prd-trd` / `prd-only` / `trd-only` / `tasks-only` 중 하나 선정 후 **Gate 1** (아티팩트 생성 착수 전 유저 승인) 흡수.
+2. **코드베이스 ground** — intent + target 이 잡힌 시점 (Phase A1.6) 에 코드베이스 peek (~10 Read/Grep/Glob calls) 을 한 번 돌려 target 이 실재하는지 확인하고, 코드 가시 제약 (기존 schema, auth flow, 함수 시그니처) 을 surface 하며, 나머지 Phase A 의 질문을 구체화한다. 발견 사항은 `exploration_findings` 로 emit 되어 writer 가 같은 영역을 재탐색하지 않게 한다.
+3. **경로 분류** — `prd-trd` / `prd-only` / `trd-only` / `tasks-only` 중 하나 선정 후 **Gate 1** (아티팩트 생성 착수 전 유저 승인) 흡수.
 
-이 스킬은 **구현 해결책**을 제안하지 않고, 스펙·코드 작성도 하지 않는다. **Explore 모드는 방향성 옵션 (문제 공간 카테고리, 상위 모양) 까지는 제시할 수 있으나 구현 옵션은 절대 제안하지 않는다** — 이 경계가 brainstorming 을 `prd-writer` / `trd-writer` 와 분리시키는 핵심이다. 산출물은 하위 writer 가 신뢰할 수 있는 단 하나의 경로 payload.
+이 스킬은 **구현 해결책**을 제안하지 않고, 스펙·코드 작성도 하지 않는다. **Explore 모드는 방향성 옵션 (문제 공간 카테고리, 상위 모양) 까지는 제시할 수 있으나 구현 옵션은 절대 제안하지 않는다** — 이 경계가 brainstorming 을 `prd-writer` / `trd-writer` 와 분리시키는 핵심이다. 산출물은 경로 payload + exploration_findings 묶음.
+
+왜 brainstorming 이 코드베이스 탐색을 소유하나 (그리고 writer 가 재탐색하지 않나): **이 자리에는 사용자가 있다**. 잘못된 가정을 surface 한 발견 ("`issueSession` 이라고 하셨는데 코드에는 `createSession` 만 있어요 — 같은 거 말씀이신가요?") 은 한 턴에 라이브로 해결된다. 같은 발견이 격리된 서브에이전트 안에서 일어나면 PRD/TRD/TASKS 가 다 작성된 뒤에야 사용자가 발견하는 Open question 이 된다. 메인 컨텍스트에서 ~10 tool call 을 미리 쓰면 다운스트림에서 세 번 독립으로 재발견하는 비용을 절감하고, 가장 싼 시점에 mismatch 를 잡는다.
 
 ## 실행 모드
 
@@ -47,11 +50,20 @@ Main context — `../../harness-contracts/execution-modes.ko.md` 참조. Brainst
     "scope_hint": "single-file|subsystem|multi-system",
     "constraints": ["..."],
     "acceptance": "..."
+  },
+  "exploration_findings": {
+    "files_visited": ["src/auth/session.ts:42", "src/auth/middleware.ts"],
+    "key_findings": [
+      "issueSession() in src/auth/session.ts currently issues without TOTP check",
+      "middleware reads Bearer token only — no MFA hook"
+    ],
+    "code_signals": ["auth/", "schema:session"],
+    "open_questions": ["Should refresh tokens be revoked on TOTP enable?"]
   }
 }
 ```
 
-`brainstorming_output` 은 router 가 `plan` 을 바로 인계해서 Q&A 단계가 생략된 경우 `null` 일 수 있다.
+`brainstorming_output` 은 router 가 `plan` 을 바로 인계해서 Q&A 단계가 생략된 경우 `null` 일 수 있다. `exploration_findings` 는 요청에 해결 가능한 target 이 없을 때 (순수 UX 결정, 로컬 아날로그가 없는 외부 통합) `null` 일 수 있다 — 그 경우 writer 는 자체 Step 2 budget 으로 폴백.
 
 **피벗** — 인테이크 도중 유저가 다른 요청으로 전환:
 
@@ -67,53 +79,53 @@ Main context — `../../harness-contracts/execution-modes.ko.md` 참조. Brainst
 
 세션 파일은 경로 outcome 에서만 갱신 (B5/B7 — `references/procedure.ko.md` 참조). `STATE.md` 의 `Last activity` 라인은 모든 outcome 에서 갱신. `pivot` / `exit-casual` 은 ROADMAP 을 건드리지 않는다.
 
-## 프로세스 흐름
+## 절차
 
-1. **Step 0** — 재개 숏서킷 (이전에 분류된 경우 전부 스킵).
-2. **Phase A** — 명확화 (`route == "clarify"` 일 때만):
-   - **A-explore** — 요청에서 intent + target 둘 다 안 나올 때 먼저 발산해서 문제 공간을 매핑.
-   - **A-intake** — intent 또는 target 이 식별 가능해진 시점부터 빈 필드를 한 번에 하나씩 채움.
-3. **Phase B** — 분류 + Gate 1 유저 승인.
-
-## 절차 요약
+Step 0 (재개 숏서킷) → **Phase A** (`route == "clarify"` 일 때만) → **Phase B** (항상). Phase A 는 intent + target 추출 가능 여부에 따라 A-intake 또는 A-explore 선택; 어느 쪽이든 둘 다 잡히면 A2 전에 A1.6 가 발동한다.
 
 | 단계    | 스텝      | 한 줄 설명                                                                            |
 | ------- | --------- | ------------------------------------------------------------------------------------- |
 | Step 0  | resume    | ROADMAP 에 `Complexity:` + `brainstorming` 이 `[x]` 면 숏서킷.                        |
 | Phase A | A1        | 요청에서 먼저 추출; 필드 질문 전에 멀티-서브시스템 범위 플래그.                       |
 | Phase A | A1.5      | 모드 선택 — A-explore (intent + target 둘 다 없음) vs A-intake (필드 일부 추출 가능). |
-| Phase A | A-explore | 열린 질문·방향성 MC 로 발산하다 intent + target 안정화되면 전이.                      |
-| Phase A | A2        | 턴당 빈 필드 하나, MC 선호, 유저 언어로 질문.                                         |
+| Phase A | A-explore | 열린 질문·방향성 MC 로 발산하다 intent + target 안정화.                               |
+| Phase A | A1.6      | 코드베이스 peek (~10 Read/Grep/Glob) — target 검증, 코드 가시 제약 수집.              |
+| Phase A | A2        | 턴당 빈 필드 하나, MC 선호, 유저 언어. A1.6 발견을 질문에 활용.                       |
 | Phase A | A3        | "그냥 시작" / "스킵" → 즉시 종료, 채워진 채로 Phase B.                                |
 | Phase A | A4        | 채워진 필드 확인을 독립 메시지로 — 다음 턴이 Phase B 진입.                            |
-| Phase B | B1        | 경로 신호 (`auth/`, `migrations/`, …) + 다국어 키워드 신호 탐지.                      |
+| Phase B | B1        | 경로 + 다국어 키워드 신호. A1.6 발견이 `code_signals` 채움.                           |
 | Phase B | B2        | 정수 하나 N = 수정 + 신규 파일 베스트-게스.                                           |
 | Phase B | B3        | 티어 규칙: 신호 있으면 prd-trd; 그 외엔 intent + N.                                   |
 | Phase B | B4        | tasks-only 후보는 4개 자기검증 통과 필요, 하나라도 실패 → prd-only.                   |
 | Phase B | B5        | Gate 1 — 추천을 독립 메시지로 제시 후 대기.                                           |
 | Phase B | B6        | 수락 / 경로 번복 / 파일 수 번복 (1회 재계산) / 피벗.                                  |
-| Phase B | B7        | ROADMAP 에 `Complexity:` + `brainstorming` 행 체크, STATE 갱신, payload emit.         |
+| Phase B | B7        | ROADMAP + STATE 갱신, payload emit (`exploration_findings` 포함).                     |
 
-`references/procedure.ko.md` 에 전체 Q&A 프로토콜.
+전체 Q&A 프로토콜: `references/procedure.ko.md`.
 
 ## 대화 모양
 
-**좋은 예 — clarify 경로, 인테이크 거쳐 trd-only:**
+**좋은 예 — clarify 경로 + A1.6 grounded refinement → trd-only:**
 
 > User: "make the auth code better"
-> Brainstorming: "어떤 변경이 필요하신가요? (버그 수정 / 가독성 리팩토링 / 성능 개선 / 마이그레이션)"
+> Brainstorming: "어떤 변경이 필요하신가요? (버그 수정 / 가독성 리팩토링 / 성능 / 마이그레이션)"
 > User: "리팩토링"
 > Brainstorming: "어느 부분이요 — 세션 처리 / 비밀번호 리셋 / JWT 발급 / 더 넓은 범위?"
 > User: "세션 처리"
-> Brainstorming: "범위: 세션 모듈 안에 갇히나요, 호출자까지 번지나요?"
-> User: "모듈 안에만"
-> Brainstorming: "확인 — 세션 처리 리팩토링, subsystem 범위. 이제 경로를 고르겠습니다."
+> [A1.6: Read `session.ts` + Grep 호출자 → `auth/{login,logout,refresh,middleware}` 에 4 호출자. 발견: `issueSession()` (session.ts:42) 가 발급과 쿠키 세팅을 한 함수에 섞음; 신호 `auth/`.]
+> Brainstorming: "코드 보니 발급 로직과 쿠키 세팅이 한 함수에 섞여 있어요. 이번 리팩토링에서 둘을 분리할까요, 발급 쪽만 정리할까요?"
+> User: "분리해줘"
+> Brainstorming: "범위: session 모듈 안에서만, 4개 호출자 시그니처는 유지?"
+> User: "그대로"
+> Brainstorming: "확인 — 세션 처리 리팩토링 (발급/쿠키 분리), subsystem. 경로 추천하겠습니다."
 > User: "ok"
-> Brainstorming: "**trd-only** (TRD → Tasks) 추천. 예상 3파일, 보안 신호 없음. 진행할까요?"
+> Brainstorming: "**trd-only** 추천. 예상 3파일, `auth/` 를 건드림. 진행할까요?"
 > User: "네"
-> Brainstorming: [ROADMAP 확정, `{"outcome": "trd-only", ...}` emit]
+> Brainstorming: [확정, `{"outcome": "trd-only", ..., "exploration_findings": {...}}` emit]
 
-`references/conversation-examples.ko.md` 에 추가 대화 패턴 — **explore → intake** 흐름 (아이디어 단계에서 분류된 경로까지), plan 경로 신호 승격, tasks-only 강등, 유저 번복, 다중 프로젝트 분해, 나쁜 예들.
+A1.6 가 "발급 + 쿠키 결합" 같은 결정을 실재 코드 위에서 사용자가 라이브로 정할 수 있게 한다 — peek 이 없으면 그 결정은 TRD 의 Open question 으로 남아 문서 작성 후에야 발견된다.
+
+`references/conversation-examples.ko.md` 에 더 많은 패턴 — explore → A1.6 → intake (아이디어 단계), intake + grounded refinement, plan 경로 신호 승격, tasks-only 강등, 유저 번복, 다중 프로젝트 분해, 나쁜 예들.
 
 ## 엣지 케이스
 
@@ -133,14 +145,13 @@ Main context — `../../harness-contracts/execution-modes.ko.md` 참조. Brainst
 
 ## 범위 밖
 
-- 파일 소유권: `../../harness-contracts/file-ownership.ko.md` 참조. Brainstorming 은 `ROADMAP.md` 의 `Complexity:` 줄 + brainstorming 행, `STATE.md` 의 `Current Position` + `Last activity` 만 쓴다. 그 외는 범위 밖.
-- **구체적인** 해결책·접근법·구현 트레이드오프 제안 — `prd-writer` / `trd-writer` 의 몫. Explore 모드는 방향성 옵션 (문제 공간 카테고리, 상위 모양 — 예: 알림 요청에 대해 "푸시 / 이메일 / 인앱") 까지는 제시할 수 있다 (인테이크 프레이밍 용도). 구현 선택지 (라이브러리, 아키텍처, 파일 구조) 는 제안 금지.
-- 스펙·디자인·플랜 / 코드 작성.
-- 코드베이스 탐색 — target 이름 모호성 해소에 꼭 필요한 최소한 (≤ 2 tool call) 외 금지. 파일 수 추정 위한 코드베이스 스캔도 금지.
-- LOC / 테스트 커버리지 추정.
-- 런타임 중간 승격 (실제 diff 보고 경로 상향).
-- 다음 agent 직접 dispatch — 메인 스레드가 아래 "필수 다음 스킬" 섹션을 읽고 진행.
-- 유저가 이미 답한 질문 되묻기.
-- Router 재호출. 피벗이 새 세션을 정당화하면 이 스킬 종료 — 다음 턴에 router 가 돈다.
-- B6 의 파일 수 재계산 1회 초과. 그 너머는 유저 값을 그대로 받고 진행.
+- 파일 소유권: `../../harness-contracts/file-ownership.ko.md` 참조 (이 스킬은 `ROADMAP.md` 의 `Complexity:` + brainstorming 행, `STATE.md` 의 `Current Position` + `Last activity` 만 쓴다).
+- **구체적인** 해결책·접근법·구현 트레이드오프 제안 — `prd-writer` / `trd-writer` 의 몫. Explore 모드는 문제 공간 *모양* 카테고리 ("푸시 / 이메일 / 인앱") 정도만, 구현 선택지 (라이브러리, 아키텍처, 파일 구조) 는 제안 금지.
+- 스펙·디자인·코드 작성.
+- A1.6 의 ~10 call budget 을 넘는 코드베이스 탐색. target 도 못 잡으면 `constraint: deliberately-wide-scope` 기록 후 진행 — 그 요청은 prd-trd 경로일 가능성이 높다.
+- A1.6 가 버그를 surface 해도 소스 코드 수정 금지. `exploration_findings.open_questions` 에 기록.
+- LOC / 테스트 커버리지 추정; 런타임 중간 승격 (실제 diff 기반 경로 상향).
+- 다음 agent 직접 dispatch — 메인 스레드가 아래 "필수 다음 스킬" 을 읽고 진행.
+- 유저가 이미 답한 질문 되묻기; router 재호출 (피벗이면 다음 턴에 router 가 돈다).
+- B6 의 파일 수 재계산 1회 초과.
 - 스킬 내부 (경로명·신호 리스트·필드명) 비영어화 — 유저 추천·확인은 유저 언어 미러링.

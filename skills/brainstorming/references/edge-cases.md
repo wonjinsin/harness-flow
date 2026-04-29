@@ -13,3 +13,13 @@ Edge-case handling referenced from `SKILL.md`.
 - **User gives file count but no route verdict** ("maybe 8 files?"): recompute route silently and present the new recommendation once more.
 - **User names a non-existent route** ("prd-tasks, please"): re-ask once with the four options. If still unclear, use the recommended route.
 - **`intent: "other"` with `intent-freeform` constraint**: inspect the freeform verb — refactor-ish → trd-only, fix-ish → tasks-only candidate, create-ish → prd-trd/prd-only. Unparseable → prd-only.
+
+## A1.6 (codebase peek) edge cases
+
+- **A1.6 finds the named target doesn't exist** (e.g., user says "fix `createSession`" but Grep finds only `issueSession`): record both the user's term and the actual identifier in `key_findings`, log the mismatch in `open_questions`, and surface it as an A2 question — "I see `issueSession` in the code but no `createSession`. Did you mean that, or is `createSession` somewhere I haven't looked?" Do not silently rewrite the user's vocabulary; the writer needs the trail.
+- **A1.6 budget exhausted before the target is located**: stop. Record `open_questions: ["target <name> not located within ~10 calls — needs user disambiguation"]` and ask directly in A2 — "I couldn't find <name> in the obvious places. Could you point me to the file or directory?" Do not silently start a second round of exploration.
+- **A1.6 surfaces a scale mismatch** (user says "small change" but Grep finds 12 callers): note in `key_findings`, surface in A2 — "이 변경이 12곳에서 호출되는 함수를 건드려요. 모두 같이 가나요, 일부는 그대로 두나요?" Let the user reconcile; don't quietly upgrade the route.
+- **Request has no resolvable codebase target** (pure UX decision, brand-new external integration with no local analog, pure documentation): skip A1.6 entirely. Emit `exploration_findings: null`. Note the reason in `STATE.md` `Last activity` so writers know to fall back to their own larger Step 2 budgets.
+- **A1.6 finds an obvious bug in the target**: record in `open_questions` for the user to decide ("이 함수가 null 체크를 빼먹는데, 이번 변경에 같이 묶을까요 별도 세션으로 뺄까요?"). Do not modify code; brainstorming never edits.
+- **User contradicts an A1.6 finding** (claims a function exists that Grep doesn't find, or vice versa): keep both views in `open_questions` rather than picking one. The writer will resolve at file-read time, but only if the discrepancy survives in the payload.
+- **A1.6 detects path/keyword signals not present in the request text** (e.g., user says "speed up checkout" but the target file imports `migrations/`): add to `code_signals` — B1 will pick them up regardless of the request text. This is the main argument for running A1.6 before B1.

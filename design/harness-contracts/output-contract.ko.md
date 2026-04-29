@@ -16,8 +16,10 @@ writer 패밀리 (`prd-writer`, `trd-writer`, `task-writer`) 의 단일 출처. 
 - `request`: 사용자의 원본 턴, 그대로. 구조화 필드가 빠뜨리는 어조와 뉘앙스를 위해 읽는다.
 - `brainstorming_outcome` *(prd-writer, trd-writer)*: brainstorming 이 emit 한 경로 (`"prd-trd"`, `"prd-only"`, `"trd-only"`). 명시된 곳에서는 필수; 부재 또는 다른 값은 `error`.
 - `brainstorming_output` *(선택)*: `{intent, target, scope_hint, constraints[], acceptance}` — router 가 `plan` 으로 직접 라우팅했을 때 부재할 수 있다.
+- `exploration_findings` *(선택)*: brainstorming 의 코드베이스 peek 산출물 `{files_visited[], key_findings[], code_signals[], open_questions[]}`. **있으면 권위 있는 ground 로 취급한다.** Step 2 는 verify-first 가 된다 — 발견사항이 여전히 유효한지 확인 후, brainstorming 이 방문하지 않은 표면으로만 budget 확장. 이미 다룬 영역을 재탐색하지 마라. 스키마는 `payload-contract.md` § 세션-와이드 필드 참조.
 - `prd_path` *(trd-writer, task-writer)*: PRD 가 업스트림에 존재하면 `".planning/{session_id}/PRD.md"`, 그렇지 않으면 `null`.
 - `trd_path` *(task-writer)*: TRD 가 업스트림에 존재하면 `".planning/{session_id}/TRD.md"`, 그렇지 않으면 `null`.
+- `revision_note` *(선택)*: Gate 2 revise 후 메인 thread 가 이 writer 를 재디스패치할 때만 존재. 사용자의 수정사항을 담은 짧은 문자열. 있으면 처음부터 재유도하기보다 이를 우선 처리하라 — 이전 버전이 거의 맞고 이 축에서만 틀린 상태다.
 
 `*_path` 가 설정됐는데 파일을 읽을 수 없거나 없으면, `error` 로 중단하고 `reason: "<doc> declared in payload but <path> not found"`. 추측하지 마라.
 

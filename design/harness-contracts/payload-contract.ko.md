@@ -46,6 +46,23 @@
 | `request` | 사용자의 원본 턴, router 에서 캡처 | 세션 전체 |
 | `brainstorming_output` | brainstorming emission `brainstorming_output` | brainstorming 이후 |
 | `brainstorming_outcome` | brainstorming emission `outcome` (`prd-trd`/`prd-only`/`trd-only`/`tasks-only`) | brainstorming 이후 |
+| `exploration_findings` | brainstorming emission `exploration_findings` | brainstorming 이후 |
+
+`exploration_findings` 형태 — brainstorming 이 코드베이스 peek 후 emit, 이후 모든 writer payload 로 전파되어 writer 가 재탐색 대신 검증만 하도록 한다:
+
+```json
+{
+  "files_visited": ["src/auth/session.ts:42", "src/auth/middleware.ts"],
+  "key_findings": [
+    "issueSession() in src/auth/session.ts currently issues without TOTP check",
+    "middleware reads Bearer token only — no MFA hook"
+  ],
+  "code_signals": ["auth/", "schema:session"],
+  "open_questions": ["Should refresh tokens be revoked on TOTP enable?"]
+}
+```
+
+brainstorming 이 스킵된 경우 (router 가 `plan` 으로 직접 라우팅, Q&A 없음) 또는 요청에 해결 가능한 target 이 없는 경우 `null` 일 수 있다. `null` 일 때 writer 는 자체 (더 작은) Step 2 budget 으로 폴백.
 
 ## 엣지별 payload
 
@@ -62,46 +79,46 @@
 
 ### brainstorming → prd-writer
 
-- 트리거: emission `outcome ∈ {prd-trd, prd-only}`.
-- Emission: `{ outcome, session_id, request, brainstorming_output }`.
-- Payload: `{ session_id, request, brainstorming_outcome, brainstorming_output }`.
+- 트리거: emission `outcome ∈ {prd-trd, prd-only}` 그리고 Gate 2 사용자 승인 (아래 "사용자 review 게이트" 섹션 참조).
+- Emission: `{ outcome, session_id, request, brainstorming_output, exploration_findings }`.
+- Payload: `{ session_id, request, brainstorming_outcome, brainstorming_output, exploration_findings }`.
   - `brainstorming_outcome` = emission `outcome`. prd-writer 자신의 `outcome` 필드가 종료 상태를 운반할 수 있게 이름 변경 (충돌 방지).
 
 ### brainstorming → trd-writer
 
-- 트리거: emission `outcome == "trd-only"`.
+- 트리거: emission `outcome == "trd-only"` 그리고 Gate 2 사용자 승인.
 - Emission: 위와 같은 형태.
-- Payload: `{ session_id, request, brainstorming_outcome: "trd-only", brainstorming_output, prd_path: null }`.
+- Payload: `{ session_id, request, brainstorming_outcome: "trd-only", brainstorming_output, exploration_findings, prd_path: null }`.
 
 ### brainstorming → task-writer
 
-- 트리거: emission `outcome == "tasks-only"`.
+- 트리거: emission `outcome == "tasks-only"` 그리고 Gate 2 사용자 승인.
 - Emission: 위와 같은 형태.
-- Payload: `{ session_id, request, brainstorming_output, prd_path: null, trd_path: null }`.
+- Payload: `{ session_id, request, brainstorming_output, exploration_findings, prd_path: null, trd_path: null }`.
 
 ### prd-writer → trd-writer
 
-- 트리거: prd-writer emission `outcome: "done"` 그리고 `brainstorming_outcome: "prd-trd"`.
+- 트리거: prd-writer emission `outcome: "done"` 그리고 `brainstorming_outcome: "prd-trd"` 그리고 Gate 2 사용자 승인.
 - Emission: `{ outcome, session_id, brainstorming_outcome, path }`.
-- Payload: `{ session_id, request, prd_path, brainstorming_outcome: "prd-trd", brainstorming_output }`.
+- Payload: `{ session_id, request, prd_path, brainstorming_outcome: "prd-trd", brainstorming_output, exploration_findings }`.
   - `prd_path` = emission `path` (이름 변경: writer 는 자기 작성 파일을 보고; 다운스트림은 그것을 업스트림 PRD 로 소비).
 
 ### prd-writer → task-writer
 
-- 트리거: prd-writer emission `outcome: "done"` 그리고 `brainstorming_outcome: "prd-only"`.
+- 트리거: prd-writer emission `outcome: "done"` 그리고 `brainstorming_outcome: "prd-only"` 그리고 Gate 2 사용자 승인.
 - Emission: 위와 같음.
-- Payload: `{ session_id, request, prd_path, trd_path: null, brainstorming_output }`.
+- Payload: `{ session_id, request, prd_path, trd_path: null, brainstorming_output, exploration_findings }`.
 
 ### trd-writer → task-writer
 
-- 트리거: trd-writer emission `outcome: "done"`.
+- 트리거: trd-writer emission `outcome: "done"` 그리고 Gate 2 사용자 승인.
 - Emission: `{ outcome, session_id, path }`.
-- Payload: `{ session_id, request, prd_path, trd_path, brainstorming_output }`.
+- Payload: `{ session_id, request, prd_path, trd_path, brainstorming_output, exploration_findings }`.
   - `trd_path` = emission `path`. `prd_path` 는 trd-writer 가 받은 그대로 (trd-only 경로에서는 `null` 가능).
 
 ### task-writer → parallel-task-executor
 
-- 트리거: task-writer emission `outcome: "done"`.
+- 트리거: task-writer emission `outcome: "done"` 그리고 Gate 2 사용자 승인.
 - Emission: `{ outcome, session_id, path }`.
 - Payload: `{ session_id }`.
   - executor 는 `.planning/{session_id}/TASKS.md` 를 디스크에서 읽는다; payload 에 `path` 가 필요 없다.
@@ -124,6 +141,20 @@
 
 - Emission: `{ outcome, session_id }` (`error` 시 `reason`).
 - 다운스트림 없음 — 하네스가 사용자에게 보고하고 멈춘다.
+
+## 사용자 review 게이트
+
+체인에 두 개의 명시적 사용자 게이트가 있다. 둘 다 **메인 thread** 가 소유 — 어떤 스킬도 게이트를 직접 작성하지 않는다; 메인 thread 가 업스트림 emission 과 다운스트림 디스패치 사이에 사용자 응답을 보유한다.
+
+- **Gate 1 — route 승인** (`brainstorming` Phase B5 직후). 사용자가 추천 route 와 (선택적으로) 파일 수 추정을 승인 / 오버라이드. 자세한 흐름은 `skills/brainstorming/SKILL.md` Phase B 참조; brainstorming 자체가 메시지를 보내고 응답을 기다린 뒤, 승인이 있어야 route payload 를 emit 한다.
+- **Gate 2 — spec review** (각 writer 가 `outcome: "done"` emit 직후). 메인 thread 가 작성된 파일 경로와 Open questions 를 사용자에게 노출하고 셋 중 하나를 기다린다:
+  - **approve** — 메인 thread 가 업스트림 `## Required next skill` 섹션대로 다음 스킬 디스패치.
+  - **revise** — 메인 thread 가 작성된 파일 (`.planning/{session_id}/<ARTIFACT>.md`) 을 삭제하고 동일 writer 를 `revision_note` 가 추가된 payload 로 재디스패치 (`{...original_payload, revision_note: "<사용자의 수정사항>"}`). writer 는 `revision_note` 가 있을 때 이를 우선 처리해야 한다.
+  - **abort** — 메인 thread 가 `STATE.md` `Last activity` 에 abort 사유 기록 후 종료; 다음 스킬 디스패치 없음.
+
+Gate 2 는 `prd-writer`, `trd-writer`, `task-writer` 의 `done` emission 후 발동. `error` 후에는 발동하지 않으며 (즉시 종료), `parallel-task-executor` 후에도 발동하지 않는다 (executor 결과는 사용자가 아닌 evaluator 로 — 사용자는 TASKS 게이트에서 이미 plan 을 승인했음).
+
+각 writer 의 `## Required next skill` 섹션은 자기 Gate 2 프롬프트와 승인 시 디스패치할 다음 스킬을 명시한다.
 
 ## 컨벤션
 

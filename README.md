@@ -14,7 +14,8 @@ A Claude Code plugin. Routes user requests through **router → brainstorming �
   - `file-ownership.md` — who creates/updates/reads each session artifact
 - **9 skills × 4 agents.** Lightweight stages (router, brainstorming, parallel-task-executor) run in the main context; heavy artifact stages (PRD/TRD/TASKS writers, evaluator, doc-updater) run as isolated subagents.
 - **Session = folder.** All artifacts live under the user's project at `.planning/{YYYY-MM-DD-slug}/` (`ROADMAP.md`, `STATE.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`).
-- **Two explicit gates.** Gate 1 (intake → artifact route, absorbed by brainstorming) and Gate 2 (evaluation → doc update, first step of doc-updater).
+- **Two explicit user gates.** Gate 1 (route approval, absorbed by brainstorming Phase B) decides which spec stack to produce. Gate 2 (spec review, after each `*-writer` emits `done`) lets the user approve / revise / abort the written `PRD.md` / `TRD.md` / `TASKS.md` before the next stage runs. On revise, the writer is re-dispatched with a `revision_note` and surgically addresses just that note.
+- **Brainstorming grounds questions in code.** Once intent + target are pinned, brainstorming runs a scoped codebase peek (~10 Read/Grep/Glob calls) and emits the findings as `exploration_findings`. Writers consume them as authoritative ground and run on a small verify-first budget instead of re-exploring.
 
 ---
 
@@ -169,13 +170,13 @@ Once a session is created, progress follows the `ROADMAP.md` checkboxes. If you 
 
 **router** — Entry point for every user request. Classifies input as `casual`, `clarify`, `plan`, or `resume`, and creates the `.planning/{session_id}/` folder skeleton for new sessions.
 
-**brainstorming** — Intake stage that handles ambiguity and routing. Phase A asks clarifying questions; Phase B classifies the work into one of four routes (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) and holds Gate 1 for user approval.
+**brainstorming** — Intake stage that handles ambiguity, codebase grounding, and routing. Phase A clarifies the request and runs A1.6 (a scoped ~10-call codebase peek) so questions reference what actually exists; Phase B classifies the work into one of four routes (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) and holds Gate 1 for user approval. Emits `exploration_findings` for downstream writers.
 
-**prd-writer** — Drafts `PRD.md` in an isolated subagent. Captures Goal, Acceptance criteria, Non-goals, Constraints, and Open questions. Outcome-framed, not engineering-detailed.
+**prd-writer** — Drafts `PRD.md` in an isolated subagent. Captures Goal, Acceptance criteria, Non-goals, Constraints, and Open questions. Outcome-framed, not engineering-detailed. Verify-first when `exploration_findings` is present (~5 calls), full-mode otherwise (~15).
 
-**trd-writer** — Drafts `TRD.md` in an isolated subagent. Maps affected surfaces to concrete file/function names, interfaces & contracts, data model, and risks. Code-shape level, distinct from PRD.
+**trd-writer** — Drafts `TRD.md` in an isolated subagent. Maps affected surfaces to concrete file/function names, interfaces & contracts, data model, and risks. Code-shape level, distinct from PRD. Verify-first when `exploration_findings` is present (~10 calls), full-mode otherwise (~25).
 
-**task-writer** — Drafts `TASKS.md` in an isolated subagent. Decomposes the work into PR-sized, executor-ready tasks (3–8 is healthy). Preserves PRD/TRD vocabulary verbatim — evaluator greps on it.
+**task-writer** — Drafts `TASKS.md` in an isolated subagent. Decomposes the work into PR-sized, executor-ready tasks (3–8 is healthy). Preserves PRD/TRD vocabulary verbatim — evaluator greps on it. Verify-first when upstream context (TRD or `exploration_findings`) is present (~10 calls), full-mode otherwise (~20).
 
 **parallel-task-executor** — Dispatches one fresh subagent per task via the Task tool. Runs tasks in parallel where possible, serializes on file overlap, caps at 5 per group. Writes `[Result]` blocks per task and finalizes `ROADMAP.md`.
 

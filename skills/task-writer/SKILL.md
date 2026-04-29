@@ -1,6 +1,6 @@
 ---
 name: task-writer
-description: Run as the final planning step before execution — after trd-writer (prd-trd or trd-only routes), after prd-writer (prd-only route), or directly after brainstorming (tasks-only route). Drafts `.planning/{session_id}/TASKS.md` — the executor's only source of truth. Each task is a PR-sized unit a fresh subagent can complete without clarification, with PRD/TRD vocabulary preserved verbatim because the evaluator greps on it. Runs in an isolated subagent.
+description: Run as the final planning step before execution — after trd-writer (prd-trd or trd-only routes), after prd-writer (prd-only route), or directly after brainstorming (tasks-only route). Drafts `.planning/{session_id}/TASKS.md` — the executor's only source of truth. Each task is a PR-sized unit a fresh subagent can complete without clarification, with PRD/TRD vocabulary preserved verbatim because the evaluator greps on it. Consumes brainstorming's `exploration_findings` as authoritative ground; only verifies file existence and decomposition seams within a ~10-call budget. Runs in an isolated subagent.
 model: opus
 ---
 
@@ -12,7 +12,7 @@ Produce **`TASKS.md`** — the executor's only source of truth. Every session en
 
 See `../../harness-contracts/output-contract.md` for the payload schema, output JSON, error taxonomy, and shared anti-patterns.
 
-This skill receives `session_id`, `request` (always present), optional `prd_path`, optional `trd_path`, and optional `brainstorming_output`. If `prd_path`, `trd_path`, **and** `brainstorming_output` are all null and `request` has no actionable verb, emit `error`.
+This skill receives `session_id`, `request` (always present), optional `prd_path`, optional `trd_path`, optional `brainstorming_output`, optional `exploration_findings` (brainstorming's codebase peek — when present, the authoritative starting point), and optional `revision_note` (only when re-dispatched after a Gate 2 revise — see Step 1). If `prd_path`, `trd_path`, **and** `brainstorming_output` are all null and `request` has no actionable verb, emit `error`.
 
 ## Execution mode
 
@@ -41,16 +41,22 @@ Re-read `request` in full. Read PRD (if `prd_path`) and TRD (if `trd_path`) end-
 - TRD: Affected surfaces (→ task `Files:`), Interfaces & contracts (→ `Acceptance:` for API-shaped tasks), Risks (→ Notes).
 - `brainstorming_output` (no PRD): `acceptance`, `constraints[]`.
 - `request` alone (no upstream docs): action verb + object.
+- `exploration_findings` (when present): `files_visited` provides the initial `Files:` set and decomposition seams; `code_signals` flag where Notes need risk callouts; `open_questions` may surface in task Notes if blocking.
+
+If `revision_note` is present, this is a Gate 2 re-dispatch. **Anchor on the note**: which task or facet does the correction touch (a missing task, wrong `Files:` set, wrong DAG ordering, missing acceptance bullet)? Treat the rest of TASKS.md as basically right; surgically address what the note flagged without re-decomposing from scratch.
 
 If a declared upstream file is missing, emit `error`.
 
-### Step 2 — Scoped codebase exploration (budget-capped)
+### Step 2 — Scoped codebase exploration (budget-capped, verify-first)
 
-Tool budget: **~20 Read/Grep/Glob calls**. Spend depends on upstream docs:
+Tool budget: **~10 Read/Grep/Glob calls when `exploration_findings` (or TRD with Affected surfaces) is present, ~20 when neither is present**. Brainstorming's peek and TRD's Affected surfaces already encode where the change lands — task-writer's Step 2 is mostly confirmation and decomposition, not discovery.
 
-- **TRD present**: verify files in TRD Affected surfaces exist (Glob); resolve line ranges (Read). Confirming, not re-exploring.
-- **PRD only**: locate the primary module from PRD subject, walk outward enough for accurate `Files:`. Shallower than TRD-writer Step 2 — only need *which files change*.
-- **Neither**: from scratch. First noun-phrase in `request`, grep occurrences, map the change surface.
+Spend depends on what's available (most → least information):
+
+- **TRD present**: verify files in TRD Affected surfaces exist (Glob); resolve line ranges (Read). Confirming, not re-exploring. `exploration_findings` overlaps but TRD is more authoritative when both exist.
+- **`exploration_findings` present, no TRD**: start from `files_visited` as the Files: floor; grep for callers/tests not yet visited to confirm decomposition seams.
+- **PRD only, no findings**: locate the primary module from PRD subject, walk outward enough for accurate `Files:`. Shallower than TRD-writer Step 2 — only need *which files change*.
+- **Neither**: from scratch (~20 cap). First noun-phrase in `request`, grep occurrences, map the change surface.
 
 Stop when you can answer: (1) which files are created/modified/tested? (2) are there natural seams where independent subagents could each own one task? (drives DAG shape) (3) does the codebase expose patterns to follow (test location, module boundaries)?
 
@@ -97,12 +103,18 @@ Emit the final JSON as your entire final message. Task-writer's `done` example (
 
 ## Required next skill
 
-When this skill emits `outcome: "done"` (full payload contract: `../../harness-contracts/payload-contract.md` § "task-writer → parallel-task-executor"):
+On `outcome: "done"`, the **main thread runs Gate 2** before dispatching the executor: it surfaces the written `TASKS.md` path and a one-line summary (e.g., "5 tasks, DAG depth 2, touches 4 files") to the user with a prompt like:
 
-- **REQUIRED SUB-SKILL:** Use harness-flow:parallel-task-executor
+> "Wrote `.planning/{session_id}/TASKS.md`. Review and let me know — approve to execute, or tell me what to revise. Execution will dispatch subagents to make code changes."
+
+Three branches (full contract: `../../harness-contracts/payload-contract.md` § "User review gates"). This is the last gate before code changes hit disk, so the prompt explicitly flags that.
+
+- **approve** → **REQUIRED SUB-SKILL:** Use harness-flow:parallel-task-executor
   Payload: `{ session_id }` — the executor reads `.planning/{session_id}/TASKS.md` from disk directly, so `path` is not threaded through.
+- **revise** → main thread deletes `.planning/{session_id}/TASKS.md` and re-dispatches **task-writer** with the original payload + `revision_note: "<user's correction>"`. Step 1 detects the field and anchors on the note.
+- **abort** → main thread updates `STATE.md` `Last activity` and stops.
 
-On `outcome: "error"`: flow terminates. Report to the user and stop.
+On `outcome: "error"` → flow terminates immediately (no Gate 2). Main thread reports the reason and stops.
 
 ## Anti-patterns
 
@@ -126,4 +138,4 @@ Task-writer-specific (additional to those in `../../harness-contracts/output-con
 - File ownership: see `../../harness-contracts/file-ownership.md` (this skill = `TASKS.md` row — create only; PRD/TRD are upstream read-only; source code untouched). Note: parallel-task-executor will later append `[Result]` blocks to this file; do not pre-allocate them.
 - Do not invoke other agents or skills. Do not dispatch the executor — the 'Required next skill' section above dispatches downstream.
 - Do not modify source code, even if you spot bugs. Note them in Notes if load-bearing.
-- Tool budget: ~20 Read/Grep/Glob calls — sized between PRD's scope-locating ~15 and TRD's design-deep ~25. Task-writer needs to confirm files exist (Glob) and locate decomposition seams, but does not redo TRD's design work. If you need more, halt and emit `error` with a `reason`.
+- Tool budget: **~10 Read/Grep/Glob calls when `exploration_findings` or TRD Affected surfaces is present** (verify-first), **~20 when neither is present** (full mode). Task-writer's job is to confirm files exist (Glob) and locate decomposition seams — it does not redo TRD's design work or brainstorming's main-thread peek. If you need more than the applicable cap, halt and emit `error` with a `reason`.

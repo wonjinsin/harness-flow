@@ -16,8 +16,10 @@ Common fields, all authoritative:
 - `request`: the user's original turn, verbatim. Read for tone and nuance the structured fields drop.
 - `brainstorming_outcome` *(prd-writer, trd-writer)*: the route brainstorming emitted (`"prd-trd"`, `"prd-only"`, `"trd-only"`). Required where listed; absent-or-other-value is `error`.
 - `brainstorming_output` *(optional)*: `{intent, target, scope_hint, constraints[], acceptance}` — may be absent when router routed `plan` directly.
+- `exploration_findings` *(optional)*: `{files_visited[], key_findings[], code_signals[], open_questions[]}` produced by brainstorming's scoped codebase peek. **When present, treat as authoritative ground.** Step 2 becomes verify-first: confirm the findings still hold, then expand only into surfaces brainstorming did not visit. Do not re-explore territory already covered. Schema in `payload-contract.md` § Session-wide fields.
 - `prd_path` *(trd-writer, task-writer)*: `".planning/{session_id}/PRD.md"` if PRD exists upstream, else `null`.
 - `trd_path` *(task-writer)*: `".planning/{session_id}/TRD.md"` if TRD exists upstream, else `null`.
+- `revision_note` *(optional)*: present only when the main thread re-dispatched this writer after a Gate 2 revise. A short string carrying the user's correction. When present, prioritise addressing it over re-deriving the doc from scratch — the previous version was close, just wrong on this axis.
 
 If a `*_path` is set but the file is unreadable or missing, halt with `error` and `reason: "<doc> declared in payload but <path> not found"`. Do not guess.
 

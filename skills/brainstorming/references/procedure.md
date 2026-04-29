@@ -32,8 +32,8 @@ Skip the scope check for obviously single-scope requests — don't ask "is this 
 
 After A1(a) extraction and A1(b) scope assessment, decide which sub-phase runs first:
 
-- **A-intake** (default): If A1(a) yielded at least one of `intent` or `target` from the request, skip A-explore and go straight to A2. Most clarify-routed requests land here — "make the auth code better" already pins target=auth, even though intent is fuzzy.
-- **A-explore**: Run when **both** `intent` and `target` are unfillable from the request, OR the user explicitly signals idea-stage ("아직 고민 중", "뭘 만들지 모르겠어", "I'm exploring", "not sure yet", "AI로 뭔가 해보고 싶은데 …"). The premise itself is the gap — asking field-by-field would feel like an interrogation before the user knows what they want.
+- **A-intake** (default): If A1(a) yielded at least one of `intent` or `target` from the request, skip A-explore and run **A1.6 first** (codebase peek), then A2. Most clarify-routed requests land here — "make the auth code better" already pins target=auth, even though intent is fuzzy.
+- **A-explore**: Run when **both** `intent` and `target` are unfillable from the request, OR the user explicitly signals idea-stage ("아직 고민 중", "뭘 만들지 모르겠어", "I'm exploring", "not sure yet", "AI로 뭔가 해보고 싶은데 …"). The premise itself is the gap — asking field-by-field would feel like an interrogation before the user knows what they want. A1.6 fires once explore converges on intent + target.
 
 The mode is an internal routing decision; the user does not need to know the modes exist. The conversation should feel like one continuous Q&A.
 
@@ -58,7 +58,7 @@ Procedure:
 3. When **both** intent and target are reasonably pinned (you could write a one-line summary the user would agree with), confirm convergence as a standalone message in the user's language:
    > "그러면 결국 {intent} {target} 방향이네요. 이제 나머지 디테일 잡아갈게요."
    > or "Sounds like we're building {target} to {intent}. Let me pin down the rest."
-4. On the next turn, transition to A2 — but **do not re-ask anything already touched in explore**. Pre-fill what you can; only ask the remaining unfilled fields.
+4. On the next turn, run **A1.6 (codebase peek)** before A2 — but **do not re-ask anything already touched in explore**. Pre-fill what you can; only ask the remaining unfilled fields.
 
 Stuck after ~3 rounds without convergence:
 
@@ -70,7 +70,7 @@ Early exit and pivot apply identically:
 - "그냥 시작해줘" / "skip" / "you decide" → A3 (early exit). Jump to Phase B with whatever fields are filled (likely thin payload — log in STATE).
 - User pivots to an unrelated topic → emit `pivot` payload, end skill (router fires next turn).
 
-The boundary that makes explore safe to live in this skill:
+Boundary that keeps explore safe in this skill (crossing the line erodes the brainstorming → writer separation):
 
 | Layer | Explore mode | Out of scope (writers) |
 | --- | --- | --- |
@@ -78,9 +78,46 @@ The boundary that makes explore safe to live in this skill:
 | Solution shape | what *kind* of thing (tool / dashboard / pipeline / bot) | — |
 | Implementation | — | library, framework, architecture, file structure |
 
-Crossing the line into implementation undermines the brainstorming → writer separation and erodes the "never propose solutions" guarantee that prd-writer / trd-writer rely on.
+### A1.6 — Scoped codebase peek
+
+Run once intent + target are pinned. Skip only when the request has no resolvable target (pure UX decision, brand-new external integration with no local analog) — proceed straight to A2 with `exploration_findings: null`.
+
+**Tool budget: ~10 Read/Grep/Glob calls.** Peek, not design pass. Stop the moment the question is answered.
+
+Goals after this step:
+
+1. **Target confirmed** — the named file/module exists; the function name is the actual identifier (or note both forms in `key_findings` when paraphrased).
+2. **Code-visible constraints surfaced** — existing schemas, auth flows, public interfaces other code depends on. Becomes A2 Q&A material.
+3. **Signals detected** — `auth/`, `migrations/`, `schema.*` etc. populate `code_signals` for B1.
+4. **Obvious mismatches caught** — user says "add" but the function exists; "small change" but call sites are 12. Flag in A2 as a question, don't decide silently.
+
+Typical spend: 1–2 Glob/Grep to locate, 2–4 Read on target + immediate deps (relevant ranges only), 2–3 Grep for callers if `scope_hint` could be `subsystem`/`multi-system`. Budget exhausted without resolving target → stop, log the limitation in `open_questions`, let A2 ask the user directly.
+
+This step is **not** for designing the solution, counting LOC, proposing implementation choices, or modifying files — see SKILL.md "Out of scope" for the full boundary.
+
+Output: draft `exploration_findings` held in working memory, finalised at B7, emitted in the route payload:
+
+```json
+{
+  "files_visited": ["src/auth/session.ts:42-78", "src/auth/middleware.ts"],
+  "key_findings": [
+    "issueSession() in src/auth/session.ts:42 — currently issues without TOTP check",
+    "middleware.ts:18 reads Bearer token only — no MFA hook"
+  ],
+  "code_signals": ["auth/", "schema:session"],
+  "open_questions": ["Should refresh tokens be revoked on TOTP enable?"]
+}
+```
+
+`code_signals` lists path patterns AND concept-level signals (auth/login/schema/migration/config/dependency) the code visibly involves. `open_questions` here = things the **user** should answer in A2 or Gate 1 — distinct from PRD/TRD/TASKS Open questions (those are for human review of the written doc).
+
+After A1.6, transition to A2.
 
 ### A2 — Ask the missing fields, one at a time
+
+**Reference A1.6 findings when relevant.** Questions land better when grounded in concrete code: instead of "what's the scope?", ask "I see `issueSession` is called from `login.ts`, `oauth.ts`, and `refresh.ts` — does this change need to update all three or just login?" The user can correct your reading of the code in the same turn that they answer the field. Findings also let you skip questions whose answers are now visible (e.g., don't ask "single-file or subsystem?" when A1.6 already shows three callers).
+
+Promote `exploration_findings.open_questions` items to A2 questions when they are blocking — the user is the cheapest place to resolve them.
 
 Priority order — **first unfilled field wins, but only after re-running A1(a) on the latest answer.** A single user reply often fills multiple fields at once (e.g., "refactor session handling for clarity" fills intent + target + partial scope). After every user turn, re-extract from the whole conversation before choosing the next question. Don't walk the list top-to-bottom blindly.
 
@@ -124,9 +161,9 @@ The confirmation is its own message — do not bundle the route recommendation w
 
 ### B1 — Signal detection
 
-Two kinds of signals:
+Three kinds of signals:
 
-**(a) Path signals — literal, language-agnostic.** Scan `request`, `target`, and `constraints` for these file-path patterns:
+**(a) Path signals — literal, language-agnostic.** Scan `request`, `target`, `constraints`, and `exploration_findings.code_signals` for these file-path patterns:
 
 - `auth/`, `security/` — authentication/authorization
 - `schema.*`, `*/schema/` — DB or API schemas
@@ -134,25 +171,25 @@ Two kinds of signals:
 - `package.json`, `*/package.json` — dependency/version changes
 - `config.ts`, `*.config.*` — global configuration
 
-Paths are filesystem literals — match them the same in any language. Record hits as `signals_matched: ["path:auth/", ...]`.
+Paths are filesystem literals — match them the same in any language. Record hits as `signals_matched: ["path:auth/", ...]`. A1.6 may have already noted hits in `code_signals` — those count without re-grepping.
 
-**(b) Keyword signals — semantic, multilingual.** Detect whether the request semantically refers to any of these concepts: authentication, login, password, session, database, schema, migration, configuration, dependency. These are concepts, not literal strings — "로그인", "認証", "authentification" all count as the auth/login concept. Use judgment, not a fixed keyword table. Record hits as `signals_matched: ["keyword:login", "keyword:dependency", ...]`.
+**(b) Keyword signals — semantic, multilingual.** Detect whether the request semantically refers to: authentication, login, password, session, database, schema, migration, configuration, dependency. Concepts not literal strings — "로그인", "認証", "authentification" all count as auth/login. Record hits as `signals_matched: ["keyword:login", ...]`.
 
 **(c) `deliberately-wide-scope` constraint** (Phase A's flag when the user insisted on multi-subsystem scope): implicit `prd-trd` signal. Record as `signals_matched: ["constraint:deliberately-wide-scope"]`.
 
 ### B2 — File-count estimate
 
-Produce a single integer N — best-guess total of modified + newly created files.
+Single integer N — best-guess modified + newly created files. When `exploration_findings.files_visited` is non-empty, use as floor; extrapolate for callers/tests not yet visited.
 
-Calibration (typical signals from completed projects of each shape — they are not bounds; precision is not the goal because file count alone never decides tier, it only nudges it):
+Calibration (rough — file count alone never decides tier, only nudges):
 
 - Typo / format / comment-only → 1
 - Single-subsystem bug fix → 1–3
 - One new endpoint or page → 2–4
 - Feature across multiple layers → 5–12
-- Cross-cutting migration or framework swap → 10–30+
+- Cross-cutting migration / framework swap → 10–30+
 
-Don't overthink this. One rough integer is enough — the user can override in B6. If the request is too vague to estimate at all (and Phase A didn't run to pin `target`), pick 3 as a neutral default and flag low confidence in the Gate 1 message.
+Don't overthink — user overrides in B6. If too vague to estimate (Phase A didn't run, no `target`), default to 3 and flag low confidence in Gate 1.
 
 ### B3 — Tier determination
 
@@ -180,7 +217,7 @@ Only runs when B3 yielded a tasks-only candidate. Check all four:
 
 ### B5 — Gate 1 — present recommendation
 
-Send **one** user-facing message as its own turn, in the user's language, with this shape:
+**One** user-facing message as its own turn, in the user's language:
 
 > "Recommend **{route}** ({expansion}). Estimated {N} files. {signals summary or 'no security/architecture signals.'} Proceed?"
 
@@ -190,20 +227,18 @@ Examples:
 - `"Recommend prd-trd (PRD → TRD → Tasks). Estimated 4 files, touches auth/ (security-sensitive). Proceed?"`
 - `"Recommend tasks-only. Typo fix, 1 file, no signals. Skip design and go straight to tasks?"`
 
-This message is standalone — do **not** bundle the output JSON with it. Offer MC implicitly: accept / change route / adjust file count. Do not batch more than this — signals + file count + route is the whole decision surface. Then wait for the user's next turn.
+Standalone message — don't bundle output JSON. Offer MC implicitly (accept / change route / adjust file count). Wait for next turn.
 
 ### B6 — Handle the response (next user turn)
 
-On the **next** user turn, classify the response into one of four actions:
+Classify into one of four:
 
-- **Accept** ("yes", "proceed", silence/no-correction) → go to B7 with the current route. `user_overrode: false`.
-- **Route override** ("make it prd-trd" / "just do tasks-only") → go to B7 with the user's route. `user_overrode: true`. Do not argue — the user is the final authority.
-- **File-count override** ("more like 10 files") → re-run B3 with the new N and loop back to B5 **once only** with the new recommendation. This is the only loop allowed; a second file-count change uses the second value without another recomputation-then-ask.
-- **Pivot or casual** — see Pivot handling below.
+- **Accept** ("yes", "proceed", silence) → B7, `user_overrode: false`.
+- **Route override** ("make it prd-trd") → B7 with user's route, `user_overrode: true`. Don't argue.
+- **File-count override** ("more like 10 files") → re-run B3 with new N, loop back to B5 **once only**. Second change uses the value without another recomputation.
+- **Pivot or casual** — emit `{"outcome": "pivot", ...}` ("This looks like a new request; stepping back to routing.") or `{"outcome": "exit-casual", ...}` (was a question, not work). Do NOT update ROADMAP/STATE on pivot.
 
-Do **not** ask clarifying questions about `intent` / `target` / `scope_hint` here — that was Phase A's job. If those fields are missing and feel load-bearing, pick the conservative route (prd-only for add-like, trd-only for refactor-like) and hand off; the writer will surface gaps at its own layer.
-
-**Pivot handling.** If the user asks about an unrelated topic or drops this request entirely, emit `{"outcome": "pivot", ...}` as the terminal payload and end the skill with one sentence: "This looks like a new request; stepping back to routing." Do **not** update ROADMAP/STATE. If instead the user's response reveals they were asking a question about tiers rather than requesting classified work, emit `{"outcome": "exit-casual", ...}` and end with a one-line acknowledgement.
+Do **not** re-ask `intent` / `target` / `scope_hint` here — Phase A's job. Missing and load-bearing → pick conservative route (prd-only for add-like, trd-only for refactor-like); writer surfaces gaps later.
 
 ### B7 — Commit + emit (route outcome path only)
 
@@ -215,4 +250,4 @@ On acceptance (including override):
 2. **Update `STATE.md`**:
    - `Current Position: {next phase — the route name implies the writer}`
    - `Last activity: {ISO timestamp} — classified as {route}{, user-overrode if applicable}`
-3. **Emit the route payload** as the final message — `outcome` is the route name (`prd-trd` / `prd-only` / `trd-only` / `tasks-only` / `pivot` / `exit-casual`). The main thread reads SKILL.md's "Required next skill" section to dispatch the correct writer.
+3. **Emit the route payload** as the final message — `outcome` is the route name (`prd-trd` / `prd-only` / `trd-only` / `tasks-only` / `pivot` / `exit-casual`). Include `exploration_findings` in the payload if A1.6 ran (`null` otherwise). The main thread reads SKILL.md's "Required next skill" section to dispatch the correct writer.

@@ -14,7 +14,8 @@ Claude Code 플러그인. 유저 요청을 **router → brainstorming → PRD/TR
   - `file-ownership.md` — 세션 산출물별 생성/수정/읽기 권한이 누구에게 있는지
 - **Skill 9개 × Agent 4개.** 경량 단계 (router, brainstorming, parallel-task-executor) 는 메인 컨텍스트 Skill, 무거운 산출물 단계 (PRD/TRD/TASKS writer, evaluator, doc-updater) 는 격리된 subagent.
 - **세션 = 폴더.** 모든 산출물은 유저 프로젝트의 `.planning/{YYYY-MM-DD-slug}/` 하위 (`ROADMAP.md`, `STATE.md`, `PRD.md`, `TRD.md`, `TASKS.md`, `findings.md`).
-- **두 게이트만 명시적.** Gate 1 (인테이크 → 아티팩트 경로, brainstorming 내부 흡수) + Gate 2 (평가 → 문서 업데이트, doc-updater 첫 단계).
+- **두 사용자 게이트.** Gate 1 (경로 승인, brainstorming Phase B 에 흡수) 이 어떤 spec 스택을 만들지 결정. Gate 2 (spec review, 각 `*-writer` 가 `done` emit 직후) 가 작성된 `PRD.md` / `TRD.md` / `TASKS.md` 를 사용자가 approve / revise / abort 할 수 있게 한다. revise 시 writer 가 `revision_note` 와 함께 재디스패치되어 그 노트만 surgical 하게 처리한다.
+- **Brainstorming 이 질문을 코드에 ground.** intent + target 이 잡히면 brainstorming 이 ~10 Read/Grep/Glob 칼로 코드베이스 peek 을 한 번 돌려 `exploration_findings` 로 emit. writer 들은 이를 권위 있는 ground 로 받아들이고 작은 verify-first 예산으로 동작 (재탐색 없음).
 
 ---
 
@@ -169,13 +170,13 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
 
 **router** — 모든 유저 요청의 진입점. 입력을 `casual`, `clarify`, `plan`, `resume` 중 하나로 분류하고, 새 세션이면 `.planning/{session_id}/` 폴더 스켈레톤을 생성한다.
 
-**brainstorming** — 모호한 요청을 처리하는 인테이크 단계. Phase A 에서 명확화 질문을 던지고, Phase B 에서 작업을 네 가지 경로 (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) 중 하나로 분류한 뒤 Gate 1 에서 유저 승인을 받는다.
+**brainstorming** — 모호함, 코드베이스 grounding, 라우팅을 처리하는 인테이크 단계. Phase A 에서 요청을 명확화하고 A1.6 (~10 Read/Grep/Glob 코드베이스 peek) 을 돌려 질문이 실재하는 코드를 참조하게 한다. Phase B 에서 작업을 네 가지 경로 (`prd-trd`, `prd-only`, `trd-only`, `tasks-only`) 중 하나로 분류한 뒤 Gate 1 에서 유저 승인을 받는다. 하류 writer 를 위해 `exploration_findings` 를 emit.
 
-**prd-writer** — 격리된 subagent 에서 `PRD.md` 를 작성한다. 목표, 인수 기준, Non-goals, 제약 조건, 열린 질문을 담는다. 엔지니어링 상세가 아닌 outcome 관점으로 작성한다.
+**prd-writer** — 격리된 subagent 에서 `PRD.md` 를 작성한다. 목표, 인수 기준, Non-goals, 제약 조건, 열린 질문을 담는다. 엔지니어링 상세가 아닌 outcome 관점으로 작성한다. `exploration_findings` 가 있으면 verify-first (~5 calls), 없으면 full mode (~15).
 
-**trd-writer** — 격리된 subagent 에서 `TRD.md` 를 작성한다. 영향받는 파일/함수 이름, 인터페이스 & 계약, 데이터 모델, 리스크를 코드 형태 수준으로 기술한다. PRD 와 구분되는 레이어다.
+**trd-writer** — 격리된 subagent 에서 `TRD.md` 를 작성한다. 영향받는 파일/함수 이름, 인터페이스 & 계약, 데이터 모델, 리스크를 코드 형태 수준으로 기술한다. PRD 와 구분되는 레이어다. `exploration_findings` 가 있으면 verify-first (~10 calls), 없으면 full mode (~25).
 
-**task-writer** — 격리된 subagent 에서 `TASKS.md` 를 작성한다. 작업을 PR 단위로 분해한다 (3–8개가 적정). PRD/TRD 용어를 그대로 유지해야 evaluator 가 grep 할 수 있다.
+**task-writer** — 격리된 subagent 에서 `TASKS.md` 를 작성한다. 작업을 PR 단위로 분해한다 (3–8개가 적정). PRD/TRD 용어를 그대로 유지해야 evaluator 가 grep 할 수 있다. 상류 컨텍스트 (TRD 또는 `exploration_findings`) 가 있으면 verify-first (~10 calls), 없으면 full mode (~20).
 
 **parallel-task-executor** — Task 툴을 통해 태스크별로 새 subagent 를 디스패치한다. 가능하면 병렬 실행, 파일 겹침이 있으면 직렬화, 그룹당 최대 5개. 태스크마다 `[Result]` 블록을 기록하고 `ROADMAP.md` 를 마무리한다.
 
