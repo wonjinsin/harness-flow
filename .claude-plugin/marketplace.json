@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Single-plugin marketplace for the harness-flow Claude Code plugin.",
-    "version": "0.2.2"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "harness-flow",
       "source": "./",
       "description": "Skill × Agent hybrid harness — router → brainstorming → PRD/TRD/TASKS → execute → evaluate → doc-update. DAG-driven, interpreted at runtime.",
-      "version": "0.2.2",
+      "version": "0.3.1",
       "category": "workflow",
       "keywords": ["harness", "workflow", "agent", "orchestration", "planning", "prd", "trd"],
       "strict": false
