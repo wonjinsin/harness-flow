@@ -1,7 +1,7 @@
 {
   "name": "harness-flow",
   "description": "Skill × Agent hybrid harness for multi-phase planning and execution. Routes user requests through a DAG (router → brainstorming → PRD/TRD/TASKS → execute → evaluate → doc-update). Each node is a skill; the using-harness meta-skill is loaded at session start and interprets transitions at runtime.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": {
     "name": "wonjinsin"
   },

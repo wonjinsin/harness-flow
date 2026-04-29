@@ -50,11 +50,17 @@ PRD 한정 anti-pattern (`references/contract.md` 의 공통 항목에 추가): 
 
 `.planning/{session_id}/` 없으면 생성. `PRD.md` 쓰기. 파일이 이미 있으면 중단하고 `references/contract.md` 의 `error` 형식대로 emit.
 
-### Step 5 — `next` 결정 후 emit
+### Step 5 — 최종 JSON emit
 
-`using-harness § Core loop` 단계 3–5 에 따라: 후보는 `trd-writer` (`brainstorming_outcome == "prd-trd"`) 또는 `task-writer` (`brainstorming_outcome == "prd-only"`). `$brainstorming.output.outcome` 자리에 payload 의 `brainstorming_outcome` 를 대입하고 `harness-flow.yaml` 순서로 첫 매치를 고른다. `error` 면 `next: null`.
+JSON 객체 하나를 최종 메시지로 emit. 필수 필드:
 
-최종 JSON emit. 이게 최종 메시지의 전부.
+- `node_id: "prd-writer"` — Stop 훅 디스패처가 어떤 노드가 emit 했는지 식별하는 데 사용.
+- `outcome: "done" | "error"`.
+- `session_id`.
+- `brainstorming_outcome` — payload 에서 받은 값을 그대로 echo (디스패처가 다운스트림 `when:` 평가에 사용).
+- `path: ".planning/{session_id}/PRD.md"` — `done` 일 때.
+- `reason: "<짧게>"` — `error` 일 때.
+- `next` — best-effort cross-check: `brainstorming_outcome == "prd-trd"` → `trd-writer`, `"prd-only"` → `task-writer`, 그 외 → `null`. Stop 훅이 재계산하며 mismatch 는 로그.
 
 ## 엣지 케이스
 

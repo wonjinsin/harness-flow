@@ -50,11 +50,17 @@ PRD-specific anti-pattern (in addition to those in `references/contract.md`): no
 
 Create `.planning/{session_id}/` if it doesn't exist. Write `PRD.md`. If the file already exists, halt and emit `error` per `references/contract.md`.
 
-### Step 5 — Resolve `next` and emit
+### Step 5 — Emit the final JSON
 
-Per `using-harness § Core loop` steps 3–5: candidates are `trd-writer` (when `brainstorming_outcome == "prd-trd"`) or `task-writer` (when `brainstorming_outcome == "prd-only"`). Substitute `$brainstorming.output.outcome` with the payload's `brainstorming_outcome` and pick the first match in `harness-flow.yaml` order. On `error`, `next: null`.
+Emit a single JSON object as your entire final message. Required fields:
 
-Emit the final JSON. That is your entire final message.
+- `node_id: "prd-writer"` — the Stop hook dispatcher reads this to compute next.
+- `outcome: "done" | "error"`.
+- `session_id`.
+- `brainstorming_outcome` — echo it back from the payload (the dispatcher evaluates downstream `when:` expressions against it).
+- `path: ".planning/{session_id}/PRD.md"` on `done`.
+- `reason: "<short>"` on `error`.
+- `next` — best-effort cross-check: `trd-writer` when `brainstorming_outcome == "prd-trd"`, `task-writer` when `"prd-only"`, else `null`. Stop hook re-derives this; mismatch is logged.
 
 ## Edge cases
 
