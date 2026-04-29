@@ -38,18 +38,18 @@ If `tasks_path` is missing or unreadable, emit `error` at step-1. Do not guess.
 
 ## Output
 
-Emit a single JSON object. Three outcomes. Task-level details (which task blocked, which rule fired) stay in TASKS.md `[Result]` blocks and the diff itself — the user re-reads them. The JSON carries only the top-level outcome and, for non-pass cases, a one-liner `reason`.
+Emit a single JSON object. Three outcomes. Task-level details (which task blocked, which rule fired) stay in TASKS.md `[Result]` blocks and the diff itself — the user re-reads them. The JSON carries the top-level outcome, an optional `reason` (for non-pass cases), and the resolved `next` (see Step 5).
 
 **pass** — every task `[Result: done]` and (if rules exist) zero violations:
 
 ```json
-{ "outcome": "pass", "session_id": "2026-04-19-..." }
+{ "outcome": "pass", "session_id": "2026-04-19-...", "next": "doc-updater" }
 ```
 
 **escalate** — any non-pass condition the skill can classify (blocked task, Attempt:3 task, rule violation):
 
 ```json
-{ "outcome": "escalate", "session_id": "2026-04-19-...", "reason": "task-4: Acceptance bullet 2 contradicts bullet 4" }
+{ "outcome": "escalate", "session_id": "2026-04-19-...", "reason": "task-4: Acceptance bullet 2 contradicts bullet 4", "next": null }
 ```
 
 `reason` is a one-sentence human-readable summary suitable for the user-facing escalation message. It quotes the first blocker's `Reason:` for executor-blocked/failed cases, or `{rule-file}: {path:line} — {claim}` for rule-violation cases.
@@ -57,7 +57,7 @@ Emit a single JSON object. Three outcomes. Task-level details (which task blocke
 **error** — payload defect or unrecoverable infrastructure issue (missing files, unreadable diff, LLM response not parseable, internally inconsistent state):
 
 ```json
-{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TASKS.md not found at <path>" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TASKS.md not found at <path>", "next": null }
 ```
 
 Never emit prose alongside the JSON. The JSON object is your entire final message.
@@ -85,7 +85,7 @@ Parse by finding each `[Result]` line and reading the labeled fields until the n
 
 Count tasks by `Status` value: `done`, `failed`, `blocked`, `skipped`, `(no [Result] block)`.
 
-**Error conditions at step-1** (emit `{"outcome": "error", "session_id": "...", "reason": "..."}`):
+**Error conditions at step-1** (emit `{"outcome": "error", "session_id": "...", "reason": "...", "next": null}`):
 
 - `tasks_path` missing or unreadable → `reason: "TASKS.md not found at <path>"`.
 - Any task has no `[Result]` block → `reason: "task-N has no Result block — executor did not finalize"`.
@@ -108,13 +108,13 @@ If `rules_dir` is unset or the directory has no `*.md` files, skip this step and
 Otherwise:
 
 1. List `*.md` files directly under `rules_dir` (not recursive — rules are flat-per-project by convention). For each, read the file. If the first non-blank line contains `<!-- evaluator: skip -->`, exclude the file from the concatenated rules block.
-2. Run the configured diff command (default `git diff HEAD`). If the command errors or returns empty output, emit `{"outcome": "error", "session_id": "...", "reason": "diff command returned <empty|nonzero>: <stderr tail>"}`. An empty diff at evaluator time means the executor claimed `done` without modifying any file — that is a task-writer/executor bug, not a pass.
+2. Run the configured diff command (default `git diff HEAD`). If the command errors or returns empty output, emit `{"outcome": "error", "session_id": "...", "reason": "diff command returned <empty|nonzero>: <stderr tail>", "next": null}`. An empty diff at evaluator time means the executor claimed `done` without modifying any file — that is a task-writer/executor bug, not a pass.
 3. Build the LLM prompt (see `## Rule validation prompt` below). Run it via your own reasoning — you are the LLM.
 4. Parse the response:
    - The **first non-blank line** must be exactly `PASS` or exactly `FAIL`. Trailing whitespace is allowed; anything else on that line → unparseable.
    - If `PASS`: any subsequent lines are treated as diagnostics (not violations) and ignored. The response is a pass.
    - If `FAIL`: each subsequent non-blank line must match the violation format `- {rule-file}: {path:line} — {claim}`. Lines that don't match are ignored (diagnostic noise), but **at least one** well-formed violation line is required or the response is unparseable. Keep the first well-formed violation line — it becomes the `reason` in Step 4.
-   - Neither `PASS` nor `FAIL + ≥1 valid violation` → emit `{"outcome": "error", "session_id": "...", "reason": "rule-judgment response unparseable: <first 200 chars>"}`.
+   - Neither `PASS` nor `FAIL + ≥1 valid violation` → emit `{"outcome": "error", "session_id": "...", "reason": "rule-judgment response unparseable: <first 200 chars>", "next": null}`.
 
 ### Step 4 — Determine outcome and emit
 
@@ -131,7 +131,17 @@ Combine executor pre-check (Step 2) and rule result (Step 3):
 
 The main thread owns STATE.md writes for `last_eval`, `last_eval_at`, `last_eval_excerpt`, and (on escalate) `escalated: true`. This skill does **not** modify STATE.md — it emits the signal and lets the main thread persist it.
 
-Emit the JSON. That is your entire final message.
+### Step 5 — Resolve `next` and emit
+
+Perform the next-node lookup per `using-harness § Core loop` steps 3–5 against this skill's outgoing edges in `harness-flow.yaml`. Sole candidate: `doc-updater` (`when: $evaluator.output.outcome == 'pass'`):
+
+| `outcome` | doc-updater `when:` matches? | `next` |
+|---|---|---|
+| `pass` | yes | `doc-updater` |
+| `escalate` | no | `null` |
+| `error` | no | `null` |
+
+Emit the JSON with the resolved `next`. That is your entire final message.
 
 ## Rule validation prompt
 
@@ -184,7 +194,7 @@ Updated: 2026-04-19T14:10:00Z
 - Step 3: read `.claude/rules/code-style.md` (1 file, no opt-out). Run `git diff HEAD`. Judge against the rule. All violations absent.
 
 ```json
-{ "outcome": "pass", "session_id": "2026-04-19-rename-getUser" }
+{ "outcome": "pass", "session_id": "2026-04-19-rename-getUser", "next": "doc-updater" }
 ```
 
 ### Example 2 — Escalate on rule violation
@@ -201,7 +211,8 @@ FAIL
 {
   "outcome": "escalate",
   "session_id": "2026-04-19-rename-getUser",
-  "reason": "code-style.md: src/auth/login.ts:42 — production `console.log(user)` forbidden"
+  "reason": "code-style.md: src/auth/login.ts:42 — production `console.log(user)` forbidden",
+  "next": null
 }
 ```
 
@@ -233,7 +244,8 @@ Updated: 2026-04-21T10:05:00Z
 {
   "outcome": "escalate",
   "session_id": "2026-04-19-add-2fa-login",
-  "reason": "task-4: Acceptance bullet 2 contradicts bullet 4"
+  "reason": "task-4: Acceptance bullet 2 contradicts bullet 4",
+  "next": null
 }
 ```
 
@@ -245,7 +257,8 @@ TASKS.md contains task-3 with `Status: failed`, `Attempt: 3`, `Reason: repeated 
 {
   "outcome": "escalate",
   "session_id": "2026-04-19-add-2fa-login",
-  "reason": "task-3: repeated failure after narrow-scope retry (Attempt 3)"
+  "reason": "task-3: repeated failure after narrow-scope retry (Attempt 3)",
+  "next": null
 }
 ```
 

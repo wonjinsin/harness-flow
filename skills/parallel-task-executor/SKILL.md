@@ -35,18 +35,18 @@ If the main thread passes extra hints (e.g., "retry only task-3"), honor them. D
 
 ## Output
 
-Emit a single JSON object when every task has terminated. Task-level outcomes live in TASKS.md `[Result]` blocks — the evaluator re-reads them. The JSON carries only the top-level outcome.
+Emit a single JSON object when every task has terminated. Task-level outcomes live in TASKS.md `[Result]` blocks — the evaluator re-reads them. The JSON carries only the top-level outcome plus the resolved `next` (see Step 7).
 
 **done** — every task reached DONE:
 
 ```json
-{ "outcome": "done", "session_id": "2026-04-19-..." }
+{ "outcome": "done", "session_id": "2026-04-19-...", "next": "evaluator" }
 ```
 
 **blocked** — one or more tasks are wrong in their description, **including** TASKS.md-level validation failures (cycles, typos in `Depends:`, empty Acceptance, empty or missing TASKS.md). Re-dispatching will not help; the task text needs upstream revision.
 
 ```json
-{ "outcome": "blocked", "session_id": "2026-04-19-..." }
+{ "outcome": "blocked", "session_id": "2026-04-19-...", "next": "evaluator" }
 ```
 
 `harness-flow.yaml` advances `executor → evaluator` unconditionally — the evaluator skill detects `[Result: blocked]` blocks and escalates.
@@ -54,14 +54,16 @@ Emit a single JSON object when every task has terminated. Task-level outcomes li
 **failed** — one or more tasks exhausted the 3-attempt retry cap.
 
 ```json
-{ "outcome": "failed", "session_id": "2026-04-19-..." }
+{ "outcome": "failed", "session_id": "2026-04-19-...", "next": "evaluator" }
 ```
 
 **error** — infrastructure or tool-layer failure (Task tool errored, filesystem denied, TDD reference missing, TASKS.md not found):
 
 ```json
-{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TDD reference file missing at <path>" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TDD reference file missing at <path>", "next": "evaluator" }
 ```
+
+Even on `error`, `next: "evaluator"` is emitted because `evaluator`'s edge in `harness-flow.yaml` has no `when:` filter — it fires on any executor outcome. The evaluator will then surface the missing `[Result]` blocks as its own `error`, which is the intended cascade. Main thread may override on `error` if it decides to halt early; the emitted `next` is a hint, not a directive.
 
 Never emit prose alongside the JSON. If partial progress was made, leave TASKS.md `[Result]` blocks reflecting reality — the main thread may re-dispatch the executor and it will resume per Step 1's resume rules.
 
@@ -69,13 +71,13 @@ Never emit prose alongside the JSON. If partial progress was made, leave TASKS.m
 
 ### Step 1 — Load and validate TASKS.md
 
-Read `TASKS.md` in full. If the file is missing, halt: `{"outcome": "error", "session_id": "...", "reason": "TASKS.md not found at .planning/{session_id}/TASKS.md"}` (task-writer did not emit its artifact).
+Read `TASKS.md` in full. If the file is missing, halt: `{"outcome": "error", "session_id": "...", "reason": "TASKS.md not found at .planning/{session_id}/TASKS.md", "next": "evaluator"}` (task-writer did not emit its artifact).
 
 Extract every `task-N` entry with its `Depends:`, `Files:`, and `Acceptance:` blocks. Also note the `## Goal` and `## Architecture` sections — these do not go into subagent prompts (too broad), but they help you reason about whether a subagent's return is plausible.
 
 **Environment checks** (infrastructure — failures here emit `error`):
 
-- Verify `{executor-skill-path}/references/test-driven-development.md` exists. If not, halt: `{"outcome": "error", "session_id": "...", "reason": "TDD reference file missing at <path>"}`. Subagents cannot complete tasks without it.
+- Verify `{executor-skill-path}/references/test-driven-development.md` exists. If not, halt: `{"outcome": "error", "session_id": "...", "reason": "TDD reference file missing at <path>", "next": "evaluator"}`. Subagents cannot complete tasks without it.
 
 **TASKS.md shape validation** (task-writer's artifact is wrong — failures here emit `blocked`; task-level reasons are written into TASKS.md `[Result]` blocks, not the final JSON):
 
@@ -175,7 +177,7 @@ Parse the `[Result]` block from each return. Four terminal states are possible:
 
 - **done**: `status: done` and every Acceptance bullet appears in `evidence` with a verification method. Mark `[Result: done]` with the summary.
 - **blocked**: `status: blocked` OR `status: done` but evidence is missing/vague OR the subagent asked a clarifying question OR **the `[Result]` block is missing / malformed / contains an unrecognized status value**. The task description (or the subagent's protocol adherence) is wrong — retry will not help. Mark `[Result: blocked, reason: <blockers text or "malformed Result block">]` and do not re-dispatch automatically.
-- **failed**: `status: failed` OR a per-task Task-tool error (subagent started but could not complete cleanly — timeout, context-limit exceeded, subagent crash mid-run). Mark `[Result: failed, attempt: N, reason: …]` and apply the retry policy below. **Distinct from infrastructure errors** — if the Task tool itself cannot dispatch (invalid `subagent_type`, filesystem denied, framework-level error wrapper in place of a subagent return), halt the entire run with `{"outcome": "error", "session_id": "...", "reason": "..."}` and do not mark individual tasks.
+- **failed**: `status: failed` OR a per-task Task-tool error (subagent started but could not complete cleanly — timeout, context-limit exceeded, subagent crash mid-run). Mark `[Result: failed, attempt: N, reason: …]` and apply the retry policy below. **Distinct from infrastructure errors** — if the Task tool itself cannot dispatch (invalid `subagent_type`, filesystem denied, framework-level error wrapper in place of a subagent return), halt the entire run with `{"outcome": "error", "session_id": "...", "reason": "...", "next": "evaluator"}` and do not mark individual tasks.
 - **skipped**: assigned (not returned) when a task's dependency terminated as `blocked` or `failed`. Set in Step 3 without dispatching. Mark `[Result: skipped, reason: depends on task-N which {blocked|failed}]`. No retry, no evidence field.
 
 **Retry policy for FAILED** (not BLOCKED, not skipped):
@@ -213,7 +215,7 @@ Other statuses use the same block with these deltas:
 
 Always include `Updated:` (ISO-8601). Do **not** modify any other section of TASKS.md (Goal, Architecture, task bodies, Self-Review) — only append or replace the `[Result]` block per task.
 
-### Step 7 — Finalize ROADMAP.md and emit
+### Step 7 — Finalize ROADMAP.md, resolve `next`, emit
 
 Once every task has a terminal `[Result]` block (`done` / `blocked` / `failed` / `skipped`), determine the final outcome by priority:
 
@@ -222,6 +224,8 @@ Once every task has a terminal `[Result]` block (`done` / `blocked` / `failed` /
 3. **Otherwise, all remaining tasks are `done` or `skipped`** (the skipped-only case should not occur — skipped always traces back to a blocked/failed root; if it does, treat as a logic error and emit `failed`) → set `- [x] executor` in ROADMAP.md, emit `done`.
 
 `skipped` is never itself a top-level outcome — it always bubbles up under the root cause's outcome. Per-task IDs and reasons stay in TASKS.md `[Result]` blocks; the evaluator re-reads them.
+
+**Resolve `next`**: perform the next-node lookup per `using-harness § Core loop` steps 3–5 against this skill's outgoing edges. Sole candidate is `evaluator` (`depends_on: [executor]`, no `when:`). Since the edge has no filter, `next` is `"evaluator"` for every outcome — including `error`. (See the Output section's note on the `error` cascade.)
 
 Do **not** update `STATE.md` — the main thread owns STATE.md writes. The executor's task-local attempts are recorded in TASKS.md `[Result]` blocks only.
 

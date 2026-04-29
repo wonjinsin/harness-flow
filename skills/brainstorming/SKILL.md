@@ -46,29 +46,30 @@ Every run ends with **one** of six terminal payloads. The final message of the s
     "scope_hint": "single-file|subsystem|multi-system",
     "constraints": ["..."],
     "acceptance": "..."
-  }
+  },
+  "next": "prd-writer"
 }
 ```
 
-Routing per `harness-flow.yaml`:
+Routing per `harness-flow.yaml` (`next` is the **immediate** downstream node — main thread re-derives the rest after each writer completes):
 
-- `prd-trd` → `prd-writer` → `trd-writer` → `task-writer`
-- `prd-only` → `prd-writer` → `task-writer`
-- `trd-only` → `trd-writer` → `task-writer`
-- `tasks-only` → `task-writer`
+- `prd-trd` → `next: "prd-writer"` (full chain: prd-writer → trd-writer → task-writer)
+- `prd-only` → `next: "prd-writer"` (full chain: prd-writer → task-writer)
+- `trd-only` → `next: "trd-writer"` (full chain: trd-writer → task-writer)
+- `tasks-only` → `next: "task-writer"`
 
 `brainstorming_output` may be `null` when router handed off `plan` directly and the Q&A phase was skipped (intent inferred from request verb only).
 
 **Pivot** — user turned away from this request mid-intake. Dispatcher leaves the session as-is; router fires on the next turn:
 
 ```json
-{ "outcome": "pivot", "session_id": "2026-04-19-...", "reason": "user asked about dashboard UI mid-intake" }
+{ "outcome": "pivot", "session_id": "2026-04-19-...", "reason": "user asked about dashboard UI mid-intake", "next": null }
 ```
 
 **Casual re-classified** — it became clear the user was asking a question, not requesting work. Dispatcher drops and lets router handle the next turn:
 
 ```json
-{ "outcome": "exit-casual", "session_id": "2026-04-19-...", "reason": "user was browsing, not requesting work" }
+{ "outcome": "exit-casual", "session_id": "2026-04-19-...", "reason": "user was browsing, not requesting work", "next": null }
 ```
 
 The skill writes to session files only on route outcomes (`prd-trd` / `prd-only` / `trd-only` / `tasks-only`) — see Step B5. The `Last activity` line in `STATE.md` is updated on every outcome (trace). ROADMAP is untouched on `pivot` / `exit-casual`.
@@ -271,7 +272,12 @@ On acceptance (including override):
 2. **Update `STATE.md`**:
    - `Current Position: {next phase per harness-flow.yaml}`
    - `Last activity: {ISO timestamp} — classified as {route}{, user-overrode if applicable}`
-3. **Emit the route payload** as the final message — `outcome` is the route name (`prd-trd`/`prd-only`/`trd-only`/`tasks-only`). Main thread evaluates `when:` expressions in `harness-flow.yaml` and dispatches the correct writer agents.
+3. **Resolve `next`** — perform the next-node lookup per `using-harness § Core loop` steps 3–5 against this skill's outgoing edges. The resolution table is fixed by the route → first-listed-candidate rule:
+   - `prd-trd` / `prd-only` → `prd-writer`
+   - `trd-only` → `trd-writer`
+   - `tasks-only` → `task-writer`
+   - `pivot` / `exit-casual` → `null` (no edge matches)
+4. **Emit the route payload** as the final message — `outcome` is the route name (`prd-trd`/`prd-only`/`trd-only`/`tasks-only`) and `next` is the resolved downstream node id. Main thread evaluates `when:` expressions in `harness-flow.yaml` and dispatches the correct writer agents (cross-checking against `next`).
 
 ## What this skill does NOT do
 

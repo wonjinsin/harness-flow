@@ -16,11 +16,11 @@ description: `evaluator` 통과 후 사용. 세션의 코드 변경을 `CHANGELO
 
 ## Output
 
-단일 JSON 객체, 옆에 산문 금지:
+단일 JSON 객체, 옆에 산문 금지. `next` 는 항상 `null` — `doc-updater` 는 terminal node (`harness-flow.yaml` 에 downstream edge 없음):
 
 ```json
-{ "outcome": "done", "session_id": "..." }
-{ "outcome": "error", "session_id": "...", "reason": "<한 줄>" }
+{ "outcome": "done", "session_id": "...", "next": null }
+{ "outcome": "error", "session_id": "...", "reason": "<one line>", "next": null }
 ```
 
 ## Procedure
@@ -54,7 +54,7 @@ description: `evaluator` 통과 후 사용. 세션의 코드 변경을 `CHANGELO
 
    `## Not applied` 비어있으면 생략.
 
-5. **방출** `{outcome: "done", session_id}`.
+5. **방출** `{outcome, session_id, next: null}`. `using-harness § Core loop` 의 lookup 이 후보를 찾지 못함 (`harness-flow.yaml` 의 어떤 노드도 `depends_on` 에 `doc-updater` 를 두지 않음) → `next` 는 항상 `null`.
 
 ## Constraints
 

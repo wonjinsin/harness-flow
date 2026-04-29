@@ -16,11 +16,11 @@ Reflect session code changes into project docs. Runs in the `doc-updater` agent'
 
 ## Output
 
-Single JSON object, no prose alongside:
+Single JSON object, no prose alongside. `next` is always `null` — `doc-updater` is the terminal node (no downstream edge in `harness-flow.yaml`):
 
 ```json
-{ "outcome": "done", "session_id": "..." }
-{ "outcome": "error", "session_id": "...", "reason": "<one line>" }
+{ "outcome": "done", "session_id": "...", "next": null }
+{ "outcome": "error", "session_id": "...", "reason": "<one line>", "next": null }
 ```
 
 ## Procedure
@@ -54,7 +54,7 @@ Single JSON object, no prose alongside:
 
    Omit `## Not applied` if empty.
 
-5. **Emit** `{outcome: "done", session_id}`.
+5. **Emit** `{outcome, session_id, next: null}`. The lookup per `using-harness § Core loop` finds no candidate (no node in `harness-flow.yaml` has `doc-updater` in its `depends_on`), so `next` is always `null`.
 
 ## Constraints
 

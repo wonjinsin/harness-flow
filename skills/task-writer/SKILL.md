@@ -36,24 +36,24 @@ You receive this object from the main thread. Treat every field as authoritative
 - `trd_path` *(optional)*: `".planning/{session_id}/TRD.md"` if TRD was produced upstream, `null` otherwise.
 - `brainstorming_output` *(optional)*: `{intent, target, scope_hint, constraints[], acceptance}` — may be absent when router routed `plan` directly and brainstorming skipped its Q&A phase.
 
-If `prd_path` is set but the file is unreadable, halt and emit `{"outcome": "error", "session_id": "...", "reason": "PRD declared in payload but <path> not found"}`. Same for `trd_path`. Do not proceed by guessing.
+If `prd_path` is set but the file is unreadable, halt and emit `{"outcome": "error", "session_id": "...", "reason": "PRD declared in payload but <path> not found", "next": null}`. Same for `trd_path`. Do not proceed by guessing.
 
-If `prd_path`, `trd_path`, **and** `brainstorming_output` are all null and `request` is a single sentence with no actionable verb (e.g., "looks nice"), emit `{"outcome": "error", "session_id": "...", "reason": "insufficient input to derive tasks"}`. The main thread likely mis-routed; it will decide recovery.
+If `prd_path`, `trd_path`, **and** `brainstorming_output` are all null and `request` is a single sentence with no actionable verb (e.g., "looks nice"), emit `{"outcome": "error", "session_id": "...", "reason": "insufficient input to derive tasks", "next": null}`. The main thread likely mis-routed; it will decide recovery.
 
 ## Output
 
-The final message is always a single JSON object tagged by `outcome`.
+The final message is always a single JSON object tagged by `outcome`. The `next` field is resolved in Step 6 below.
 
 **done** — normal completion. File written to `.planning/{session_id}/TASKS.md`:
 
 ```json
-{ "outcome": "done", "session_id": "2026-04-19-..." }
+{ "outcome": "done", "session_id": "2026-04-19-...", "next": "executor" }
 ```
 
 **error** — payload defect, missing upstream file, TASKS.md already exists, or unrecoverable decomposition gap:
 
 ```json
-{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TASKS.md already exists at <path>" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TASKS.md already exists at <path>", "next": null }
 ```
 
 The file path is deterministic from `session_id`; the main thread reconstructs it. If the file already exists, emit `error` — **never overwrite**. Re-generation is the main thread's call: it deletes the file first, then re-dispatches.
@@ -91,7 +91,7 @@ Stop exploring when you can answer:
 
 If the change is genuinely unknowable from code — e.g., new file in a greenfield area with no analog — that's fine. Just write the task with a defensible path (e.g., `src/auth/totp.ts` alongside existing `src/auth/*`) and put the uncertainty in Notes.
 
-If you exhaust the budget cap without resolving the three questions above, halt and emit `{"outcome": "error", "session_id": "...", "reason": "codebase exploration exhausted budget without resolving change surface"}`. Upstream is likely underspecified — the main thread decides whether to re-dispatch an upstream writer.
+If you exhaust the budget cap without resolving the three questions above, halt and emit `{"outcome": "error", "session_id": "...", "reason": "codebase exploration exhausted budget without resolving change surface", "next": null}`. Upstream is likely underspecified — the main thread decides whether to re-dispatch an upstream writer.
 
 ### Step 3 — Decompose into tasks
 
@@ -135,13 +135,20 @@ Fill every field for every task. See `## TASKS.md template` for the exact struct
 
 Create `.planning/{session_id}/` if missing. Write `TASKS.md` using the template.
 
-If the file already exists, halt and emit `{"outcome": "error", "session_id": "...", "reason": "TASKS.md already exists at <path>"}`. Regeneration is the main thread's responsibility.
+If the file already exists, halt and emit `{"outcome": "error", "session_id": "...", "reason": "TASKS.md already exists at <path>", "next": null}`. Regeneration is the main thread's responsibility.
 
 Before writing the Self-Review section at the bottom of the file, actually perform each check and only check (`[x]`) the boxes you can honestly certify. Leaving a box unchecked is fine — it signals a known gap the evaluator must scrutinize. Checking a box falsely is worse than missing a task: it directs the evaluator's attention away from a real problem.
 
-### Step 6 — Emit
+### Step 6 — Resolve `next` and emit
 
-Count the tasks. Emit the final JSON. That is your entire final message.
+Perform the next-node lookup per `using-harness § Core loop` steps 3–5 against this skill's outgoing edges in `harness-flow.yaml`. Sole candidate: `executor` (`depends_on: [task-writer]`, no `when:`):
+
+| `outcome` | `next` |
+|---|---|
+| `done` | `executor` |
+| `error` | `null` |
+
+Count the tasks. Emit the final JSON with the resolved `next`. That is your entire final message.
 
 ## TASKS.md template
 
@@ -365,7 +372,7 @@ One task, no DAG, no PRD/TRD to trace to. The Self-Review items about PRD/TRD tr
 
 - **PRD Acceptance criterion with no natural home task**: do not invent a dummy task to hold it. Instead, add the criterion as an Acceptance bullet on the closest existing task and cite the PRD section. If genuinely none of the tasks touch the criterion's surface, leave the Self-Review box *unchecked* — that's a legitimate signal for the evaluator to investigate.
 - **TRD Risk that applies across multiple tasks**: repeat it in the Notes of each affected task. Risks are the exception to the "each item lives in exactly one task" rule, because the executor subagent only sees its own task.
-- **DAG with cycle**: do not write the file. Emit `{"outcome": "error", "session_id": "...", "reason": "task DAG contains cycle: task-N → task-M → task-N"}`. The main thread decides whether to re-decompose.
+- **DAG with cycle**: do not write the file. Emit `{"outcome": "error", "session_id": "...", "reason": "task DAG contains cycle: task-N → task-M → task-N", "next": null}`. The main thread decides whether to re-decompose.
 - **Request in non-English language**: Goal / Architecture / Notes content in the user's language; Conventions, field names, file paths, code identifiers, and Self-Review checklist text in English (they are machine-readable contracts).
 - **Only `request` available, request is a refactor with wide reach** (`scope_hint: multi-system` or evident from the verb+object): Step 2 budget is tight; spend it on Glob to enumerate the call sites, not on Read to understand each. A single task with a file list of 8 is acceptable if the refactor is uniform.
 - **One Acceptance criterion from PRD maps to three separate tasks**: split the criterion into per-task sub-claims, each citing the same PRD section. Evaluator will still trace back to one PRD line; executor subagents each have their own verifiable slice.

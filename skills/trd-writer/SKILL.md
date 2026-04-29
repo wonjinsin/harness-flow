@@ -26,24 +26,27 @@ You receive this object from the main thread. Treat every field as authoritative
 - `session_id`: `"YYYY-MM-DD-{slug}"` — determines the output folder.
 - `request`: the user's original turn, verbatim. **Read it carefully for tone and nuance** the structured fields drop.
 - `prd_path` *(optional)*: `".planning/{session_id}/PRD.md"` if a PRD was produced upstream, `null` otherwise.
+- `brainstorming_outcome`: the route brainstorming emitted (`"prd-trd"` or `"trd-only"`). Required — used in Step 5 to evaluate downstream `when:` for `next`. If absent or any other value, emit `error` (the upstream contract is violated).
 - `brainstorming_output` *(optional)*: `{intent, target, scope_hint, constraints[], acceptance}` — may be absent when router routed `plan` directly and brainstorming skipped its Q&A phase.
 
-If `prd_path` is set but the file is unreadable or missing, halt and emit `{"outcome": "error", "session_id": "...", "reason": "PRD declared in payload but <path> not found"}`. Do not proceed by guessing — the payload is a contract from the main thread.
+If `prd_path` is set but the file is unreadable or missing, halt and emit `{"outcome": "error", "session_id": "...", "reason": "PRD declared in payload but <path> not found", "next": null}`. Do not proceed by guessing — the payload is a contract from the main thread.
 
 ## Output
 
-The final message is always a single JSON object tagged by `outcome`.
+The final message is always a single JSON object tagged by `outcome`. The `next` field is resolved in Step 5 below.
 
 **done** — normal completion. File written to `.planning/{session_id}/TRD.md`:
 
 ```json
-{ "outcome": "done", "session_id": "2026-04-19-..." }
+{ "outcome": "done", "session_id": "2026-04-19-...", "next": "task-writer" }
 ```
+
+`next` is always `"task-writer"` on `done` — see Step 5 for the derivation.
 
 **error** — payload defect, missing PRD, file conflict, or unrecoverable exploration gap:
 
 ```json
-{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TRD.md already exists at <path>" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TRD.md already exists at <path>", "next": null }
 ```
 
 The file path is deterministic from `session_id`; the main thread reconstructs it. If a file already exists at the target path, emit `error` — **never overwrite**. Re-generation is the main thread's call: it deletes the file first, then re-dispatches.
@@ -100,11 +103,21 @@ See `## TRD.md template` below for the exact structure. Fill each section — th
 
 Create `.planning/{session_id}/` if it doesn't exist. Write `TRD.md`.
 
-If the file already exists, halt and emit `{"outcome": "error", "session_id": "...", "reason": "TRD.md already exists at <path>"}`. Regeneration is the main thread's call — it deletes the old file first, then re-dispatches.
+If the file already exists, halt and emit `{"outcome": "error", "session_id": "...", "reason": "TRD.md already exists at <path>", "next": null}`. Regeneration is the main thread's call — it deletes the old file first, then re-dispatches.
 
-### Step 5 — Emit
+### Step 5 — Resolve `next` and emit
 
-Count the items under "Open questions". Emit the final JSON. That is your entire final message.
+Perform the next-node lookup per `using-harness § Core loop` steps 3–5 against this skill's outgoing edges in `harness-flow.yaml`. Sole candidate: `task-writer` (`depends_on` includes `trd-writer`). Substitute `$brainstorming.output.outcome` with the `brainstorming_outcome` field and evaluate `task-writer`'s `when:`:
+
+| `outcome` | `brainstorming_outcome` | task-writer `when:` matches? | `next` |
+|---|---|---|---|
+| `done` | `prd-trd` | yes | `task-writer` |
+| `done` | `trd-only` | yes | `task-writer` |
+| `error` | (any) | no (no edge handles `error`) | `null` |
+
+(The `done` row is uniform because `trd-writer` is only dispatched when `brainstorming_outcome` is `prd-trd` or `trd-only`, both of which are in `task-writer`'s `when:` set.)
+
+Count the items under "Open questions". Emit the final JSON with the resolved `next`. That is your entire final message.
 
 ## TRD.md template
 

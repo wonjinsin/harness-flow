@@ -85,6 +85,15 @@ Emit a structured classification; `harness-flow.yaml` consumes it via the `outco
 
 `resume` is its own outcome — not a boolean flag on `plan`. When Step 1 matches an existing session, emit `outcome: "resume"`; otherwise `plan`.
 
+### Step 6 — Resolve `next`
+
+Before emitting the final JSON, perform the next-node lookup per `using-harness § Core loop` steps 3–5 against your own outgoing edges in `harness-flow.yaml`. The resolution is straightforward — the table above maps each outcome to its `next`:
+
+- `casual` → no downstream edge matches → `next: null`
+- `clarify` / `plan` / `resume` → `next: "brainstorming"`
+
+Include `next` as a field in the emitted JSON. Skip this step on `casual` (no JSON is emitted at all).
+
 ## Classification signals
 
 ### casual
@@ -195,6 +204,7 @@ Schema:
 
 - `outcome`: `"clarify"`, `"plan"`, or `"resume"` — main thread looks this up in `harness-flow.yaml` transitions
 - `session_id`: `"YYYY-MM-DD-slug"`
+- `next`: resolved downstream node id from Step 6 — always `"brainstorming"` for these outcomes
 
 ### Examples
 
@@ -203,19 +213,19 @@ Input: `hi claude, what can you build?` — casual: router replies with plain te
 Input: `add 2FA to login`
 
 ```json
-{"outcome":"plan","session_id":"2026-04-19-add-2fa-login"}
+{"outcome":"plan","session_id":"2026-04-19-add-2fa-login","next":"brainstorming"}
 ```
 
 Input: `make the auth code better`
 
 ```json
-{"outcome":"clarify","session_id":"2026-04-19-improve-auth"}
+{"outcome":"clarify","session_id":"2026-04-19-improve-auth","next":"brainstorming"}
 ```
 
 Input: `let's continue the 2FA work from yesterday` (match found in `.planning/2026-04-18-add-2fa-login/`)
 
 ```json
-{"outcome":"resume","session_id":"2026-04-18-add-2fa-login"}
+{"outcome":"resume","session_id":"2026-04-18-add-2fa-login","next":"brainstorming"}
 ```
 
 ## Keyword catalogue (reference)

@@ -38,18 +38,18 @@ evaluator agent 가 너를 로드한다. payload 가 전부:
 
 ## Output
 
-단일 JSON 객체 emit. outcome 3종. task 레벨 세부 (어느 task 가 blocked 인지, 어느 규칙이 fired 했는지) 는 TASKS.md `[Result]` 블록과 diff 자체에 남고, 유저가 직접 다시 읽는다. JSON 은 top-level outcome 과, non-pass 케이스의 한 줄 `reason` 만 전달.
+단일 JSON 객체 emit. outcome 3종. task 레벨 세부 (어느 task 가 blocked 인지, 어느 규칙이 fired 했는지) 는 TASKS.md `[Result]` 블록과 diff 자체에 남고, 유저가 직접 다시 읽는다. JSON 은 top-level outcome, non-pass 케이스의 한 줄 `reason`, 그리고 resolve 된 `next` (Step 5 참조) 를 전달.
 
-**pass** — 모든 task Status: done 이고 (규칙 있으면) 위반 0건:
+**pass** — 모든 task `[Result: done]` 이고 (규칙 있으면) 위반 0건:
 
 ```json
-{ "outcome": "pass", "session_id": "2026-04-19-..." }
+{ "outcome": "pass", "session_id": "2026-04-19-...", "next": "doc-updater" }
 ```
 
 **escalate** — 스킬이 분류 가능한 모든 non-pass 조건 (blocked task, Attempt:3 task, 규칙 위반):
 
 ```json
-{ "outcome": "escalate", "session_id": "2026-04-19-...", "reason": "task-4: Acceptance bullet 2 가 bullet 4 와 모순" }
+{ "outcome": "escalate", "session_id": "2026-04-19-...", "reason": "task-4: Acceptance bullet 2 가 bullet 4 와 모순", "next": null }
 ```
 
 `reason` 은 유저-노출용 한 문장 요약. executor-blocked/failed 는 첫 blocker 의 `Reason:` 인용, rule-violation 은 `{rule-file}: {path:line} — {claim}` 형태.
@@ -57,7 +57,7 @@ evaluator agent 가 너를 로드한다. payload 가 전부:
 **error** — payload 결함 또는 복구 불가 인프라 이슈 (파일 없음, diff 읽기 실패, LLM 응답 파싱 불가, 내적 모순 상태):
 
 ```json
-{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TASKS.md not found at <path>" }
+{ "outcome": "error", "session_id": "2026-04-19-...", "reason": "TASKS.md not found at <path>", "next": null }
 ```
 
 JSON 외 prose 절대 금지. JSON 객체가 최종 메시지 전부.
@@ -85,7 +85,7 @@ Updated: 2026-04-21T14:23:00Z
 
 `Status` 값별 카운트: `done`, `failed`, `blocked`, `skipped`, `([Result] 블록 없음)`.
 
-**step-1 에러 조건** (emit `{"outcome": "error", "session_id": "...", "reason": "..."}`):
+**step-1 에러 조건** (emit `{"outcome": "error", "session_id": "...", "reason": "...", "next": null}`):
 
 - `tasks_path` 없음/읽기 불가 → `reason: "TASKS.md not found at <path>"`.
 - 어떤 task 든 `[Result]` 블록 없음 → `reason: "task-N has no Result block — executor did not finalize"`.
@@ -108,13 +108,13 @@ Updated: 2026-04-21T14:23:00Z
 아니면:
 
 1. `rules_dir` 바로 아래 `*.md` 파일 나열 (재귀 아님 — 규칙은 프로젝트당 플랫이 컨벤션). 각 파일 읽기. 첫 비공백 라인에 `<!-- evaluator: skip -->` 포함 시 연결된 rules 블록에서 제외.
-2. 설정된 diff 명령 실행 (기본 `git diff HEAD`). 명령 실패 또는 빈 출력 → `{"outcome": "error", "session_id": "...", "reason": "diff command returned <empty|nonzero>: <stderr tail>"}`. evaluator 시점에 diff 가 비어있다는 건 executor 가 파일 하나도 안 바꾸고 `done` 을 주장한 것 — pass 가 아니라 task-writer/executor 버그.
+2. 설정된 diff 명령 실행 (기본 `git diff HEAD`). 명령 실패 또는 빈 출력 → `{"outcome": "error", "session_id": "...", "reason": "diff command returned <empty|nonzero>: <stderr tail>", "next": null}`. evaluator 시점에 diff 가 비어있다는 건 executor 가 파일 하나도 안 바꾸고 `done` 을 주장한 것 — pass 가 아니라 task-writer/executor 버그.
 3. LLM 프롬프트 빌드 (아래 `## Rule validation prompt` 참조). 네 자신의 추론으로 실행 — 네가 LLM 이다.
 4. 응답 파싱:
    - **첫 비공백 라인** 이 정확히 `PASS` 또는 정확히 `FAIL` 이어야 함. 끝 공백 허용; 그 외는 unparseable.
    - `PASS` → 이후 라인은 진단(위반 아님)으로 취급, 무시. 응답은 pass.
    - `FAIL` → 이후 각 비공백 라인이 `- {rule-file}: {path:line} — {claim}` 포맷과 일치해야 함. 매칭 안 되는 라인은 진단 노이즈로 무시하되, **최소 1건**의 well-formed 위반 라인이 필요. 없으면 unparseable. 첫 well-formed 위반 라인을 보관 — Step 4 에서 `reason` 이 된다.
-   - `PASS` 도 아니고 `FAIL + ≥1 valid violation` 도 아니면 → `{"outcome": "error", "session_id": "...", "reason": "rule-judgment response unparseable: <first 200 chars>"}`.
+   - `PASS` 도 아니고 `FAIL + ≥1 valid violation` 도 아니면 → `{"outcome": "error", "session_id": "...", "reason": "rule-judgment response unparseable: <first 200 chars>", "next": null}`.
 
 ### Step 4 — Outcome 결정 + emit
 
@@ -131,7 +131,17 @@ executor pre-check (Step 2) 와 규칙 결과 (Step 3) 조합:
 
 메인 스레드가 STATE.md 쓰기를 소유: `last_eval`, `last_eval_at`, `last_eval_excerpt`, (escalate 시) `escalated: true`. 이 스킬은 STATE.md 를 **수정하지 않는다** — 신호만 emit, 영속화는 메인 스레드.
 
-JSON emit. 그게 최종 메시지 전부.
+### Step 5 — `next` 결정 + emit
+
+`using-harness § Core loop` 의 step 3–5 를 따라, `harness-flow.yaml` 에서 이 스킬의 outgoing edge 들을 대상으로 next-node 조회 수행. 후보 단 하나: `doc-updater` (`when: $evaluator.output.outcome == 'pass'`):
+
+| `outcome` | doc-updater `when:` 매치? | `next` |
+|---|---|---|
+| `pass` | yes | `doc-updater` |
+| `escalate` | no | `null` |
+| `error` | no | `null` |
+
+resolve 된 `next` 를 포함한 JSON emit. 그게 최종 메시지 전부.
 
 ## Rule validation prompt
 
@@ -184,7 +194,7 @@ Updated: 2026-04-19T14:10:00Z
 - Step 3: `.claude/rules/code-style.md` 읽음 (1파일, opt-out 아님). `git diff HEAD` 실행. 규칙 기준 판정. 위반 없음.
 
 ```json
-{ "outcome": "pass", "session_id": "2026-04-19-rename-getUser" }
+{ "outcome": "pass", "session_id": "2026-04-19-rename-getUser", "next": "doc-updater" }
 ```
 
 ### Example 2 — 규칙 위반으로 escalate
@@ -201,7 +211,8 @@ FAIL
 {
   "outcome": "escalate",
   "session_id": "2026-04-19-rename-getUser",
-  "reason": "code-style.md: src/auth/login.ts:42 — production `console.log(user)` 금지"
+  "reason": "code-style.md: src/auth/login.ts:42 — production `console.log(user)` 금지",
+  "next": null
 }
 ```
 
@@ -233,7 +244,8 @@ Updated: 2026-04-21T10:05:00Z
 {
   "outcome": "escalate",
   "session_id": "2026-04-19-add-2fa-login",
-  "reason": "task-4: Acceptance bullet 2 가 bullet 4 와 모순"
+  "reason": "task-4: Acceptance bullet 2 가 bullet 4 와 모순",
+  "next": null
 }
 ```
 
@@ -245,7 +257,8 @@ TASKS.md 의 task-3 가 `Status: failed`, `Attempt: 3`, `Reason: repeated failur
 {
   "outcome": "escalate",
   "session_id": "2026-04-19-add-2fa-login",
-  "reason": "task-3: repeated failure after narrow-scope retry (Attempt 3)"
+  "reason": "task-3: repeated failure after narrow-scope retry (Attempt 3)",
+  "next": null
 }
 ```
 
