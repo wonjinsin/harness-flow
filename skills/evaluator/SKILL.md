@@ -236,10 +236,9 @@ On `outcome: "escalate"` or `"error"`: flow terminates. Report the verdict to th
 
 ## Boundaries
 
-- Reads `tasks_path`, `rules_dir/*.md`, and the output of `diff_command`. **Does not write any file** — not TASKS.md, not STATE.md, not ROADMAP.md. The main thread owns persistence.
-- **Does not read STATE.md.** Session-level retry is not a concept anymore; there is no `retry_count` to consult.
+- File ownership: see `../../harness-contracts/file-ownership.md`. Evaluator is **read-only** for every session artifact (TASKS, STATE, ROADMAP) and does not consult PRD/TRD — task-writer already embedded their vocabulary into TASKS.md Acceptance, so evaluator's grep targets live there. The main thread owns persistence on evaluator's return.
+- Reads only `tasks_path`, `rules_dir/*.md`, and the output of `diff_command`.
 - Does not re-run `make check` or any other shell command except the configured `diff_command`. Track 1 is a Stop hook; this skill is Track 2 only.
 - Does not invoke other agents or skills. You are an endpoint.
 - Does not modify source code, even if violations are obvious. Re-dispatch does not happen — escalation terminates the session, and the user re-drives if they want to fix.
-- Does not consult PRD.md or TRD.md directly. Task-writer already embedded their vocabulary into TASKS.md Acceptance; evaluator grep targets are in there. Reading upstream docs is out of scope and invites drift.
 - Rule judgment is LLM-only. Do not write a regex-based rule engine, even when tempted — that would silently drift from rule intent.

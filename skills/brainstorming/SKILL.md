@@ -126,6 +126,7 @@ The next skill depends on `outcome` (full payload contract: `../../harness-contr
 
 ## Out of scope
 
+- File ownership: see `../../harness-contracts/file-ownership.md`. Brainstorming writes only the `Complexity:` line + brainstorming row in `ROADMAP.md`, and `Current Position` + `Last activity` in `STATE.md`. Anything else is out of scope.
 - Propose solutions, approaches, or tradeoffs — that's `prd-writer` / `trd-writer`.
 - Write specs, design docs, plans, or any code.
 - Read the codebase beyond minimum needed to disambiguate a target name (≤ 2 tool calls; otherwise ask the user). No file-count estimation via codebase scan.
@@ -134,6 +135,5 @@ The next skill depends on `outcome` (full payload contract: `../../harness-contr
 - Dispatch the next agent directly — main thread reads the "Required next skill" section below.
 - Re-ask questions the user already answered.
 - Re-invoke router — if pivot warrants a new session, end the skill; router fires next turn.
-- Write outside `ROADMAP.md` (Complexity line + brainstorming row) and `STATE.md` (Current Position + Last activity).
 - More than one file-count recomputation in B6 — beyond that, accept the user's value.
 - Mirror non-English in skill internals (route names, signal list, field names stay English; user-facing prompts mirror the user's language).

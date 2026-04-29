@@ -89,7 +89,7 @@ The next skill depends on `brainstorming_outcome` (echoed in this skill's output
 
 ## Boundaries
 
-- Writes only to `.planning/{session_id}/PRD.md`. Do not touch ROADMAP.md or STATE.md.
+- File ownership: see `../../harness-contracts/file-ownership.md` (this skill = `PRD.md` row — create only; ROADMAP/STATE are read-or-skip; source code untouched).
 - Do not invoke other agents or skills. Do not dispatch trd-writer or task-writer — the 'Required next skill' section above dispatches downstream.
 - Do not modify source code, even if you spot bugs. Note them in Open questions if load-bearing.
 - Tool budget: ~15 Read/Grep/Glob calls. If you need more, halt and emit `error` with a `reason` describing the exhaustion.

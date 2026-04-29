@@ -230,6 +230,6 @@ See `references/keywords.md` for the deterministic keyword catalogue used by Ste
 
 ## Boundaries
 
+- File ownership: see `../../harness-contracts/file-ownership.md`. Router creates the empty `ROADMAP.md` / `STATE.md` skeletons in Step 4 and never modifies them after — downstream skills own subsequent writes.
 - Do not plan, decompose, or write code here. Those belong to `brainstorming`, `prd-writer`, `trd-writer`, `task-writer`.
 - Do not ask clarifying questions beyond session-slug confirmation and multiple-match disambiguation. Any other ambiguity is for `brainstorming`.
-- Do not modify `ROADMAP.md` / `STATE.md` after creating the skeletons. Downstream skills own those files.

@@ -66,6 +66,11 @@ When this skill emits `outcome: "done"` (full payload contract: `../../harness-c
 
 On `outcome: "blocked"` / `"failed"` / `"error"`: flow terminates. Report the failure detail to the user and stop. (Evaluator does not run on a non-done outcome — fixing blockers is a human decision.)
 
+## Boundaries
+
+- File ownership: see `../../harness-contracts/file-ownership.md`. Executor appends `[Result]` blocks to `TASKS.md` (never the body) and finalizes `ROADMAP.md` in Step 7. Source code is edited only by the per-task subagents the executor dispatches — the executor itself does not write code.
+- Do not invoke other harness skills directly. The 'Required next skill' section above dispatches downstream.
+
 ## Anti-patterns
 
 - **Do not re-dispatch a BLOCKED task.** Retry produces the same return. Escalate via the `blocked` outcome.

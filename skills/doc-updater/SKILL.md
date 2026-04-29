@@ -72,9 +72,10 @@ doc-updater is the terminal node — the harness flow ends here. Report a brief 
 
 ## Constraints
 
+- File ownership: see `../../harness-contracts/file-ownership.md`. Doc-updater writes `CHANGELOG.md`, `findings.md`, and ≤20-line edits to `README.md` / `CLAUDE.md` / `docs/**/*.md`. Locale variants (e.g., `README.ko.md`) are out of scope.
 - Ignore generated/vendored paths: `dist/`, `node_modules/`, `*.lock`, `package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`, `go.sum`.
 - Tasks with `[Result: skipped]` are excluded from CHANGELOG.
-- No translation (e.g., `README.ko.md`), version bumps, or new doc files beyond the four targets — record skipped variants under `## Not applied`.
+- No translation, version bumps, or new doc files beyond the four targets — record skipped variants under `## Not applied`.
 - No user questions. Ambiguity → record in `## Not applied` and continue.
 - `not applied` never escalates to `error` — only unrecoverable infra failures do (permission denied, disk full, corrupted CHANGELOG).
 

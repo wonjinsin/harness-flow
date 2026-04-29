@@ -88,7 +88,7 @@ On `outcome: "error"`: flow terminates. Report to the user and stop.
 
 ## Boundaries
 
-- Writes only to `.planning/{session_id}/TRD.md`. Do not touch PRD.md, ROADMAP.md, or STATE.md — PRD is upstream read-only.
+- File ownership: see `../../harness-contracts/file-ownership.md` (this skill = `TRD.md` row — create only; PRD is upstream read-only; source code untouched).
 - Do not invoke other agents or skills. Do not dispatch task-writer — the 'Required next skill' section above dispatches downstream.
 - Do not modify source code, even if you spot bugs. Note them in Open questions if load-bearing.
 - Tool budget: ~25 Read/Grep/Glob calls. If you need more, halt and emit `error` with a `reason`.
