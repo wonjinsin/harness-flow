@@ -1,7 +1,7 @@
 ---
 name: brainstorming
 description: Run as the harness intake step after router emits clarify, plan, or resume. Drives a tight Q&A loop when the request lacks signal (clarify route), grounds questions in a scoped codebase peek (~10 Read/Grep/Glob calls) so questions reflect what actually exists, then classifies into one of four downstream routes (prd-trd, prd-only, trd-only, tasks-only) while absorbing Gate 1 user approval before any artifact is created. Never proposes implementation solutions or writes specs — on route approval it writes `.planning/{session_id}/brainstorming.md` (the verify-first ground prd-writer/trd-writer/task-writer consume in place of re-exploring the codebase themselves) and ends with a short markdown status note pointing at the file.
-model: sonnet
+model: opus
 ---
 
 # Brainstorming
@@ -41,9 +41,11 @@ Every run ends with a short markdown block. See `../../harness-contracts/output-
 
 ```markdown
 ## Status
+
 {prd-trd|prd-only|trd-only|tasks-only}
 
 ## Path
+
 .planning/{session_id}/brainstorming.md
 
 Proceeding to {next-skill}.
@@ -55,9 +57,11 @@ The file is the handoff. Its mandatory structure:
 # Brainstorming — {session_id}
 
 ## Request
+
 "{user's verbatim request}"
 
 ## A1.6 findings
+
 - files visited: {file:line, ...}
 - key findings:
   - {finding 1}
@@ -67,6 +71,7 @@ The file is the handoff. Its mandatory structure:
   - {question 1}
 
 ## Brainstorming output
+
 - intent: {add|fix|refactor|migrate|remove|other}
 - target: {short phrase}
 - scope: {single-file|subsystem|multi-system}
@@ -75,6 +80,7 @@ The file is the handoff. Its mandatory structure:
 - acceptance: {one sentence}
 
 ## Recommendation
+
 - route: {prd-trd|prd-only|trd-only|tasks-only}
 - estimated files: {N}
 - user approved: yes
@@ -86,9 +92,11 @@ If A1.6 was skipped (router routed `plan` with no resolvable target, or the requ
 
 ```markdown
 ## Status
+
 pivot
 
 ## Reason
+
 {short cause}
 ```
 
@@ -96,9 +104,11 @@ pivot
 
 ```markdown
 ## Status
+
 exit-casual
 
 ## Reason
+
 {short cause}
 ```
 
@@ -108,23 +118,23 @@ exit-casual
 
 Step 0 (resume short-circuit) → **Phase A** (only when `route == "clarify"`) → **Phase B** (always). Phase A picks A-intake or A-explore based on whether intent + target are extractable; either way A1.6 fires once both are pinned, before A2.
 
-| Phase   | Step      | One-line description                                                                               |
-| ------- | --------- | -------------------------------------------------------------------------------------------------- |
+| Phase   | Step      | One-line description                                                                                              |
+| ------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
 | Step 0  | resume    | Short-circuit if `.planning/{id}/brainstorming.md` exists with `user approved: yes` (ROADMAP marker is fallback). |
-| Phase A | A1        | Extract from request first; flag multi-subsystem scope before asking fields.                       |
-| Phase A | A1.5      | Pick mode — A-explore (no intent + target) vs A-intake (fields partially fillable).                |
-| Phase A | A-explore | Diverge with open or direction-mapping questions until intent + target stabilise.                  |
-| Phase A | A1.6      | Scoped codebase peek (~10 Read/Grep/Glob) — verify target, gather code-visible constraints.        |
-| Phase A | A2        | Ask one missing field per turn, MC-preferred, in user's language. Reference A1.6 findings.         |
-| Phase A | A3        | Early exit on "just start" / "skip" — proceed with whatever is filled.                             |
-| Phase A | A4        | Confirm fills as standalone message; next turn moves to Phase B.                                   |
-| Phase B | B1        | Detect path + multilingual keyword signals. A1.6 code signals feed `code_signals`.                 |
-| Phase B | B2        | Single integer N = best-guess modified + new files.                                                |
-| Phase B | B3        | Tier rule: any signal → prd-trd; else by intent + N.                                               |
-| Phase B | B4        | tasks-only candidate must pass 4 self-checks; any fail → prd-only.                                 |
-| Phase B | B5        | Gate 1 — present recommendation as standalone message; wait.                                       |
-| Phase B | B6        | Accept / route-override / file-count override (one recompute) / pivot.                             |
-| Phase B | B7        | Update ROADMAP + STATE, write `.planning/{id}/brainstorming.md`, end turn with markdown status.    |
+| Phase A | A1        | Extract from request first; flag multi-subsystem scope before asking fields.                                      |
+| Phase A | A1.5      | Pick mode — A-explore (no intent + target) vs A-intake (fields partially fillable).                               |
+| Phase A | A-explore | Diverge with open or direction-mapping questions until intent + target stabilise.                                 |
+| Phase A | A1.6      | Scoped codebase peek (~10 Read/Grep/Glob) — verify target, gather code-visible constraints.                       |
+| Phase A | A2        | Ask one missing field per turn, MC-preferred, in user's language. Reference A1.6 findings.                        |
+| Phase A | A3        | Early exit on "just start" / "skip" — proceed with whatever is filled.                                            |
+| Phase A | A4        | Confirm fills as standalone message; next turn moves to Phase B.                                                  |
+| Phase B | B1        | Detect path + multilingual keyword signals. A1.6 code signals feed `code_signals`.                                |
+| Phase B | B2        | Single integer N = best-guess modified + new files.                                                               |
+| Phase B | B3        | Tier rule: any signal → prd-trd; else by intent + N.                                                              |
+| Phase B | B4        | tasks-only candidate must pass 4 self-checks; any fail → prd-only.                                                |
+| Phase B | B5        | Gate 1 — present recommendation as standalone message; wait.                                                      |
+| Phase B | B6        | Accept / route-override / file-count override (one recompute) / pivot.                                            |
+| Phase B | B7        | Update ROADMAP + STATE, write `.planning/{id}/brainstorming.md`, end turn with markdown status.                   |
 
 Full Q&A protocol: `references/procedure.md`.
 
@@ -171,7 +181,7 @@ The next skill depends on the `## Status` value of the terminal message (full pe
 ## Out of scope
 
 - File ownership: see `../../harness-contracts/file-ownership.md` (this skill writes `Complexity:` + brainstorming row in `ROADMAP.md`, `Current Position` + `Last activity` in `STATE.md`, and `.planning/{session_id}/brainstorming.md`).
-- **Specific** solutions, approaches, or implementation tradeoffs — that's `prd-writer` / `trd-writer`. Explore mode may name problem-space *shape* categories ("push / email / in-app") but never implementation choices (libraries, architectures, file structure).
+- **Specific** solutions, approaches, or implementation tradeoffs — that's `prd-writer` / `trd-writer`. Explore mode may name problem-space _shape_ categories ("push / email / in-app") but never implementation choices (libraries, architectures, file structure).
 - Writing specs, design docs, or any code.
 - Codebase exploration beyond A1.6's ~10-call budget. If even target disambiguation needs more, record `constraint: deliberately-wide-scope` and proceed — the request likely belongs on prd-trd.
 - Modifying source code, even when A1.6 surfaces a bug. Log under `## A1.6 findings` → open questions.
