@@ -1,6 +1,6 @@
 ---
 name: evaluator
-description: Use when an executor phase has finished in a harness session and its output must be gated before doc-updater. Runs in an isolated agent context with no main conversation history.
+description: Run after parallel-task-executor emits done — the gate before doc-updater. Verifies every TASKS.md `[Result]` reads done (else escalate, quoting the first blocker's reason) and (Track 2) judges the session diff against `.claude/rules/*.md` via LLM reasoning. Emits pass / escalate / error; non-pass terminates the session — there is no loopback. Runs in an isolated subagent.
 ---
 
 # Evaluator

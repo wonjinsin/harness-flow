@@ -1,6 +1,6 @@
 ---
 name: parallel-task-executor
-description: Use when a session's `TASKS.md` is ready to execute and tasks must be dispatched as isolated subagents respecting `Depends:` and `Files:` constraints.
+description: Run after task-writer emits done. Dispatches one fresh subagent per task in `TASKS.md` via the Task tool — parallel within DAG layers, serialized when `Files:` overlap, capped at 5 per group, with a 3-attempt task-local retry. Writes a `[Result]` block per task and finalizes ROADMAP.md. Lives in main context because it fans out subagents and aggregates returns; the executor itself never edits source code (its dispatched subagents do).
 ---
 
 # Parallel Task Executor

@@ -1,6 +1,6 @@
 ---
 name: doc-updater
-description: Use after the harness evaluator node passes and a session's code changes need to be reflected into project docs (CHANGELOG.md, README.md, CLAUDE.md, docs/**/*.md). Use when running as the doc-updater terminal node in the harness flow.
+description: Run after evaluator emits pass — the harness's terminal node. Reflects session code changes into CHANGELOG.md (Keep-a-Changelog skeleton, one bullet per task classified into Added/Changed/Fixed/Security/Deprecated/Removed), README.md / CLAUDE.md / docs/**/*.md (≤20-line edits only; structural rewrites route to a human via findings.md), and writes `.planning/{session_id}/findings.md`. No translation, no version bumps, no new doc files beyond the four targets. Runs in an isolated subagent.
 ---
 
 # Doc Updater

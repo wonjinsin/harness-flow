@@ -1,6 +1,6 @@
 ---
 name: trd-writer
-description: Use when a planning session needs a TRD drafted in an isolated subagent context, with or without an upstream PRD.
+description: Run after prd-writer (prd-trd route) or directly after brainstorming (trd-only route). Drafts `.planning/{session_id}/TRD.md` — Affected surfaces with concrete file/function names, Interfaces & contracts, Data model, Risks. Code-shape level: distinct from PRD's outcome framing and TASKS's step-by-step instructions. One TRD per session; runs in an isolated subagent.
 ---
 
 # TRD Writer

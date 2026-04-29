@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: Use when the router emits `clarify`, `plan`, or `resume` — the harness intake step before any PRD/TRD/task writer runs.
+description: Run as the harness intake step after router emits clarify, plan, or resume. Drives a tight Q&A loop only when the request lacks signal (clarify route), then classifies into one of four downstream routes (prd-trd, prd-only, trd-only, tasks-only) and absorbs Gate 1 user approval before any artifact is created. Never proposes solutions, writes specs, or reads the codebase beyond minimum target disambiguation — its only product is the route payload that prd-writer/trd-writer/task-writer can trust.
 ---
 
 # Brainstorming

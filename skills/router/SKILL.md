@@ -1,6 +1,6 @@
 ---
 name: router
-description: Use at the start of a user turn before any planning skill runs — bootstraps a `.planning/` session (slug + scaffold) or matches the request against an existing session for resume.
+description: Always run first at the start of a user turn unless another harness skill is mid-flow with a named next skill. Classifies the request as casual (reply inline, no JSON), clarify (brainstorming will Q&A), plan (brainstorming has enough signal), or resume (matched against an existing `.planning/` session). Bootstraps the session slug and `.planning/{session_id}/` skeleton on fresh plan/clarify routes.
 ---
 
 # Router
