@@ -2,9 +2,6 @@
 
 A Claude Code plugin. Routes user requests through **router → brainstorming → PRD/TRD/TASKS → execute → evaluate → doc-update** as a Skill × Agent hybrid harness. There is no central DAG file — each skill declares its own next step inline (`## Required next skill`), and a session-start hook injects the `using-harness` meta-skill so the LLM acts as the interpreter.
 
-> Current version: **v0.3.1** (2026-04-29)
-> Korean: [README.ko.md](README.ko.md)
-
 ---
 
 ## Core concepts
@@ -28,32 +25,23 @@ A Claude Code plugin. Routes user requests through **router → brainstorming �
 This repo exposes itself as a single-plugin marketplace via `.claude-plugin/marketplace.json`.
 
 ```
-/plugin marketplace add wonjinsin/harness
+/plugin marketplace add wonjinsin/harness-flow
 /plugin install harness-flow@harness
 ```
 
 The `SessionStart` hook bundled with the plugin will run on every new session and inject `using-harness` into context.
 
-### B) Local marketplace (development / personal machine)
-
-Clone the repo and use the cloned directory directly as a marketplace:
-
-```
-/plugin marketplace add /path/to/cloned/harness
-/plugin install harness-flow@harness
-```
-
-### C) Copy-paste mode — drop into `.claude/` without the plugin system
+### B) Copy-paste mode — drop into `.claude/` without the plugin system
 
 Use this when you want to bypass the plugin system and place the repo directly under `.claude/`. Claude Code will not inject `$CLAUDE_PLUGIN_ROOT` in this mode, but `session-start.sh` self-derives the harness root from its own location, so **no environment variable needs to be exported**.
 
-**(C-1) Global — clone into `~/.claude/harness-flow/` (recommended)**
+**(B-1) Global — clone into `~/.claude/harness-flow/` (recommended)**
 
 ```bash
 git clone https://github.com/wonjinsin/harness.git ~/.claude/harness-flow
 ```
 
-**(C-2) Project-local — `<project>/.claude/harness-flow/`**
+**(B-2) Project-local — `<project>/.claude/harness-flow/`**
 
 ```bash
 git clone https://github.com/wonjinsin/harness.git <project>/.claude/harness-flow
@@ -62,6 +50,8 @@ git clone https://github.com/wonjinsin/harness.git <project>/.claude/harness-flo
 #### Required: register the hook in `settings.json`
 
 In plugin mode, Claude Code reads `hooks/hooks.json` automatically. In copy-paste mode it is **ignored**, because the bundled `hooks.json` references `${CLAUDE_PLUGIN_ROOT}` — an empty variable outside of plugin mode. Register the hook manually in `~/.claude/settings.json` (global) or `<project>/.claude/settings.json` (project-local):
+
+Global (`~/.claude/settings.json`):
 
 ```json
 {
@@ -81,7 +71,25 @@ In plugin mode, Claude Code reads `hooks/hooks.json` automatically. In copy-past
 }
 ```
 
-For project-local installs, replace `$HOME/.claude/harness-flow` with the absolute path of the cloned repo inside the project.
+Project-local (`<project>/.claude/settings.json`) — use a relative path from the project root:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \".claude/harness-flow/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 Why this works without any env var: `session-start.sh` resolves the harness root from its own location:
 
@@ -92,11 +100,11 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
 
 When `$CLAUDE_PLUGIN_ROOT` is empty (copy-paste mode), `HARNESS_ROOT` falls back to the parent of `hooks/`, which is the repo root. The script then injects the resolved absolute path into the `using-harness` content so all `${CLAUDE_PLUGIN_ROOT}` references in skill bodies are substituted at injection time.
 
-**(C-3) Flat merge into `.claude/`**
+**(B-3) Flat merge into `.claude/`**
 
 Splitting `skills/`, `agents/`, `hooks/` out and merging them into the existing `~/.claude/skills/`, `~/.claude/agents/`, etc. works as long as there are no name collisions, but it makes upgrades and uninstalls painful. Not recommended. The same `settings.json` registration is still required.
 
-### D) Verifying the install
+### C) Verifying the install
 
 ```
 /plugin
@@ -110,12 +118,12 @@ If `harness-flow` shows up as enabled, plugin mode is working. In copy-paste mod
 
 On the first user message of a new session, `using-harness` decides:
 
-| Input example | Classification | Behavior |
-|---|---|---|
-| `"hi"`, `"what can you do?"` | casual | Plain reply, harness does not engage |
-| `"add 2FA to login"` | plan | router → brainstorming → route recommendation → … |
-| `"clean up the auth code"` | clarify | router → brainstorming Phase A (Q&A) → Phase B (classification) |
-| `"continue yesterday's 2FA work"` | resume | router → load matched session → resume from next unfinished phase |
+| Input example                     | Classification | Behavior                                                          |
+| --------------------------------- | -------------- | ----------------------------------------------------------------- |
+| `"hi"`, `"what can you do?"`      | casual         | Plain reply, harness does not engage                              |
+| `"add 2FA to login"`              | plan           | router → brainstorming → route recommendation → …                 |
+| `"clean up the auth code"`        | clarify        | router → brainstorming Phase A (Q&A) → Phase B (classification)   |
+| `"continue yesterday's 2FA work"` | resume         | router → load matched session → resume from next unfinished phase |
 
 Once a session is created, progress follows the `ROADMAP.md` checkboxes. If you stop and resume, work picks up after the last `[x]`.
 
@@ -188,5 +196,3 @@ After install, the only thing that appears in your project is:
         ├── TASKS.md
         └── findings.md
 ```
-
-

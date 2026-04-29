@@ -2,9 +2,6 @@
 
 Claude Code 플러그인. 유저 요청을 **router → brainstorming → PRD/TRD/TASKS → execute → evaluate → doc-update** 순으로 흘리는 Skill × Agent 하이브리드 하네스. 중앙 DAG 파일은 없다 — 각 스킬이 자기 본문에 다음 단계 (`## Required next skill`) 를 직접 선언하고, SessionStart 훅이 `using-harness` 메타 스킬을 컨텍스트에 주입해서 LLM 자체가 인터프리터로 동작한다.
 
-> 현재 버전: **v0.3.1** (2026-04-29)
-> English: [README.md](README.md)
-
 ---
 
 ## 핵심 컨셉
@@ -28,32 +25,23 @@ Claude Code 플러그인. 유저 요청을 **router → brainstorming → PRD/TR
 이 repo 가 자기 자신을 단일 플러그인 마켓플레이스로 노출한다 (`.claude-plugin/marketplace.json`).
 
 ```
-/plugin marketplace add wonjinsin/harness
+/plugin marketplace add wonjinsin/harness-flow
 /plugin install harness-flow@harness
 ```
 
 이후 새 세션에서 SessionStart 훅이 자동으로 돌아 `using-harness` 스킬이 컨텍스트에 주입된다.
 
-### B) 로컬 마켓플레이스 (개발·자기 머신)
-
-repo 를 클론한 디렉토리를 그대로 마켓플레이스로 사용:
-
-```
-/plugin marketplace add /path/to/cloned/harness
-/plugin install harness-flow@harness
-```
-
-### C) 복붙 모드 — 플러그인 안 쓰고 `.claude/` 에 직접 배치
+### B) 복붙 모드 — 플러그인 안 쓰고 `.claude/` 에 직접 배치
 
 플러그인 시스템을 거치지 않고 repo 를 통째로 `.claude/` 아래 두고 싶을 때. 이 모드에선 Claude Code 가 `$CLAUDE_PLUGIN_ROOT` 를 주입하지 않지만, `session-start.sh` 가 자기 위치에서 루트를 자동 유도하므로 **별도 환경 변수 설정 불필요**.
 
-**(C-1) 글로벌 — `~/.claude/harness-flow/` 에 통째로 배치 (권장)**
+**(B-1) 글로벌 — `~/.claude/harness-flow/` 에 통째로 배치 (권장)**
 
 ```bash
 git clone https://github.com/wonjinsin/harness.git ~/.claude/harness-flow
 ```
 
-**(C-2) 프로젝트 로컬 — `<project>/.claude/harness-flow/`**
+**(B-2) 프로젝트 로컬 — `<project>/.claude/harness-flow/`**
 
 ```bash
 git clone https://github.com/wonjinsin/harness.git <project>/.claude/harness-flow
@@ -62,6 +50,8 @@ git clone https://github.com/wonjinsin/harness.git <project>/.claude/harness-flo
 #### 필수 — settings.json 에 훅 등록
 
 플러그인 모드면 `hooks/hooks.json` 을 Claude Code 가 자동으로 읽지만, 복붙 모드에선 **무시된다**. 번들된 `hooks.json` 이 `${CLAUDE_PLUGIN_ROOT}` 를 참조하는데 플러그인 모드 밖에선 그 변수가 빈 값이기 때문. `~/.claude/settings.json` (글로벌) 또는 `<project>/.claude/settings.json` (프로젝트) 에 직접 등록:
+
+글로벌 (`~/.claude/settings.json`):
 
 ```json
 {
@@ -81,7 +71,25 @@ git clone https://github.com/wonjinsin/harness.git <project>/.claude/harness-flo
 }
 ```
 
-프로젝트 로컬 설치라면 `$HOME/.claude/harness-flow` 를 프로젝트 내부 클론 경로의 절대 경로로 바꿔라.
+프로젝트 로컬 (`<project>/.claude/settings.json`) — 프로젝트 루트 기준 상대 경로 사용:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \".claude/harness-flow/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 환경 변수 없이 동작하는 이유: `session-start.sh` 가 자기 위치에서 루트를 유도한다.
 
@@ -92,11 +100,11 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
 
 `$CLAUDE_PLUGIN_ROOT` 가 비어있으면 (복붙 모드) `HARNESS_ROOT` 는 `hooks/` 의 부모 디렉토리, 즉 repo 루트로 폴백한다. 이후 스크립트가 `using-harness` 본문에 절대 경로를 주입하므로, 스킬 본문의 `${CLAUDE_PLUGIN_ROOT}` 표기는 주입 시점에 모두 치환된다.
 
-**(C-3) `.claude/` 에 납작하게 머지**
+**(B-3) `.claude/` 에 납작하게 머지**
 
 `skills/`, `agents/`, `hooks/` 를 분해해서 기존 `~/.claude/skills/`, `~/.claude/agents/` 등에 그대로 합치는 케이스. 이름 충돌만 없으면 동작하지만, 업그레이드·제거가 까다로워져서 추천하지 않는다. 굳이 한다면 위 settings.json 등록은 동일하게 필요.
 
-### D) 동작 확인
+### C) 동작 확인
 
 ```
 /plugin
@@ -110,12 +118,12 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
 
 새 세션에서 첫 유저 메시지가 도착하면 `using-harness` 가 다음을 판단:
 
-| 입력 예시 | 분류 | 동작 |
-|---|---|---|
-| `"안녕"`, `"이거 뭐 할 수 있어?"` | casual | 일반 응답, 하네스 미개입 |
-| `"로그인에 2FA 추가해줘"` | plan | router → brainstorming → 경로 추천 → ... |
-| `"인증 코드 좀 더 깔끔하게"` | clarify | router → brainstorming Phase A (Q&A) → Phase B (분류) |
-| `"어제 하던 2FA 작업 이어서"` | resume | router → 매칭된 세션 로드 → 다음 미완료 phase 부터 |
+| 입력 예시                         | 분류    | 동작                                                  |
+| --------------------------------- | ------- | ----------------------------------------------------- |
+| `"안녕"`, `"이거 뭐 할 수 있어?"` | casual  | 일반 응답, 하네스 미개입                              |
+| `"로그인에 2FA 추가해줘"`         | plan    | router → brainstorming → 경로 추천 → ...              |
+| `"인증 코드 좀 더 깔끔하게"`      | clarify | router → brainstorming Phase A (Q&A) → Phase B (분류) |
+| `"어제 하던 2FA 작업 이어서"`     | resume  | router → 매칭된 세션 로드 → 다음 미완료 phase 부터    |
 
 세션이 만들어지면 `ROADMAP.md` 체크박스를 따라 진행되고, 중단 후 재시작해도 마지막 `[x]` 다음부터 이어진다.
 
@@ -188,5 +196,3 @@ HARNESS_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
         ├── TASKS.md
         └── findings.md
 ```
-
-
