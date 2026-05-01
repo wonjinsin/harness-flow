@@ -1,17 +1,9 @@
 {
   "name": "harness-flow",
   "description": "Skill × Agent hybrid harness for multi-phase planning and execution. Routes user requests through a chain (router → brainstorming → PRD/TRD/TASKS → execute → evaluate → doc-update). Each skill declares its own next via an in-body 'Required next skill' marker; the using-harness meta-skill is loaded at session start as the bootstrap entry point.",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "author": {
     "name": "wonjinsin"
   },
-  "keywords": [
-    "harness",
-    "workflow",
-    "agent",
-    "orchestration",
-    "planning",
-    "prd",
-    "trd"
-  ]
+  "keywords": ["harness", "workflow", "agent", "orchestration", "planning", "prd", "trd"]
 }

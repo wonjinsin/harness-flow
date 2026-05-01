@@ -46,7 +46,7 @@ If both signals are present:
 2. For each subdirectory, read `ROADMAP.md`. Keep only sessions with at least one `- [ ]` unchecked item.
 3. Match the request against candidates using slug similarity plus overlap with the session's goal/title.
 4. **One match** → load that session. Emit `## Status: resume` with `## Session: {session_id}`. Brainstorming's Step 0 short-circuits and jumps to the next incomplete phase.
-5. **Multiple matches** → ask the user to pick. Format: `{slug} — {one-line goal}`.
+5. **Multiple matches** → use `AskUserQuestion` to let the user pick. Up to 4 candidates (trim if more); label = slug, description = one-line goal from ROADMAP. See `../../harness-contracts/ask-user-question.md` § "Router — multiple session matches".
 6. **No match, or user rejects the proposed match** → fall through to fresh-session flow.
 
 ### Step 2 — casual / clarify / plan classification
@@ -55,14 +55,16 @@ Apply the heuristics in "Classification signals" and "False-positive traps" belo
 
 When ambiguous between **plan** and **clarify**, choose **clarify**.
 
+When ambiguous between **casual** and **clarify**, choose **clarify** — silently dropping a work request costs more than an unnecessary round-trip. Only use `casual` when there is clearly no execution intent (greeting, meta-question, pure informational lookup).
+
 ### Step 3 — Session slug (fresh sessions only)
 
 Format: `YYYY-MM-DD-{slug}`.
 
 1. Extract a concept from the request. Prefer the direct object of the main verb (e.g., "add 2FA to login" → `add-2fa-login`).
 2. Lowercase, ASCII-only, hyphens between words, ≤ 40 chars.
-3. Confirm with the user, in English: `Use session id "{date}-{slug}"?`
-4. On silence → proceed with the proposal. On rejection → use the user's edit verbatim (re-slug if needed).
+3. Confirm with the user via `AskUserQuestion`. See `../../harness-contracts/ask-user-question.md` § "Router — slug confirmation" for the canonical option list.
+4. On "Yes, use this" (or silence) → proceed with the proposal. On "Edit" / Other → use the user's input verbatim (re-slug if needed).
 5. **Collision**: if `.planning/{date}-{slug}/` already exists, append `-v2`, `-v3`, … until free.
 
 ### Step 4 — Scaffold (fresh sessions only)
@@ -130,7 +132,7 @@ How the main thread reads `## Status` and dispatches `brainstorming` with a shor
 
 - Work verb with no clear object ("make it better", "clean it up", "improve the code").
 - Conflicting or underspecified requirements ("fast but also thorough", "simple but full-featured").
-- Reference to "the bug", "that feature", "the issue" with no prior context pinning it down.
+- Reference to "the bug", "that feature", "the issue", or a bare anaphoric pronoun ("this", "it", "that") with no prior context pinning down the target — execution intent is present but the object is unclear.
 - Imperative present but target is ambiguous between multiple plausible referents.
 
 **Negative signals** — presence suggests not clarify:
@@ -150,6 +152,9 @@ How the main thread reads `## Status` and dispatches `brainstorming` with a shor
 | `I already added 2FA, what's next?`                   | casual  | Status report, no execution intent |
 | `what's the difference between JWT and sessions?`     | casual  | Pure factual question |
 | `the spec says "add 2FA", what do you think?`         | casual  | Discussing a reference, not issuing it |
+| `how about adding 2FA to login?`                      | clarify | Proposal/suggestion with execution intent |
+| `fix this`                                            | clarify | Execution intent clear, anaphoric target unpinned |
+| `what if we add rate limiting?`                       | clarify | Suggestion form with execution intent |
 
 ## False-positive traps
 
@@ -162,7 +167,7 @@ Action words (`add`, `fix`, `refactor`, `implement`, `migrate`) inside the follo
 5. **Echoed instruction text** — if two or more review-outcome labels (approve / request-changes / blocked / merge-ready) appear in the first 20 lines, the prompt is reviewing instructions, not issuing them.
 6. **Slash command echoes** — `run /fix` mentions a command rather than invoking it.
 7. **Past or subjunctive tense** — "I already added …", "we would refactor if …" are status reports, not requests.
-8. **Question forms** — "how do I add …", "why does fix fail?" ask about a verb, they don't invoke it.
+8. **Purely informational question forms** — "how do I add …", "why does fix fail?" ask *about* a verb; they don't invoke it. Exception: *proposals and suggestions* in question form ("how about adding 2FA?", "what if we fix this?") express execution intent and should route to `clarify`, not `casual`.
 
 Principle: the signal is **action intent directed at this turn**, not mention of an action word. When unsure, ask: "If I treat this as a plan, does the user actually want work to start now?" If no, downgrade to `casual` or `clarify`.
 

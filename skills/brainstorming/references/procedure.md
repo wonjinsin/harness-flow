@@ -35,7 +35,7 @@ Skip the scope check for obviously single-scope requests — don't ask "is this 
 After A1(a) extraction and A1(b) scope assessment, decide which sub-phase runs first:
 
 - **A-intake** (default): If A1(a) yielded at least one of `intent` or `target` from the request, skip A-explore and run **A1.6 first** (codebase peek), then A2. Most clarify-routed requests land here — "make the auth code better" already pins target=auth, even though intent is fuzzy.
-- **A-explore**: Run when **both** `intent` and `target` are unfillable from the request, OR the user explicitly signals idea-stage ("아직 고민 중", "뭘 만들지 모르겠어", "I'm exploring", "not sure yet", "AI로 뭔가 해보고 싶은데 …"). The premise itself is the gap — asking field-by-field would feel like an interrogation before the user knows what they want. A1.6 fires once explore converges on intent + target.
+- **A-explore**: Run when **both** `intent` and `target` are unfillable from the request, OR the user explicitly signals idea-stage ("still thinking about it", "not sure what to build", "I'm exploring", "not sure yet", "I want to do something with AI but …"). The premise itself is the gap — asking field-by-field would feel like an interrogation before the user knows what they want. A1.6 fires once explore converges on intent + target.
 
 The mode is an internal routing decision; the user does not need to know the modes exist. The conversation should feel like one continuous Q&A.
 
@@ -45,20 +45,21 @@ Goal: surface enough about the **problem space** that intake mode can start. **N
 
 Allowed prompts:
 
-- Open questions about motivation — "What pain point sparked this?" / "어떤 문제가 이걸 시작하게 했어요?"
-- Problem-space neighbours — "Internal tool or user-facing?" / "혼자 쓸 거예요, 팀에 배포할 거예요?"
-- 2–3 direction-mapping multiple choice — high-level *shape categories*, NOT implementations:
-  - ✓ "Sounds like notifications — push, email, or in-app?"
-  - ✓ "이메일 자동화라면 — 초안만 보조하는 건지, 자동 발송까지 가는 건지?"
+- Open questions about motivation — prose: "What pain point sparked this?" / "What problem started this?"
+- Problem-space neighbours — prose: "Internal tool or user-facing?" / "Just for you, or deploying to a team?"
+- 2–3 direction-mapping multiple choice — use `AskUserQuestion` with `header: "Direction"` when shape categories are clear. High-level *shape categories* only, NOT implementations:
+  - ✓ "Sounds like notifications — push, email, or in-app?" → `AskUserQuestion` with 3 options
+  - ✓ "For email automation — just assist with drafts, or all the way to auto-send?" → `AskUserQuestion` with 2 options
   - ✗ "Use Pub/Sub vs cron vs polling?" — implementation choice, prd-writer / trd-writer's job.
   - ✗ "Should we use Postgres or MongoDB?" — same.
+  See `../../harness-contracts/ask-user-question.md` § "Brainstorming — explore direction mapping" for the canonical format.
 
 Procedure:
 
 1. Ask one open or direction-mapping question per turn, in the user's language.
 2. After every user reply, re-run A1(a) on the cumulative conversation. Did `intent` or `target` emerge?
 3. When **both** intent and target are reasonably pinned (you could write a one-line summary the user would agree with), confirm convergence as a standalone message in the user's language:
-   > "그러면 결국 {intent} {target} 방향이네요. 이제 나머지 디테일 잡아갈게요."
+   > "So it comes down to {intent} {target} direction. Let me pin down the rest of the details."
    > or "Sounds like we're building {target} to {intent}. Let me pin down the rest."
 4. On the next turn, run **A1.6 (codebase peek)** before A2 — but **do not re-ask anything already touched in explore**. Pre-fill what you can; only ask the remaining unfilled fields.
 
@@ -69,7 +70,7 @@ Stuck after ~3 rounds without convergence:
 
 Early exit and pivot apply identically:
 
-- "그냥 시작해줘" / "skip" / "you decide" → A3 (early exit). Jump to Phase B with whatever fields are filled (thin `## Brainstorming output` — log in STATE).
+- "Just start" / "skip" / "you decide" → A3 (early exit). Jump to Phase B with whatever fields are filled (thin `## Brainstorming output` — log in STATE).
 - User pivots to an unrelated topic → end with the `pivot` terminal block (no file written), router fires next turn.
 
 Boundary that keeps explore safe in this skill (crossing the line erodes the brainstorming → writer separation):
@@ -122,16 +123,16 @@ Promote A1.6 open-question items to A2 questions when they are blocking — the 
 
 Priority order — **first unfilled field wins, but only after re-running A1(a) on the latest answer.** A single user reply often fills multiple fields at once (e.g., "refactor session handling for clarity" fills intent + target + partial scope). After every user turn, re-extract from the whole conversation before choosing the next question. Don't walk the list top-to-bottom blindly.
 
-1. **intent** — usually inferable, but when ambiguous: "Sounds like this is about {candidate}. Which fits best?" Offer MC: add / fix / refactor / migrate / remove / other. If the user's verb genuinely fits none of the five, record `intent: "other"` **and** append `"intent-freeform: <verb>"` to `constraints` so Phase B can see the original verb.
-2. **target** — "Which part of the codebase does this touch?" Open-ended, or MC if plausible candidates are visible.
-3. **scope_hint** — "Is this contained to one place, one subsystem, or does it ripple across systems?" MC: single-file / subsystem / multi-system.
-4. **constraints** — ask *only* when there is a plausible constraint you can name from context. Example for auth changes: "Any backward-compat requirement for existing sessions?" Do not fish for constraints with generic prompts.
-5. **acceptance** — "How will we know this is done?" Open-ended.
+1. **intent** — usually inferable, but when ambiguous: use `AskUserQuestion` with the canonical intent options. See `../../harness-contracts/ask-user-question.md` § "Brainstorming — intent". If the user's verb genuinely fits none of the options, record `intent: "other"` **and** append `"intent-freeform: <verb>"` to `constraints` so Phase B can see the original verb.
+2. **target** — "Which part of the codebase does this touch?" Open-ended prose question; use `AskUserQuestion` only when plausible named candidates are visible from A1.6 (max 4 options).
+3. **scope_hint** — use `AskUserQuestion` with the canonical scope options. See `../../harness-contracts/ask-user-question.md` § "Brainstorming — scope".
+4. **constraints** — ask *only* when there is a plausible constraint you can name from context. Example for auth changes: "Any backward-compat requirement for existing sessions?" Prose question; options rarely apply here.
+5. **acceptance** — "How will we know this is done?" Prose question; open-ended.
 
 Rules:
 
 - **One question per turn.** Never batch. A wall of questions is the anti-pattern we are avoiding.
-- **Prefer multiple choice** when plausible options exist. Users answer MC faster and more precisely than open-ended.
+- **Use `AskUserQuestion` for enumerable fields** (intent, scope, direction mapping). See `../../harness-contracts/ask-user-question.md` for the full pattern including framing and post-answer acknowledgment.
 - **Mirror the user's language** in questions and confirmations — the skill's rules and field names stay English, but the conversation follows the user. If they write Korean, ask in Korean.
 - **YAGNI on questions.** Only ask what's needed to classify and draft. If an answer wouldn't change the route or the writer's first draft, don't ask it.
 - **Stop when required fields are filled.** Optional fields empty is fine.
@@ -148,14 +149,17 @@ A thin file is not a failure — it is a user signal that they want velocity ove
 
 ### A4 — Confirm, then proceed
 
-When the required checklist is complete, send **one short confirmation** in the user's language:
+When the required checklist is complete, send a short prose summary in the user's language, then call `AskUserQuestion` for confirmation:
 
-> "Got it — {intent} {target}, {scope_hint}. {constraint summary if any}. {acceptance if stated}. Now picking a route."
+> "Confirmed — {intent} {target}, {scope_hint}. {constraint summary if any}. {acceptance if stated}."
+> [then: AskUserQuestion with "Looks good" / "I need to adjust something"]
 
-The confirmation is its own message — do not bundle the route recommendation with it. On the **next** user turn:
+See `../../harness-contracts/ask-user-question.md` § "Brainstorming — confirm fills (A4)" for the canonical option list. Do not bundle the route recommendation into this message.
 
-- Accept ("yes", "looks good", silence/no correction) → proceed to Phase B (start at B1).
-- Correct a field → loop back to A2 for *that field only* and re-confirm. Revising ≠ restarting; do not re-ask fields they already answered correctly.
+On the **next** user turn (or AskUserQuestion answer):
+
+- "Looks good" / silence → proceed to Phase B (start at B1).
+- "I need to adjust something" / correction in Other → loop back to A2 for *that field only* and re-confirm. Revising ≠ restarting; do not re-ask fields they already answered correctly.
 - Pivot or reveal it was a question → end with the `pivot` / `exit-casual` terminal block (see Edge cases); no file written.
 
 ## Phase B — Classify + Gate 1
@@ -174,7 +178,7 @@ Three kinds of signals:
 
 Paths are filesystem literals — match them the same in any language. Record hits as `signals_matched: ["path:auth/", ...]`. A1.6 may have already noted hits in `code_signals` — those count without re-grepping.
 
-**(b) Keyword signals — semantic, multilingual.** Detect whether the request semantically refers to: authentication, login, password, session, database, schema, migration, configuration, dependency. Concepts not literal strings — "로그인", "認証", "authentification" all count as auth/login. Record hits as `signals_matched: ["keyword:login", ...]`.
+**(b) Keyword signals — semantic, multilingual.** Detect whether the request semantically refers to: authentication, login, password, session, database, schema, migration, configuration, dependency. Concepts not literal strings — "login", "認証", "authentification" all count as auth/login. Record hits as `signals_matched: ["keyword:login", ...]`.
 
 **(c) `deliberately-wide-scope` constraint** (Phase A's flag when the user insisted on multi-subsystem scope): implicit `prd-trd` signal. Record as `signals_matched: ["constraint:deliberately-wide-scope"]`.
 
@@ -218,17 +222,12 @@ Only runs when B3 yielded a tasks-only candidate. Check all four:
 
 ### B5 — Gate 1 — present recommendation
 
-**One** user-facing message as its own turn, in the user's language:
+Send a prose summary in the user's language, then immediately call `AskUserQuestion`:
 
-> "Recommend **{route}** ({expansion}). Estimated {N} files. {signals summary or 'no security/architecture signals.'} Proceed?"
+> "Recommending **{route}** ({expansion}). Estimated {N} files. {signals summary or 'No security/architecture signals.'}"
+> [then: AskUserQuestion with "Proceed" / "Change route" / "Adjust file count"]
 
-Examples:
-
-- `"Recommend prd-only (PRD → Tasks). Estimated 3 files, no security signals. Proceed?"`
-- `"Recommend prd-trd (PRD → TRD → Tasks). Estimated 4 files, touches auth/ (security-sensitive). Proceed?"`
-- `"Recommend tasks-only. Typo fix, 1 file, no signals. Skip design and go straight to tasks?"`
-
-Standalone message — don't bundle the terminal status block. Offer MC implicitly (accept / change route / adjust file count). Wait for next turn.
+See `../../harness-contracts/ask-user-question.md` § "Brainstorming — Gate 1" for the canonical option list. Do not bundle the terminal status block with this message. Wait for the AskUserQuestion answer.
 
 ### B6 — Handle the response (next user turn)
 

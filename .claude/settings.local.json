@@ -4,7 +4,10 @@
       "Bash(npm root *)",
       "Bash(npx -y ccstatusline@latest --version)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(grep -v \"^\\\\s*$\")",
+      "Bash(grep -E \"github\\\\.com.{0,50}marketplace|marketplace.{0,50}github\")",
+      "Bash(grep -E 'git@github\\\\.com:.{5,50}\\\\.git|https://github\\\\.com/.{5,50}\\\\.git')"
     ]
   }
 }

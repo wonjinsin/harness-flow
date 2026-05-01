@@ -46,7 +46,7 @@ Main context — `../../harness-contracts/execution-modes.ko.md` 참조. `.plann
 2. 각 서브디렉토리의 `ROADMAP.md` 를 읽는다. `- [ ]` 미체크 항목이 하나라도 남은 세션만 후보로 유지.
 3. 요청 텍스트 vs 후보 세션의 slug 유사도 + 목표·제목 텍스트 겹침으로 매칭.
 4. **1개 매칭** → 해당 세션 로드. `## Status: resume` 와 `## Session: {session_id}` 를 emit. Brainstorming 의 Step 0 이 숏서킷으로 다음 미완료 phase 로 점프한다.
-5. **여러 개 매칭** → 유저에게 선택 요청. 포맷: `{slug} — {한 줄 goal}`.
+5. **여러 개 매칭** → `AskUserQuestion` 으로 유저에게 선택 요청. 최대 4개 후보 (초과 시 trim); label = slug, description = ROADMAP 에서 가져온 한 줄 goal. 정식 포맷은 `../../harness-contracts/ask-user-question.ko.md` § "Router — multiple session matches" 참조.
 6. **매칭 없음 또는 유저가 제안 거부** → 신규 세션 흐름으로 진행.
 
 ### Step 2 — casual / clarify / plan 분류
@@ -61,8 +61,8 @@ Main context — `../../harness-contracts/execution-modes.ko.md` 참조. `.plann
 
 1. 요청에서 핵심 개념 추출. 본동사의 직접 목적어 우선 (예: `"add 2FA to login"` → `add-2fa-login`).
 2. 소문자, ASCII 한정, 단어 사이 하이픈, 40자 이하.
-3. 유저에게 **영어로** 확인: `Use session id "{date}-{slug}"?`
-4. 무응답 → 제안 그대로 진행. 거부 → 유저 수정안 그대로 사용 (필요 시 재-slug화).
+3. `AskUserQuestion` 으로 유저에게 확인. 정식 옵션 목록은 `../../harness-contracts/ask-user-question.ko.md` § "Router — slug confirmation" 참조.
+4. "Yes, use this" (또는 무응답) → 제안 그대로 진행. "Edit" / Other → 유저 입력 그대로 사용 (필요 시 재-slug화).
 5. **충돌**: `.planning/{date}-{slug}/` 이미 존재 시 `-v2`, `-v3`, ... 순차 부여.
 
 ### Step 4 — 스캐폴드 (신규 세션만)

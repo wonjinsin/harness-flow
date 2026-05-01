@@ -154,7 +154,7 @@ Writers should always check for `PRD.md` existence on disk rather than rely on t
 Two explicit user-facing gates exist in the chain. Both are owned by the **main thread** — no skill writes them; the main thread holds the user reply between an upstream terminal message and the downstream dispatch.
 
 - **Gate 1 — route approval** (inside `brainstorming` Phase B6, before B7). The user accepts / overrides the recommended route and (optionally) the file-count estimate. Detailed flow lives in `skills/brainstorming/SKILL.md` Phase B; brainstorming itself drives the message and waits for the reply, then writes `brainstorming.md` only after acceptance.
-- **Gate 2 — spec review** (after each writer ends with `## Status: done`). The main thread reads the writer's `## Path`, surfaces it (and any Open questions in the file body) to the user, then waits for one of:
+- **Gate 2 — spec review** (after each writer ends with `## Status: done`). The main thread reads the writer's `## Path`, surfaces it (and any Open questions in the file body) as a prose message, then calls `AskUserQuestion` for the user's decision. See `harness-contracts/ask-user-question.md` § "Main thread — Gate 2" for the canonical option list. The three branches:
   - **approve** — main thread dispatches the next skill per the edge rules above.
   - **revise** — main thread deletes the written file (`.planning/{session_id}/<ARTIFACT>.md`) and re-dispatches the same writer with an extra `Revision note from user: {note}` line in the dispatch prompt:
     ```
