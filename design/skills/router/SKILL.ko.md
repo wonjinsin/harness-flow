@@ -1,7 +1,6 @@
 ---
 name: router
 description: 다른 harness 스킬이 흐름 진행 중이며 명시적으로 다른 다음 스킬을 지정한 경우가 아니라면, 모든 user 턴의 가장 첫 단계에서 항상 실행. 요청을 casual (인라인 일반 텍스트 응답), clarify (brainstorming 이 Q&A 진행), plan (brainstorming 이 충분한 신호 보유), 또는 resume (기존 `.planning/` 세션과 매칭) 으로 분류한다. 신규 plan/clarify 경로에서는 세션 슬러그와 `.planning/{session_id}/` 스캐폴드를 부트스트랩한다.
-model: haiku
 ---
 
 # Router
@@ -21,6 +20,8 @@ Router 는 코드를 쓰지 않고 작업을 실행하지도 않는다. 오직 *
 ## 실행 모드
 
 Main context — `../../harness-contracts/execution-modes.ko.md` 참조. `.planning/` 스캐폴드 생성과 세션 슬러그 확인이 라이브 대화 컨텍스트를 필요로 하기 때문에 router 는 인라인으로 실행된다.
+
+frontmatter 에 하드코딩된 `model:` 없음 — router 는 기본 세션 모델을 사용한다 (보통 Sonnet 4.6). 라우팅 로직이 가볍다고 해서 casual 응답을 더 저렴한 모델로 내려받지 말고, interactive 사용을 위해 **응답 품질을 보장**하도록 설계됨.
 
 ## 세 가지 루트의 이유
 

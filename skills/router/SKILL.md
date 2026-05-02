@@ -1,7 +1,6 @@
 ---
 name: router
 description: Always run first at the start of a user turn unless another harness skill is mid-flow with a named next skill. Classifies the request as casual (reply inline as plain prose), clarify (brainstorming will Q&A), plan (brainstorming has enough signal), or resume (matched against an existing `.planning/` session). Bootstraps the session slug and `.planning/{session_id}/` skeleton on fresh plan/clarify routes.
-model: haiku
 ---
 
 # Router
@@ -21,6 +20,8 @@ Internal rules and prompts stay English-only; the LLM understands non-English us
 ## Execution mode
 
 Main context — see `../../harness-contracts/execution-modes.md`. Router runs inline because `.planning/` scaffold creation and session-slug confirmation need the live conversation.
+
+No hardcoded `model:` in frontmatter — router uses the default session model (typically Sonnet 4.6). This ensures casual responses have full quality for interactive use, rather than being downgraded to a faster/cheaper model just because routing is lightweight.
 
 ## Why three routes
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project loosely tracks [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] — 2026-05-02
+
+### Changed
+
+- `skills/router/SKILL.md` — removed hardcoded `model: haiku` from frontmatter. Router now runs on the default session model (typically Sonnet 4.6) instead of being downgraded to Haiku. This ensures casual responses have full quality for interactive use, rather than being optimized purely for routing speed. Added explanatory note in "## Execution mode" section explaining the design choice. Korean mirror `design/skills/router/SKILL.ko.md` updated in lockstep.
+
 ## [0.3.6] — 2026-05-01
 
 ### Changed
