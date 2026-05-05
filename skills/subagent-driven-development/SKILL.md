@@ -51,7 +51,7 @@ digraph process {
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Use harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
@@ -70,7 +70,7 @@ digraph process {
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers:finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Use harness-flow:finishing-a-development-branch";
 }
 ```
 
@@ -85,6 +85,7 @@ Use the least powerful model that can handle each role to conserve cost and incr
 **Architecture, design, and review tasks**: use the most capable available model.
 
 **Task complexity signals:**
+
 - Touches 1-2 files with a complete spec → cheap model
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
@@ -100,6 +101,7 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
+
 1. If it's a context problem, provide more context and re-dispatch with the same model
 2. If the task requires more reasoning, re-dispatch with a more capable model
 3. If the task is too large, break it into smaller pieces
@@ -118,7 +120,7 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file once: docs/superpowers/plans/feature-plan.md]
+[Read plan file once: docs/harness-flow/plans/feature-plan.md]
 [Extract all 5 tasks with full text and context]
 [Create TodoWrite with all tasks]
 
@@ -129,7 +131,7 @@ Task 1: Hook installation script
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 
-You: "User level (~/.config/superpowers/hooks/)"
+You: "User level (~/.config/harness-flow/hooks/)"
 
 Implementer: "Got it. Implementing now..."
 [Later] Implementer:
@@ -192,23 +194,27 @@ Done!
 ## Advantages
 
 **vs. Manual execution:**
+
 - Subagents follow TDD naturally
 - Fresh context per task (no confusion)
 - Parallel-safe (subagents don't interfere)
 - Subagent can ask questions (before AND during work)
 
 **vs. Executing Plans:**
+
 - Same session (no handoff)
 - Continuous progress (no waiting)
 - Review checkpoints automatic
 
 **Efficiency gains:**
+
 - No file reading overhead (controller provides full text)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
 - Questions surfaced before work begins (not after)
 
 **Quality gates:**
+
 - Self-review catches issues before handoff
 - Two-stage review: spec compliance, then code quality
 - Review loops ensure fixes actually work
@@ -216,6 +222,7 @@ Done!
 - Code quality ensures implementation is well-built
 
 **Cost:**
+
 - More subagent invocations (implementer + 2 reviewers per task)
 - Controller does more prep work (extracting all tasks upfront)
 - Review loops add iterations
@@ -224,6 +231,7 @@ Done!
 ## Red Flags
 
 **Never:**
+
 - Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
@@ -238,27 +246,32 @@ Done!
 - Move to next task while either review has open issues
 
 **If subagent asks questions:**
+
 - Answer clearly and completely
 - Provide additional context if needed
 - Don't rush them into implementation
 
 **If reviewer finds issues:**
+
 - Implementer (same subagent) fixes them
 - Reviewer reviews again
 - Repeat until approved
 - Don't skip the re-review
 
 **If subagent fails task:**
+
 - Dispatch fix subagent with specific instructions
 - Don't try to fix manually (context pollution)
 
 ## Integration
 
 **Required workflow skills:**
-- **superpowers:using-git-worktrees** - Ensures (creates or verifies existing) isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:requesting-code-review** - Code review template for reviewer subagents
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+
+- **harness-flow:using-git-worktrees** - Ensures (creates or verifies existing) isolated workspace before starting
+- **harness-flow:writing-plans** - Creates the plan this skill executes
+- **harness-flow:requesting-code-review** - Code review template for reviewer subagents
+- **harness-flow:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**
-- **superpowers:test-driven-development** - Subagents follow TDD for each task
+
+- **harness-flow:test-driven-development** - Subagents follow TDD for each task

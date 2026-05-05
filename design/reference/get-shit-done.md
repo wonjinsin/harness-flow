@@ -2,172 +2,178 @@
 
 ## 0. Metadata
 
-- **이름**: get-shit-done (GSD)
-- **종류**: in-harness skill system (Claude Code 내부에서 동작하는 워크플로우 오케스트레이터)
-- **저장소**: `/Users/WonjinSin/Documents/project/get-shit-done`
-- **분석 커밋/버전**: c051e71 (main)
-- **분석 일시**: 2026-04-15
-- **주 언어/런타임**: TypeScript (Node.js 20+)
-- **주 LLM 공급자**: Anthropic Claude (via `@anthropic-ai/claude-agent-sdk`)
+- **Name**: get-shit-done (GSD)
+- **Type**: in-harness skill system (workflow orchestrator operating inside Claude Code)
+- **Repository**: `/Users/WonjinSin/Documents/project/get-shit-done`
+- **Analysis commit/version**: c051e71 (main)
+- **Analysis date**: 2026-04-15
+- **Primary language/runtime**: TypeScript (Node.js 20+)
+- **Primary LLM provider**: Anthropic Claude (via `@anthropic-ai/claude-agent-sdk`)
 
-## TL;DR — 한 문단 요약
+## TL;DR — One-paragraph summary
 
-GSD는 Claude Code 내부에서 작동하는 **스펙 주도 개발 워크플로우 오케스트레이터**다. 자연어 목표를 받아 Discuss → Research → Plan → Execute → Verify 다섯 단계의 Phase로 자동 분해하고, 각 Phase마다 전용 LLM 에이전트 세션을 독립적으로 실행한다. Claude Code의 슬래시 커맨드(`/gsd:*`)로 대화형으로 호출하거나, `gsd-sdk` CLI로 완전 자동화 파이프라인으로 돌릴 수 있다. 핵심 설계 선택은 **상태를 파일시스템(`.planning/`)에 저장**하고 LLM이 이 파일을 직접 읽고 쓰게 함으로써, 세션이 끊겨도 언제든 재개가 가능하다는 점이다.
+GSD is a **spec-driven development workflow orchestrator** that operates inside Claude Code. It accepts a natural-language goal and automatically decomposes it into five phases — Discuss → Research → Plan → Execute → Verify — running a dedicated LLM agent session independently for each phase. It can be invoked interactively via Claude Code slash commands (`/gsd:*`), or run as a fully automated pipeline using the `gsd-sdk` CLI. The core design choice is **storing state in the filesystem (`.planning/`)** and letting the LLM read and write these files directly, so execution can be resumed at any time even if a session is interrupted.
 
 ---
 
 # Part 1: The Story
 
-## 1-1. Main Flow — SDK CLI 경로 (필수)
+## 1-1. Main Flow — SDK CLI path (primary)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  CLI 진입점 — `gsd-sdk run "<목표>"` 실행                                │
+│  CLI entry point — `gsd-sdk run "<goal>"` is executed                   │
 │  main()  ·  sdk/src/cli.ts:196,511                                      │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ parseCliArgs()
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  마일스톤 오케스트레이터 — 로드맵에서 미완료 Phase 목록 조회              │
-│  tools.roadmapAnalyze() 로 불완료 Phase 식별 → 순서대로 실행 스케줄링    │
+│  Milestone orchestrator — retrieves list of incomplete phases from      │
+│  roadmap; tools.roadmapAnalyze() identifies incomplete phases →         │
+│  schedules them for sequential execution                                │
 │  GSD.run()  ·  sdk/src/index.ts:168                                     │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ for each incomplete phase
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Phase 라이프사이클 진입 — 단일 Phase의 6개 스텝 순차 실행              │
+│  Phase lifecycle entry — sequentially executes 6 steps of a single     │
+│  phase                                                                  │
 │  PhaseRunner.run()  ·  sdk/src/phase-runner.ts:90                       │
 └──────────┬──────────────┬──────────┬──────────┬──────────┬─────────────┘
            │              │          │          │          │
        [Discuss]    [Research]    [Plan]    [Execute]  [Verify]
            │              │          │          │          │
            └──────────────┴──────────┴──────────┴──────────┘
-                               │ 각 스텝마다 runStep() 호출
+                               │ runStep() called for each step
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  컨텍스트 조립 — Phase 타입별로 .planning/ 파일 선택 & 읽기             │
-│  (Execute=2개, Research=4개, Plan=5개, Verify=4개)                      │
+│  Context assembly — selects & reads .planning/ files by phase type      │
+│  (Execute=2 files, Research=4 files, Plan=5 files, Verify=4 files)      │
 │  ContextEngine.resolveContextFiles()  ·  sdk/src/context-engine.ts:100  │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ contextFiles
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  프롬프트 조립 — 에이전트 롤 + 워크플로우 지시 + 프로젝트 컨텍스트 파일  │
-│  (안정적 프리픽스 / 가변 서픽스 구조로 캐싱 최적화)                      │
+│  Prompt assembly — agent role + workflow instructions + project          │
+│  context files                                                           │
+│  (stable prefix / variable suffix structure for cache optimization)     │
 │  PromptFactory.buildPrompt()  ·  sdk/src/phase-prompt.ts:95             │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ systemPrompt + prompt
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  LLM 세션 실행 — Anthropic Agent SDK query() 호출                       │
-│  settingSources: ['project'], allowedTools: phase별 제한                │
+│  LLM session execution — calls Anthropic Agent SDK query()              │
+│  settingSources: ['project'], allowedTools: restricted per phase        │
 │  query()  ·  sdk/src/session-runner.ts:279                              │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ AsyncIterable<SDKMessage>
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  메시지 스트림 처리 — 각 청크를 GSDEvent로 매핑하여 이벤트 버스에 발행   │
+│  Message stream processing — maps each chunk to GSDEvent and            │
+│  publishes to the event bus                                             │
 │  for await → mapAndEmit() → emitEvent()                                 │
 │  processQueryStream()  ·  sdk/src/session-runner.ts:167                 │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │ GSDEvent
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  출력 렌더링 — CLI Transport가 이벤트를 받아 stdout으로 포맷 출력        │
+│  Output rendering — CLI Transport receives events and formats them to   │
+│  stdout                                                                 │
 │  CLITransport.onEvent()  ·  sdk/src/cli-transport.ts:56                 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Narration
 
-이 다이어그램은 `gsd-sdk run "<목표>"` 명령 한 줄이 최종 출력으로 이어지는 전체 경로다. 아키텍처적으로 흥미로운 점은 **여섯 계층이 명확하게 분리**되어 있다는 것이다 — CLI 파싱, 마일스톤 오케스트레이션, Phase 라이프사이클, 컨텍스트 조립, LLM 호출, 그리고 이벤트 렌더링. 각 계층은 독립적으로 교체할 수 있고, 실제로 `CLITransport`를 `WebSocketTransport`로 바꾸는 것만으로 동일한 파이프라인이 웹 UI에 연결된다.
+This diagram shows the complete path from a single `gsd-sdk run "<goal>"` command to the final output. What is architecturally interesting is the **clear separation of six layers** — CLI parsing, milestone orchestration, phase lifecycle, context assembly, LLM invocation, and event rendering. Each layer can be swapped out independently; in fact, replacing `CLITransport` with `WebSocketTransport` is all it takes to connect the same pipeline to a web UI.
 
-흐름은 `main()`(`cli.ts:511`)에서 시작해 `gsd.run()`(`index.ts:168`)으로 넘어간다. 여기서 `tools.roadmapAnalyze()`를 호출해 `.planning/ROADMAP.md`에서 완료되지 않은 Phase 목록을 조회한다. 이 단계가 재개(resume) 로직의 전부다 — 중간에 프로세스가 죽어도, 다음에 `gsd-sdk run`을 실행하면 ROADMAP.md의 상태를 읽어 남은 Phase부터 이어 달린다.
+The flow starts at `main()` (`cli.ts:511`) and passes to `gsd.run()` (`index.ts:168`). Here, `tools.roadmapAnalyze()` is called to retrieve the list of incomplete phases from `.planning/ROADMAP.md`. This step is the entirety of the resume logic — even if the process dies mid-run, the next `gsd-sdk run` reads the state from ROADMAP.md and continues from the remaining phases.
 
-각 Phase는 `PhaseRunner.run()`(`phase-runner.ts:90`)에서 독립적으로 처리된다. 내부에서 `runStep()`을 Discuss, Research, Plan, Execute, Verify 순으로 호출하는데, 각 스텝은 **자체 LLM 세션**을 가진다. 공유 대화 히스토리는 없다 — 스텝 간 정보 전달은 `.planning/` 파일시스템을 통해 이루어진다. Discuss 단계가 작성한 `CONTEXT.md`를 Research 에이전트가 읽고, Research가 작성한 `RESEARCH.md`를 Planner가 읽는 방식이다.
+Each phase is handled independently in `PhaseRunner.run()` (`phase-runner.ts:90`). Internally it calls `runStep()` in the order Discuss, Research, Plan, Execute, Verify, and each step has **its own LLM session**. There is no shared conversation history — information between steps is passed through the `.planning/` filesystem. The Research agent reads `CONTEXT.md` written by the Discuss step, and the Planner reads `RESEARCH.md` written by Research.
 
-LLM 호출 직전에 `ContextEngine.resolveContextFiles()`가 Phase 타입에 따라 읽어야 할 파일 목록을 결정하고(`context-engine.ts:42`), `PromptFactory.buildPrompt()`가 에이전트 롤 + 워크플로우 지시 + 실제 파일 내용을 조합해 최종 프롬프트를 완성한다. 이 프롬프트가 `query()`(`session-runner.ts:279`)에 전달되어 Anthropic Agent SDK를 통해 LLM을 호출한다.
+Just before the LLM call, `ContextEngine.resolveContextFiles()` determines the list of files to read based on phase type (`context-engine.ts:42`), and `PromptFactory.buildPrompt()` assembles the agent role + workflow instructions + actual file contents into the final prompt. This prompt is passed to `query()` (`session-runner.ts:279`) to call the LLM via the Anthropic Agent SDK.
 
 ---
 
-## 1-2. Main Flow — 슬래시 커맨드 경로 (Claude Code 대화 인터페이스)
+## 1-2. Main Flow — Slash command path (Claude Code conversational interface)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  유저가 Claude Code에 슬래시 커맨드 입력                                 │
-│  예: /gsd:do "사용자 인증 기능 만들어줘"                                 │
-│  Claude Code 내부 커맨드 라우터 (GSD 외부)                              │
+│  User enters a slash command in Claude Code                              │
+│  e.g. /gsd:do "create user authentication feature"                      │
+│  Claude Code internal command router (external to GSD)                  │
 └──────────────────────────────┬──────────────────────────────────────────┘
-                               │ 커맨드 파일 로드
+                               │ load command file
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  커맨드 마크다운 파일 로드 — YAML 프론트매터로 정의된 커맨드             │
-│  allowed-tools, description, argument-hint 등 명시                      │
-│  commands/gsd/do.md  (75개 커맨드 중 하나)                              │
+│  Command markdown file loaded — command defined via YAML frontmatter    │
+│  allowed-tools, description, argument-hint, etc. specified              │
+│  commands/gsd/do.md  (one of 75 commands)                               │
 └──────────────────────────────┬──────────────────────────────────────────┘
-                               │ @workflow 참조 해석
+                               │ resolve @workflow reference
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  워크플로우 로드 — 상세 실행 지시사항 포함 마크다운                      │
-│  (커맨드 파일의 <execution_context>가 @경로로 워크플로우 참조)           │
+│  Workflow loaded — markdown containing detailed execution instructions   │
+│  (the <execution_context> in the command file references the            │
+│  workflow via @ path)                                                    │
 │  get-shit-done/workflows/do.md                                           │
 └──────────────────────────────┬──────────────────────────────────────────┘
-                               │ 워크플로우 지시 + 에이전트 컨텍스트
+                               │ workflow instructions + agent context
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Claude Code가 워크플로우 지시에 따라 실행                               │
-│  - /gsd:do: 적절한 하위 커맨드로 자동 라우팅 (AI 결정)                  │
-│  - /gsd:plan-phase: 상세 계획 수립                                       │
-│  - /gsd:execute-phase: 계획 실행                                         │
-│  Claude Code 자체 Tool 실행 엔진 (GSD 외부)                             │
+│  Claude Code executes according to workflow instructions                 │
+│  - /gsd:do: auto-routes to the appropriate subcommand (AI decision)     │
+│  - /gsd:plan-phase: creates a detailed plan                             │
+│  - /gsd:execute-phase: executes the plan                                │
+│  Claude Code's own tool execution engine (external to GSD)              │
 └──────────────────────────────┬──────────────────────────────────────────┘
-                               │ gsd-sdk query 명령으로 상태 읽기/쓰기
+                               │ reads/writes state via gsd-sdk query command
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  네이티브 쿼리 엔진 — .planning/ 상태 파일 읽기/변경                    │
-│  50+ 핸들러: state.load, phase.add, frontmatter.set ...                 │
+│  Native query engine — reads/modifies .planning/ state files            │
+│  50+ handlers: state.load, phase.add, frontmatter.set ...               │
 │  QueryRegistry.dispatch()  ·  sdk/src/query/registry.ts:118             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Narration
 
-슬래시 커맨드 경로는 SDK CLI 경로와 완전히 다른 실행 모델이다. 여기서 오케스트레이터는 GSD SDK가 아니라 **Claude Code 자체**다. 유저가 `/gsd:do "인증 기능 만들어줘"`를 입력하면, Claude Code가 `commands/gsd/do.md`를 읽고, 거기서 `@get-shit-done/workflows/do.md`를 불러와 그 워크플로우 지시에 따라 행동한다.
+The slash command path is a completely different execution model from the SDK CLI path. Here the orchestrator is not the GSD SDK but **Claude Code itself**. When the user types `/gsd:do "create authentication feature"`, Claude Code reads `commands/gsd/do.md`, loads `@get-shit-done/workflows/do.md` from there, and acts according to those workflow instructions.
 
-핵심적인 설계는 커맨드 파일이 **실행 로직을 담지 않는다**는 점이다. 커맨드 파일은 메타데이터(어떤 도구를 허용하는지, 인자 힌트는 무엇인지)와 워크플로우 파일에 대한 포인터만 담는다. 실제 "이 커맨드가 무엇을 하는가"는 `get-shit-done/workflows/` 디렉토리의 마크다운에 자연어로 서술되어 있고, Claude Code가 그것을 읽고 판단해서 실행한다. 이 간접성이 GSD의 가장 독특한 구조다 — 코드가 아니라 문서가 로직이다.
+The key design insight is that **command files contain no execution logic**. Command files only hold metadata (which tools are allowed, what the argument hints are) and a pointer to the workflow file. What "this command actually does" is described in natural language in the markdown under `get-shit-done/workflows/`, and Claude Code reads it, makes a judgment, and executes it. This indirection is GSD's most distinctive structure — the document is the logic, not the code.
 
-가장 특이한 커맨드는 `/gsd:do`다. 이 커맨드는 "이 자연어 요청이 어떤 GSD 커맨드에 해당하는지 AI가 판단해서 라우팅하라"는 메타-라우터다. 유저가 워크플로우 명칭을 몰라도 자연어로 원하는 것을 말하면, Claude가 75개의 커맨드 중 적절한 것으로 디스패치한다. Claude Code 훅 시스템(`hooks/gsd-workflow-guard.js`)은 이 과정에서 사이드 이펙트를 제어한다 — `.planning/` 외부 파일 편집은 경고를 내거나 차단한다.
+The most unusual command is `/gsd:do`. This command is a meta-router that says "let the AI determine which GSD command this natural language request corresponds to and route it accordingly." Even if the user doesn't know the workflow name, they can say what they want in natural language and Claude dispatches to the appropriate one among 75 commands. The Claude Code hook system (`hooks/gsd-workflow-guard.js`) controls side effects during this process — edits to files outside `.planning/` are warned about or blocked.
 
 ---
 
-## 1-3. Phase 라이프사이클 상태 전이
+## 1-3. Phase lifecycle state transitions
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PhaseInit: PhaseRunner.run() 시작
+    [*] --> PhaseInit: PhaseRunner.run() starts
 
-    PhaseInit --> DiscussStep: tools.initPhaseOp() 성공
+    PhaseInit --> DiscussStep: tools.initPhaseOp() succeeds
     PhaseInit --> Error: phase not found
 
     state DiscussStep {
-        [*] --> CheckContext: has_context 확인
+        [*] --> CheckContext: check has_context
         CheckContext --> Skip: has_context=true OR skip_discuss=true
         CheckContext --> SelfDiscuss: auto_advance=true AND no context
-        CheckContext --> HumanDiscuss: 대화형 모드
-        SelfDiscuss --> ContextWritten: AI가 CONTEXT.md 자동 작성
-        HumanDiscuss --> ContextWritten: 유저와 논의 후 CONTEXT.md 작성
+        CheckContext --> HumanDiscuss: interactive mode
+        SelfDiscuss --> ContextWritten: AI writes CONTEXT.md automatically
+        HumanDiscuss --> ContextWritten: CONTEXT.md written after discussion with user
         Skip --> [*]
         ContextWritten --> [*]
     }
 
-    DiscussStep --> ResearchStep: context 확보됨
+    DiscussStep --> ResearchStep: context secured
     DiscussStep --> Halted: blocker callback → "stop"
 
     state ResearchStep {
-        [*] --> ResearchRun: gsd-phase-researcher 에이전트 실행
-        ResearchRun --> GateCheck: RESEARCH.md 작성됨
-        GateCheck --> Retry: 미해결 질문 발견 (ResearchGate)
-        GateCheck --> Pass: 미해결 질문 없음
+        [*] --> ResearchRun: gsd-phase-researcher agent runs
+        ResearchRun --> GateCheck: RESEARCH.md written
+        GateCheck --> Retry: unresolved questions found (ResearchGate)
+        GateCheck --> Pass: no unresolved questions
         Retry --> ResearchRun
         Pass --> [*]
     }
@@ -176,35 +182,35 @@ stateDiagram-v2
     ResearchStep --> Halted
 
     state PlanStep {
-        [*] --> PlanRun: gsd-planner 에이전트 실행
-        PlanRun --> PlanCheck: PLAN.md 작성됨
-        PlanCheck --> PlanCheckRun: plan-checker 에이전트로 10차원 검증
+        [*] --> PlanRun: gsd-planner agent runs
+        PlanRun --> PlanCheck: PLAN.md written
+        PlanCheck --> PlanCheckRun: 10-dimension validation by plan-checker agent
         PlanCheckRun --> ApproveGate
-        ApproveGate --> ExecuteStep: 승인
-        ApproveGate --> PlanRun: 재계획 요청
+        ApproveGate --> ExecuteStep: approved
+        ApproveGate --> PlanRun: re-plan requested
     }
 
     PlanStep --> ExecuteStep
     PlanStep --> Halted
 
     state ExecuteStep {
-        [*] --> ExecuteRun: gsd-executor 에이전트 실행
-        ExecuteRun --> Done: 실행 완료
+        [*] --> ExecuteRun: gsd-executor agent runs
+        ExecuteRun --> Done: execution complete
     }
 
     ExecuteStep --> VerifyStep
     ExecuteStep --> Halted
 
     state VerifyStep {
-        [*] --> VerifyRun: gsd-verifier 에이전트 실행
+        [*] --> VerifyRun: gsd-verifier agent runs
         VerifyRun --> VerifyResult
-        VerifyResult --> Pass2: 검증 통과
-        VerifyResult --> Retry2: 실패 → repair 루프
+        VerifyResult --> Pass2: verification passed
+        VerifyResult --> Retry2: failure → repair loop
         Retry2 --> VerifyRun
         Pass2 --> [*]
     }
 
-    VerifyStep --> PhaseComplete: 모든 스텝 통과
+    VerifyStep --> PhaseComplete: all steps passed
     VerifyStep --> Halted
 
     PhaseComplete --> [*]
@@ -214,21 +220,21 @@ stateDiagram-v2
 
 ### Narration
 
-이 상태 다이어그램은 GSD의 심장부다 — 단일 Phase가 어떻게 탄생하고 어떻게 끝나는지를 보여준다. `PhaseRunner.run()`(`phase-runner.ts:90`)이 시작되면 가장 먼저 `tools.initPhaseOp(phaseNumber)`로 `.planning/` 파일시스템에서 현재 Phase의 상태를 조회한다. 이 조회 결과가 뒤이어 오는 모든 분기의 입력이 된다.
+This state diagram is the heart of GSD — it shows how a single phase is born and how it ends. When `PhaseRunner.run()` (`phase-runner.ts:90`) starts, it first calls `tools.initPhaseOp(phaseNumber)` to query the current phase's state from the `.planning/` filesystem. The result of this query becomes the input for all branching that follows.
 
-Discuss 스텝에서 특이한 분기가 있다. `auto_advance=true`이고 `has_context=false`인 경우, 즉 **완전 자동화 모드에서 사람 입력 없이 Phase를 시작하는 경우**, 시스템이 직접 `runSelfDiscussStep()`을 호출해 AI가 스스로 컨텍스트를 작성한다(`phase-runner.ts:144`). 이것이 GSD의 "auto 모드" — `gsd-sdk auto` 명령을 쓰면 사람 개입 없이 전체 마일스톤이 돌아간다.
+There is an unusual branch in the Discuss step. When `auto_advance=true` and `has_context=false` — i.e., **starting a phase without human input in fully automated mode** — the system directly calls `runSelfDiscussStep()`, having the AI write its own context (`phase-runner.ts:144`). This is GSD's "auto mode" — using the `gsd-sdk auto` command runs the entire milestone without human intervention.
 
-Research 스텝 이후에는 **ResearchGate** 검증이 있다(`sdk/src/research-gate.ts`). `RESEARCH.md`에 미해결 질문이 남아 있으면 리서치 에이전트를 다시 실행한다. 이 retry 루프가 없으면 불완전한 리서치 위에 계획이 세워져 집행 단계에서 실패할 가능성이 높다.
+After the Research step there is a **ResearchGate** validation (`sdk/src/research-gate.ts`). If unresolved questions remain in `RESEARCH.md`, the research agent is re-run. Without this retry loop, a plan built on incomplete research is likely to fail during execution.
 
-Plan 스텝은 두 번의 LLM 세션을 소비한다. 먼저 `gsd-planner` 에이전트가 `PLAN.md`를 작성하고, 그 다음 `gsd-plan-checker` 에이전트가 10개 차원으로 해당 계획을 검증한다. 검증 실패 시 재계획이 요청된다. 이 설계는 "좋은 계획이 좋은 실행을 만든다"는 전제에서 나온 것이며, Execute에서의 방황을 미리 차단하는 트레이드오프다.
+The Plan step consumes two LLM sessions. First the `gsd-planner` agent writes `PLAN.md`, then the `gsd-plan-checker` agent validates that plan across 10 dimensions. If validation fails, re-planning is requested. This design stems from the premise that "a good plan makes for good execution," and is a tradeoff that preemptively blocks flailing during Execute.
 
 ---
 
-## 1-4. 컨텍스트 조립 시퀀스 — Phase별 파일 매니페스트
+## 1-4. Context assembly sequence — Per-phase file manifest
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Phase 타입에 따른 파일 매니페스트 선택                                  │
+│  Select file manifest based on phase type                               │
 │  PHASE_FILE_MANIFEST  ·  sdk/src/context-engine.ts:42                   │
 └─────────────────────────────────────────────────────────────────────────┘
                 │
@@ -248,78 +254,79 @@ CONTEXT.md CONTEXT.md            CONTEXT.md
                     PLAN.md
                     SUMMARY.md
 
-각 파일마다:
-  ① 파일 존재 확인 (required이면 경고)
-  ② ROADMAP.md → 현재 마일스톤으로 축소 (extractCurrentMilestone)
-  ③ 큰 파일 → 헤딩+첫문단만 보존하여 잘라내기 (truncateMarkdown)
+For each file:
+  ① Check file existence (warn if required)
+  ② ROADMAP.md → trimmed to current milestone (extractCurrentMilestone)
+  ③ Large files → truncated to heading + first paragraph only (truncateMarkdown)
 
-결과: ContextFiles { state, roadmap, context, research, plan, ... }
+Result: ContextFiles { state, roadmap, context, research, plan, ... }
                                     │
                                     ▼
             PromptFactory.buildPrompt()  ·  phase-prompt.ts:95
             ┌──────────────────────────────────────────────────────┐
-            │  [캐시 가능 프리픽스]                                  │
-            │  ① 에이전트 롤 정의 (고정)                            │
-            │  ② 워크플로우 목적 (고정)                             │
-            │  ③ Phase 특화 지시 (Phase 타입별 고정)               │
+            │  [Cacheable prefix]                                   │
+            │  ① Agent role definition (fixed)                     │
+            │  ② Workflow purpose (fixed)                          │
+            │  ③ Phase-specific instructions (fixed per phase type)│
             ├──────────────────────────────────────────────────────┤
-            │  [가변 서픽스]                                        │
-            │  ④ 실제 .planning/ 파일 내용 (프로젝트마다 다름)      │
+            │  [Variable suffix]                                    │
+            │  ④ Actual .planning/ file contents (varies per       │
+            │     project)                                          │
             └──────────────────────────────────────────────────────┘
 ```
 
 ### Narration
 
-이 다이어그램은 GSD의 컨텍스트 경제학이 어떻게 돌아가는지를 보여준다. 핵심 아이디어는 **Phase 타입에 따라 LLM에 보여주는 파일이 다르다**는 것이다. Execute 단계는 `STATE.md`와 `config.json` 두 개만 본다 — 이미 계획이 완성된 상태이므로 긴 ROADMAP이나 CONTEXT는 노이즈다. 반대로 Plan 단계는 5개 파일 모두를 본다. 이 선택적 컨텍스트 제공이 토큰 낭비를 줄이고 프롬프트 캐시 히트율을 높인다.
+This diagram shows how GSD's context economics work. The core idea is that **the files shown to the LLM differ based on phase type**. The Execute phase sees only two files — `STATE.md` and `config.json` — because the plan is already complete, so the long ROADMAP or CONTEXT would be noise. Conversely, the Plan phase sees all five files. This selective context provision reduces token waste and improves prompt cache hit rates.
 
-`ContextEngine.resolveContextFiles()`(`context-engine.ts:100`)는 매니페스트를 순회하며 실제 파일을 읽는다. 이 과정에서 두 가지 축소가 일어난다. 첫째, `ROADMAP.md`는 `extractCurrentMilestone()`으로 현재 진행 중인 마일스톤 블록만 잘라낸다 — 완료된 과거 마일스톤을 LLM에 보여줄 필요가 없기 때문이다. 둘째, 용량이 큰 파일은 `truncateMarkdown()`으로 헤딩과 첫 문단만 남기고 잘라낸다(`context-truncation.ts`).
+`ContextEngine.resolveContextFiles()` (`context-engine.ts:100`) iterates through the manifest and reads the actual files. During this process, two kinds of trimming occur. First, `ROADMAP.md` is cut down by `extractCurrentMilestone()` to only the block of the currently active milestone — there is no need to show the LLM completed past milestones. Second, large files are trimmed by `truncateMarkdown()` to preserve only the heading and first paragraph (`context-truncation.ts`).
 
-조립된 파일들은 `PromptFactory.buildPrompt()`(`phase-prompt.ts:95`)에서 최종 프롬프트로 합성된다. 구조적으로 중요한 점은 **캐시 가능 프리픽스와 가변 서픽스를 분리**한다는 것이다. 에이전트 롤, 워크플로우 목적, Phase별 지시사항은 모든 프로젝트에서 동일하므로 Anthropic의 프롬프트 캐시에 남는다. 프로젝트별 파일 내용만 가변 서픽스에 들어간다. 대규모 자동화에서 캐시 히트가 발생하면 비용과 지연이 모두 줄어든다.
+The assembled files are synthesized into the final prompt by `PromptFactory.buildPrompt()` (`phase-prompt.ts:95`). What is structurally important is the **separation of cacheable prefix from variable suffix**. The agent role, workflow purpose, and phase-specific instructions are the same across all projects, so they remain in Anthropic's prompt cache. Only the per-project file contents go into the variable suffix. In large-scale automation, cache hits reduce both cost and latency.
 
 ---
 
-## 1-5. 훅 시스템 — Claude Code 이벤트 인터셉터
+## 1-5. Hook system — Claude Code event interceptor
 
 ```
-Claude Code 이벤트 발생
+Claude Code event fires
         │
         │ SessionStart
-        ├────────────────► gsd-check-update.js   : 버전 업데이트 확인 (비동기)
-        │                  gsd-session-state.sh  : 세션 상태 파일 기록
+        ├────────────────► gsd-check-update.js   : check for version updates (async)
+        │                  gsd-session-state.sh  : write session state file
         │
-        │ PreToolUse (Write/Edit 도구 호출 전)
+        │ PreToolUse (before Write/Edit tool calls)
         ├────────────────► gsd-workflow-guard.js
         │                  ┌──────────────────────────────────────────┐
-        │                  │  서브에이전트/Task 세션이면?              │
-        │                  │  → 통과 (exit 0) ─────────────────────► │
+        │                  │  Is this a subagent/Task session?         │
+        │                  │  → pass (exit 0) ──────────────────────► │
         │                  │                                          │
-        │                  │  편집 대상이 .planning/ 안이면?          │
-        │                  │  → 통과 ─────────────────────────────► │
+        │                  │  Is the edit target inside .planning/?   │
+        │                  │  → pass ───────────────────────────────► │
         │                  │                                          │
-        │                  │  .planning/ 외부 편집이면?               │
-        │                  │  → 경고 메시지 출력 후 통과              │
+        │                  │  Is this an edit outside .planning/?     │
+        │                  │  → print warning message then pass       │
         │                  └──────────────────────────────────────────┘
         │
-        │ PreToolUse (Read 도구)
-        ├────────────────► gsd-read-guard.js     : 읽기 권한 검증
+        │ PreToolUse (Read tool)
+        ├────────────────► gsd-read-guard.js     : validate read permissions
         │
-        │ PreToolUse (Bash 도구)
-        ├────────────────► gsd-prompt-guard.js   : 프롬프트 인젝션 방어
+        │ PreToolUse (Bash tool)
+        ├────────────────► gsd-prompt-guard.js   : defend against prompt injection
         │
         │ PreGitCommit
-        ├────────────────► gsd-validate-commit.sh : 커밋 메시지 형식 검증
+        ├────────────────► gsd-validate-commit.sh : validate commit message format
         │
         │ StatusLine
-        └────────────────► gsd-statusline.js     : 상태바에 현재 Phase 표시
+        └────────────────► gsd-statusline.js     : display current phase in status bar
 ```
 
 ### Narration
 
-GSD의 훅 시스템은 Claude Code 이벤트 파이프라인에 끼어들어 **워크플로우 외부 동작을 제어하는 가드레일 계층**이다. 훅 파일들은 `hooks/` 디렉토리에 있고, `bin/install.js`가 Claude Code의 `.claude/settings.json`에 이들을 등록한다.
+GSD's hook system is a **guardrail layer that hooks into Claude Code's event pipeline to control behavior outside the workflow**. The hook files live in `hooks/`, and `bin/install.js` registers them in Claude Code's `.claude/settings.json`.
 
-가장 중심적인 훅은 `gsd-workflow-guard.js`다. 이 훅은 `PreToolUse` 이벤트 — 즉 Claude Code가 파일을 쓰거나 편집하기 직전 — 에 발동한다. 핵심 로직은 단순하다: **편집 대상이 `.planning/` 안에 있으면 통과, 밖에 있으면 경고**. GSD는 "LLM은 `.planning/` 디렉토리를 통해서만 상태를 기록해야 한다"는 원칙을 갖고 있고, 이 훅이 그 원칙의 집행자다. 단, 차단이 아니라 경고 수준으로 — 유저가 의도적으로 외부 파일을 편집하는 것은 허용한다.
+The most central hook is `gsd-workflow-guard.js`. This hook fires on the `PreToolUse` event — that is, just before Claude Code writes or edits a file. The core logic is simple: **if the edit target is inside `.planning/`, pass; if outside, warn**. GSD holds the principle that "the LLM should only record state through the `.planning/` directory," and this hook is the enforcer of that principle. However, it operates at warning level rather than blocking — intentional edits to external files by the user are allowed.
 
-서브에이전트나 Task 세션에서는 이 검사를 건너뛴다(`gsd-workflow-guard.js:35`). `gsd-executor`가 Sub-agent를 생성해 코드를 작성할 때 `.planning/` 외부 파일을 수정하는 건 정당한 행위이기 때문이다. 훅이 여기서도 막으면 실제 코드를 쓸 수 없다 — 이 예외 처리가 없으면 시스템 전체가 작동하지 않는다.
+For subagent or Task sessions, this check is skipped (`gsd-workflow-guard.js:35`). When `gsd-executor` spawns a Sub-agent to write code, modifying files outside `.planning/` is a legitimate action. If the hook blocked this too, actual code could never be written — without this exception, the entire system would not work.
 
 ---
 
@@ -327,113 +334,113 @@ GSD의 훅 시스템은 Claude Code 이벤트 파이프라인에 끼어들어 **
 
 ## 2-1. Entry Points
 
-두 가지 독립적인 진입점이 있다. **SDK CLI**: `gsd-sdk run "<prompt>"` → `cli.ts:511 main()`. **슬래시 커맨드**: Claude Code 내에서 `/gsd:do`, `/gsd:plan-phase` 등 75개 커맨드. 두 경로는 다른 오케스트레이터를 쓴다 — SDK CLI는 `GSD.run()`이, 슬래시 커맨드는 Claude Code 자체가 실행 엔진이다.
+There are two independent entry points. **SDK CLI**: `gsd-sdk run "<prompt>"` → `cli.ts:511 main()`. **Slash commands**: 75 commands such as `/gsd:do`, `/gsd:plan-phase` inside Claude Code. The two paths use different orchestrators — the SDK CLI uses `GSD.run()`, while slash commands use Claude Code itself as the execution engine.
 
 ## 2-2. Concurrency
 
-Phase별로 직렬 실행된다. `GSD.run()`의 마일스톤 루프(`index.ts:194`)는 Phase를 순차적으로 처리하며 병렬 실행은 없다. 멀티 워크스트림(`workstream-utils.ts`)은 지원되지만, 이는 프로젝트 내 독립적 기능 라인을 격리하는 논리적 분리이지 병렬 실행이 아니다.
+Executed serially per phase. The milestone loop in `GSD.run()` (`index.ts:194`) processes phases sequentially with no parallel execution. Multi-workstream (`workstream-utils.ts`) is supported, but this is a logical separation isolating independent feature lines within a project, not parallel execution.
 
 ## 2-3. Routing
 
-슬래시 커맨드 레이어에서 두 수준의 라우팅이 있다. 첫째, Claude Code가 커맨드 이름(`/gsd:*`)으로 결정론적으로 파일을 찾는다. 둘째, `/gsd:do`는 자연어 입력을 75개 커맨드 중 하나로 AI가 결정한다(`commands/gsd/do.md`). SDK 경로에서는 라우팅 없음 — Phase 순서는 ROADMAP.md 순서가 결정한다.
+There are two levels of routing at the slash command layer. First, Claude Code deterministically finds the file by command name (`/gsd:*`). Second, `/gsd:do` has the AI decide which of the 75 commands a natural-language input maps to (`commands/gsd/do.md`). On the SDK path there is no routing — the ROADMAP.md order determines phase order.
 
 ## 2-4. Context Assembly
 
-Phase 타입별 파일 매니페스트(`context-engine.ts:42`): Execute=2파일(STATE, config), Research=4파일, Plan=5파일, Verify=4파일. 조립 지점은 `PromptFactory.buildPrompt()`로 단일화. 캐시 최적화를 위해 안정적 프리픽스(에이전트 롤+워크플로우 지시)와 가변 서픽스(파일 내용) 분리(`phase-prompt.ts:95`). ROADMAP.md는 현재 마일스톤으로 축소, 큰 파일은 헤딩+첫문단만 보존(`context-truncation.ts`).
+Per-phase file manifest (`context-engine.ts:42`): Execute=2 files (STATE, config), Research=4 files, Plan=5 files, Verify=4 files. Assembly is centralized at `PromptFactory.buildPrompt()`. For cache optimization, stable prefix (agent role + workflow instructions) and variable suffix (file contents) are separated (`phase-prompt.ts:95`). ROADMAP.md is trimmed to the current milestone; large files are preserved as heading + first paragraph only (`context-truncation.ts`).
 
 ## 2-5. Provider Abstraction
 
-`@anthropic-ai/claude-agent-sdk`의 `query()` 함수를 직접 호출(`session-runner.ts:279`). 별도 추상화 인터페이스 없음 — Anthropic SDK에 직접 의존한다. `systemPrompt.type='preset'`으로 `claude_code` 프리셋을 사용하고 Phase별 지시를 append한다.
+Calls the `query()` function of `@anthropic-ai/claude-agent-sdk` directly (`session-runner.ts:279`). No separate abstraction interface — directly depends on the Anthropic SDK. Uses the `claude_code` preset with `systemPrompt.type='preset'` and appends phase-specific instructions.
 
 ## 2-6. Worker / Execution
 
-실행 단위는 **Phase Step 세션** — 각 스텝(Discuss/Research/Plan/Execute/Verify)이 독립적 `query()` 세션이다. `maxTurns=50`, `maxBudgetUsd=5.0`이 기본값이며 옵션으로 오버라이드 가능(`phase-runner.ts:129`). permissionMode는 `bypassPermissions`로 설정되어 도구 호출에 사용자 승인이 필요 없다.
+The unit of execution is a **Phase Step session** — each step (Discuss/Research/Plan/Execute/Verify) is an independent `query()` session. `maxTurns=50`, `maxBudgetUsd=5.0` are the defaults and can be overridden as options (`phase-runner.ts:129`). permissionMode is set to `bypassPermissions` so tool calls require no user approval.
 
 ## 2-7. Message Loop
 
-`query()` 반환값이 `AsyncIterable<SDKMessage>`이며 `for await` 루프로 처리(`session-runner.ts:175`). 각 메시지는 `mapAndEmit()`으로 `GSDEvent`로 변환되어 이벤트 버스에 발행된다. `isResultMessage()`로 최종 결과 메시지를 판별하여 `PlanResult`를 추출한다.
+The return value of `query()` is `AsyncIterable<SDKMessage>` and is processed with a `for await` loop (`session-runner.ts:175`). Each message is converted to a `GSDEvent` via `mapAndEmit()` and published to the event bus. `isResultMessage()` identifies the final result message to extract `PlanResult`.
 
 ## 2-8. Session / State
 
-세션은 불변 — 재개 시 새 `query()` 세션을 시작하고 `.planning/` 파일에서 상태를 읽어온다. Phase 간 대화 히스토리 공유 없음. 전환 트리거: `initPhaseOp()` 조회 결과(phase_found, has_context, has_research 등). 만료 정책 없음 — `.planning/` 파일이 존재하는 한 Phase는 유효하다.
+Sessions are immutable — on resume, a new `query()` session is started and state is read from `.planning/` files. No conversation history sharing between phases. Transition triggers: result of `initPhaseOp()` query (phase_found, has_context, has_research, etc.). No expiration policy — a phase is valid as long as its `.planning/` files exist.
 
 ## 2-9. Isolation
 
-격리 없음 — `permissionMode: 'bypassPermissions'`로 실행되며 별도 worktree나 컨테이너를 사용하지 않는다. `settingSources: ['project']`로 프로젝트 레벨 권한 설정을 로드한다. 실질적 경계는 훅(`gsd-workflow-guard.js`)이 `.planning/` 외부 편집에 경고를 내는 소프트 가드레일이다.
+No isolation — runs with `permissionMode: 'bypassPermissions'` and does not use a separate worktree or container. Loads project-level permission settings with `settingSources: ['project']`. The practical boundary is a soft guardrail where the hook (`gsd-workflow-guard.js`) warns on edits outside `.planning/`.
 
 ## 2-10. Tool / Capability
 
-Phase별 도구 스코핑(`tool-scoping.ts`): Research는 Read/Grep/Glob/WebSearch 허용, Execute는 Read/Write/Edit/Bash/Grep/Glob/mcp__context7 허용. 33개 에이전트 정의(`agents/*.md`)가 YAML 프론트매터로 각자 도구 목록을 선언한다. MCP 통합은 `mcp__context7__*` 도구로 context7 문서 조회에 사용.
+Per-phase tool scoping (`tool-scoping.ts`): Research allows Read/Grep/Glob/WebSearch, Execute allows Read/Write/Edit/Bash/Grep/Glob/mcp__context7. 33 agent definitions (`agents/*.md`) each declare their own tool list via YAML frontmatter. MCP integration uses `mcp__context7__*` tools for context7 documentation queries.
 
 ## 2-11. Workflow Engine
 
-워크플로우 엔진은 두 레이어다. **마크다운 기반**: 슬래시 커맨드가 `get-shit-done/workflows/*.md` 파일을 참조하고 Claude Code가 자연어 지시를 해석한다. **프로그래매틱**: `PhaseRunner`가 코드로 Discuss→Research→Plan→Execute→Verify 순서를 강제한다. 노드 타입은 PhaseStepType enum: Discuss, Research, Plan, PlanCheck, Execute, Verify, Repair. 조건 분기는 `has_context`, `skip_discuss`, `auto_advance` 플래그로 제어(`phase-runner.ts:139`).
+The workflow engine has two layers. **Markdown-based**: slash commands reference `get-shit-done/workflows/*.md` files and Claude Code interprets the natural-language instructions. **Programmatic**: `PhaseRunner` enforces the Discuss→Research→Plan→Execute→Verify order in code. Node types are the PhaseStepType enum: Discuss, Research, Plan, PlanCheck, Execute, Verify, Repair. Conditional branching is controlled by `has_context`, `skip_discuss`, `auto_advance` flags (`phase-runner.ts:139`).
 
 ## 2-12. Configuration
 
-`config.json` 파일이 프로젝트별 설정 담당. `loadConfig(projectDir, workstream)`으로 로드(`index.ts:80`). 주요 플래그: `workflow.skip_discuss`, `workflow.auto_advance`, `workflow.skip_verify`. 환경변수는 `GSD_MODEL`, `GSD_MAX_BUDGET_USD` 등으로 CLI 기본값 오버라이드. 런타임 재로드 없음.
+`config.json` file handles per-project configuration. Loaded with `loadConfig(projectDir, workstream)` (`index.ts:80`). Key flags: `workflow.skip_discuss`, `workflow.auto_advance`, `workflow.skip_verify`. Environment variables such as `GSD_MODEL`, `GSD_MAX_BUDGET_USD` override CLI defaults. No runtime reload.
 
 ## 2-13. Error Handling
 
-`GSDError`(`errors.ts`)가 기본 에러 타입이며 `ErrorClassification` enum(Validation, Network, Filesystem 등)으로 분류. `PhaseRunnerError`는 Phase/스텝 정보를 포함. `retryOnce()` 헬퍼(`phase-runner.ts`)로 Research/Plan 스텝은 1회 재시도. 복구 불가 에러는 `PhaseRunnerResult.halted=true`로 표시하고 중단.
+`GSDError` (`errors.ts`) is the base error type, classified by `ErrorClassification` enum (Validation, Network, Filesystem, etc.). `PhaseRunnerError` includes phase/step information. Research and Plan steps retry once using the `retryOnce()` helper (`phase-runner.ts`). Unrecoverable errors are marked with `PhaseRunnerResult.halted=true` and execution stops.
 
 ## 2-14. Observability
 
-`GSDEventStream`이 모든 이벤트의 허브. 이벤트 타입: MilestoneStart/Complete, PhaseStart/Complete, PhaseStepStart/Complete, PlanResult 등. Transport 패턴 — `CLITransport`(stdout), `WebSocketTransport`(ws-transport.ts) 중 선택. 외부 통합(OpenTelemetry 등) 없음. 로그는 `logger.ts`의 GSDLogger를 통해 stderr로.
+`GSDEventStream` is the hub for all events. Event types: MilestoneStart/Complete, PhaseStart/Complete, PhaseStepStart/Complete, PlanResult, etc. Transport pattern — choose between `CLITransport` (stdout) and `WebSocketTransport` (ws-transport.ts). No external integrations (OpenTelemetry, etc.). Logs go to stderr via GSDLogger in `logger.ts`.
 
 ## 2-15. Platform Adapters
 
-슬래시 커맨드 경로는 Claude Code가 플랫폼 — CLI 인터랙션은 Claude Code가 전담한다. SDK 경로는 단독 CLI(`gsd-sdk`)로 직접 사용 가능. WebSocket Transport(`ws-transport.ts`)로 웹 UI 연결 지원. 외부 플랫폼 어댑터(Slack, GitHub 등)는 없다 — 단일 사용자 개발 도구.
+The slash command path uses Claude Code as the platform — CLI interaction is handled entirely by Claude Code. The SDK path can be used directly as a standalone CLI (`gsd-sdk`). Web UI connection is supported via WebSocket Transport (`ws-transport.ts`). No external platform adapters (Slack, GitHub, etc.) — a single-user development tool.
 
 ## 2-16. Persistence
 
-파일시스템 기반. `.planning/` 디렉토리가 모든 상태의 단일 소스:
-- `ROADMAP.md` — 마일스톤/Phase 목록과 완료 상태
-- `STATE.md` — 현재 Phase 진행 상황
-- `phases/<N>-<name>/CONTEXT.md` — Discuss 결과
-- `phases/<N>-<name>/RESEARCH.md` — Research 결과
-- `phases/<N>-<name>/PLAN.md` — Plan 결과
-- `phases/<N>-<name>/SUMMARY.md` — Verify 결과
+Filesystem-based. The `.planning/` directory is the single source of truth for all state:
+- `ROADMAP.md` — milestone/phase list and completion status
+- `STATE.md` — current phase progress
+- `phases/<N>-<name>/CONTEXT.md` — Discuss output
+- `phases/<N>-<name>/RESEARCH.md` — Research output
+- `phases/<N>-<name>/PLAN.md` — Plan output
+- `phases/<N>-<name>/SUMMARY.md` — Verify output
 
-DB 없음. 민감 정보는 환경변수로만 관리하며 파일에 기록되지 않는다.
+No DB. Sensitive information is managed through environment variables only and is never written to files.
 
 ## 2-17. Security Model
 
-신뢰 모델: 로컬 단일 사용자. 인증 없음. API 키는 환경변수로 주입(Anthropic SDK 표준 방식). `permissionMode: 'bypassPermissions'`로 도구 호출 승인을 스킵한다 — 인간이 확인하는 게이트가 없으므로 자동화에 적합하지만 신뢰 수준이 높은 환경에서만 사용 가능.
+Trust model: local single user. No authentication. API keys are injected via environment variables (standard Anthropic SDK approach). `permissionMode: 'bypassPermissions'` skips tool call approval — there is no human confirmation gate, making it suitable for automation but only usable in high-trust environments.
 
 ## 2-18. Key Design Decisions & Tradeoffs
 
-GSD의 가장 결정적인 설계 선택은 "파일시스템을 데이터베이스로" — Phase 간 모든 통신을 `.planning/` 마크다운 파일로 한다는 것이다. 이것이 재개 가능성, 가시성, 단순성을 동시에 달성하는 핵심 트레이드오프다.
+GSD's most decisive design choice is "filesystem as database" — all communication between phases is done through `.planning/` markdown files. This is the core tradeoff that achieves resumability, visibility, and simplicity simultaneously.
 
-| 결정 | 선택 | 대안 | 근거 | 트레이드오프 |
+| Decision | Choice | Alternative | Rationale | Tradeoff |
 |------|------|------|------|-------------|
-| Phase 간 상태 저장 | 파일시스템(`.planning/`) | DB, 메모리, API | 재개 가능 + 인간이 읽고 편집 가능 | 동시성 제어 없음, 파일 충돌 가능 |
-| LLM 세션 공유 | Phase별 독립 세션 | 단일 긴 대화 | 컨텍스트 오염 방지, 에이전트 전문화 | Phase 간 암묵적 지식 전달 불가 |
-| 격리 방식 | 없음 (bypassPermissions) | worktree, Docker | 단순성, 로컬 개발 최적화 | 실수로 프로젝트 외 파일 수정 가능 |
-| 커맨드 정의 방식 | 마크다운 + 자연어 | 코드 기반 | AI가 해석하므로 유연성 극대화 | 동작이 LLM 해석에 의존, 재현성 약함 |
-| Plan 검증 | 별도 plan-checker 에이전트 | 실행 후 수정 | Execute 실패 사전 방지 | LLM 세션 2회 소비, 속도 감소 |
-| 컨텍스트 캐싱 | 안정적 프리픽스 분리 | 매번 전체 조립 | 프롬프트 캐시 히트율 향상 | 구조 복잡도 증가 |
+| State storage between phases | Filesystem (`.planning/`) | DB, memory, API | Resumable + human-readable and editable | No concurrency control, file conflicts possible |
+| LLM session sharing | Independent session per phase | Single long conversation | Prevent context pollution, agent specialization | Implicit knowledge cannot be passed between phases |
+| Isolation method | None (bypassPermissions) | worktree, Docker | Simplicity, optimized for local development | Accidental modification of files outside project is possible |
+| Command definition method | Markdown + natural language | Code-based | Maximizes flexibility since AI interprets it | Behavior depends on LLM interpretation, weak reproducibility |
+| Plan validation | Separate plan-checker agent | Fix after execution | Preemptively prevents Execute failures | Consumes 2 LLM sessions, reduces speed |
+| Context caching | Separate stable prefix | Assemble in full each time | Improves prompt cache hit rate | Increases structural complexity |
 
 ## 2-19. Open Questions
 
-- `retryOnce()` 최대 재시도 횟수가 1회로 하드코딩된 이유 — `phase-runner.ts`의 retry 구현 확인
-- `ResearchGate`의 미해결 질문 감지 기준 — `research-gate.ts`의 파싱 로직 상세 확인 필요
-- `gsd-sdk auto` 명령의 사람 개입 게이트 완전 제거 여부 — `callbacks` 파라미터 처리 로직 확인
-- WebSocket Transport의 실제 클라이언트 존재 여부 — `ws-transport.ts` 외부 소비자 코드 확인
+- Reason why `retryOnce()` max retry count is hardcoded to 1 — check retry implementation in `phase-runner.ts`
+- Criteria for detecting unresolved questions in `ResearchGate` — detailed check of parsing logic in `research-gate.ts` needed
+- Whether `gsd-sdk auto` command fully removes human intervention gates — check `callbacks` parameter handling logic
+- Whether an actual client for WebSocket Transport exists — check external consumer code of `ws-transport.ts`
 
 ---
 
 ## Appendix: Quick Reference Table
 
-| 항목 | 값 |
+| Item | Value |
 |------|-----|
-| Type | in-harness skill system (Claude Code 플러그인) |
-| Entry points | `gsd-sdk run/auto/init` CLI, 75개 `/gsd:*` 슬래시 커맨드 |
-| Concurrency | Phase 직렬 실행, 워크스트림 논리적 격리 |
-| Router style | 슬래시 커맨드=결정론, `/gsd:do`=AI 라우팅 |
-| Provider abstraction | `@anthropic-ai/claude-agent-sdk` query() 직접 호출 |
-| Session model | Phase Step별 독립 세션, 상태는 파일시스템 |
-| Isolation | 없음 (bypassPermissions + 훅 소프트 가드) |
-| Workflow engine | Phase 상태머신(코드) + 마크다운 워크플로우(자연어) 이중 구조 |
+| Type | in-harness skill system (Claude Code plugin) |
+| Entry points | `gsd-sdk run/auto/init` CLI, 75 `/gsd:*` slash commands |
+| Concurrency | Phase serial execution, workstream logical isolation |
+| Router style | slash commands=deterministic, `/gsd:do`=AI routing |
+| Provider abstraction | `@anthropic-ai/claude-agent-sdk` query() called directly |
+| Session model | Independent session per Phase Step, state in filesystem |
+| Isolation | None (bypassPermissions + hook soft guard) |
+| Workflow engine | Phase state machine (code) + markdown workflow (natural language) dual structure |
 | Primary language | TypeScript (Node.js) |
-| LoC (approx) | SDK ~6,000줄, 에이전트 33개, 커맨드 75개, 워크플로우 40+개 |
+| LoC (approx) | SDK ~6,000 lines, 33 agents, 75 commands, 40+ workflows |

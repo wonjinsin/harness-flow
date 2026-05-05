@@ -15,7 +15,8 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** This must run inside a dedicated worktree. Invoke the `using-git-worktrees` skill BEFORE saving the plan file if not already in one.
 
-**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+**Save plans to:** `docs/harness-flow/plans/YYYY-MM-DD-<feature-name>.md`
+
 - (User preferences for plan location override this default)
 
 ## Scope Check
@@ -36,6 +37,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ## Bite-Sized Task Granularity
 
 **Each step is one action (2-5 minutes):**
+
 - "Write the failing test" - step
 - "Run it to make sure it fails" - step
 - "Implement the minimal code to make the test pass" - step
@@ -49,7 +51,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use harness-flow:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -66,6 +68,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ### Task N: [Component Name]
 
 **Files:**
+
 - Create: `exact/path/to/file.py`
 - Modify: `exact/path/to/existing.py:123-145`
 - Test: `tests/exact/path/to/test.py`
@@ -106,6 +109,7 @@ git commit -m "feat: add specific feature"
 ## No Placeholders
 
 Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+
 - "TBD", "TODO", "implement later", "fill in details"
 - "Add appropriate error handling" / "add validation" / "handle edge cases"
 - "Write tests for the above" (without actual test code)
@@ -114,6 +118,7 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - References to types, functions, or methods not defined in any task
 
 ## Remember
+
 - Exact file paths always
 - Complete code in every step — if a step changes code, show the code
 - Exact commands with expected output
@@ -135,7 +140,7 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 After saving the plan, announce completion and proceed directly to Subagent-Driven execution:
 
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Proceeding with Subagent-Driven execution — fresh subagent per task with two-stage review between tasks."**
+**"Plan complete and saved to `docs/harness-flow/plans/<filename>.md`. Proceeding with Subagent-Driven execution — fresh subagent per task with two-stage review between tasks."**
 
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
+- **REQUIRED SUB-SKILL:** Use harness-flow:subagent-driven-development
 - Fresh subagent per task + two-stage review

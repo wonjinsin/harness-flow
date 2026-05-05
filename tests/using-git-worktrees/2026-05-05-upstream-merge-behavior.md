@@ -2,14 +2,14 @@
 
 ## Setup
 
-| Field | Value |
-|---|---|
-| Date | 2026-05-05 (initial run + same-day re-verification in a fresh session) |
-| Repo | `/Users/WonjinSin/Documents/project/harness-flow` |
-| Branch at start | `master` |
-| HEAD | `f45176a` |
-| SKILL.md source | upstream `superpowers/skills/using-git-worktrees/SKILL.md` (body), harness-flow original frontmatter (`name`, `description`) preserved |
-| `EnterWorktree` available | listed as a deferred tool in the Claude Code session |
+| Field                     | Value                                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Date                      | 2026-05-05 (initial run + same-day re-verification in a fresh session)                                                                  |
+| Repo                      | `/Users/WonjinSin/Documents/project/harness-flow`                                                                                       |
+| Branch at start           | `master`                                                                                                                                |
+| HEAD                      | `f45176a`                                                                                                                               |
+| SKILL.md source           | upstream `harness-flow/skills/using-git-worktrees/SKILL.md` (body), harness-flow original frontmatter (`name`, `description`) preserved |
+| `EnterWorktree` available | listed as a deferred tool in the Claude Code session                                                                                    |
 
 ## Step-by-step trace
 

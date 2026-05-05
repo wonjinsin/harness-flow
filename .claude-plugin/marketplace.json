@@ -1,0 +1,20 @@
+{
+  "name": "harness-flow",
+  "description": "Personal skills marketplace for harness-flow",
+  "owner": {
+    "name": "wonjinsin",
+    "email": "slgktn92@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "harness-flow",
+      "description": "Personal skills library for Claude Code: TDD, worktree workflows, subagent-driven development, and battle-tested engineering patterns",
+      "version": "0.0.1",
+      "source": "./",
+      "author": {
+        "name": "wonjinsin",
+        "email": "slgktn92@gmail.com"
+      }
+    }
+  ]
+}
