@@ -53,15 +53,6 @@ Skills use Claude Code tool names (`Task`, `TodoWrite`, `Skill`). Translations f
 
 When editing a skill, keep tool references Claude-Code-native; the reference files do the translation.
 
-## Language Convention
-
-Per the user's global instructions (`~/.claude/CLAUDE.md`):
-
-- **Documentation (specs, plans, design docs)**: Korean
-- **Code, commit messages, comments, identifiers**: English
-
-`design/comparison.md` is the in-repo example of the Korean documentation style.
-
 ## Common Operations
 
 - **Add a skill**: create `skills/<name>/SKILL.md` with frontmatter `name:` and `description:`. The `description` determines auto-invocation trigger, so write it as a precise activation condition (see existing skills for tone).
