@@ -2,12 +2,11 @@
 
 ## Overview
 
-> A Claude Code plugin that wires nine skills into one gated workflow — design, isolation, planning, TDD, verification, review, and finish — so the agent walks the full path instead of jumping to the end.
+> A Claude Code plugin that wires eight skills into one gated workflow — design, isolation, planning, TDD, review, and finish — so the agent walks the full path instead of jumping to the end.
 
 ### Problems it solves
 
 - Coding starts before the spec is agreed on, piling up code that's hard to redirect
-- "Tests pass" is asserted with no fresh verification evidence
 - Multiple tasks blend into one worktree, making rollback and review painful
 - Code review and cleanup get skipped or vary from person to person
 
@@ -15,7 +14,7 @@
 
 - Gates the spec-agreement step so no implementation can start without explicit user approval
 - Isolates each task into its own worktree, then forces an explicit merge / PR / keep / discard decision at the end
-- Splits implementation and review into separate subagents that run in parallel within one session, and blocks "done" claims without fresh verification evidence
+- Splits implementation and review into separate subagents that run in parallel within one session
 
 ### Who it's for
 
@@ -38,14 +37,17 @@ After analyzing six Claude Code harnesses ([`design/comparison.md`](design/compa
 ## Skill chain — the order work flows in
 
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
+
 2. **brainstorming** — refines the spec before implementation. Includes a `<HARD-GATE>` that blocks moving on without user approval. Output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md`.
-3. **using-git-worktrees** — isolates the workspace. Detects existing worktrees → prefers native tools → falls back to manual.
-4. **writing-plans** — decomposes the design into 2–5 minute TDD tasks. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
-5. **subagent-driven-development** — runs an implementer subagent per task, then reviews in two stages: spec compliance and code quality.
-6. **test-driven-development** — sub-skill each implementer subagent follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-7. **verification-before-completion** — fresh verification evidence is required before any "done" claim.
-8. **requesting-code-review** — dispatches the `harness-flow:code-reviewer` subagent to review changes.
-9. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
+   - 2-1. **using-git-worktrees** — invoked from inside brainstorming to isolate the workspace before writing any files. Detects existing worktrees → prefers native tools → falls back to manual.
+
+3. **writing-plans** — decomposes the design into 2–5 minute TDD tasks. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+
+4. **subagent-driven-development** — runs an implementer subagent per task, then reviews in two stages: spec compliance and code quality.
+   - 4-1. **test-driven-development** — sub-skill each implementer subagent follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
+   - 4-2. **requesting-code-review** — template used twice: (a) per task by the code quality reviewer subagent, and (b) once at the end as a final review of the entire implementation before moving on to step 5.
+
+5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
 
 ### Output locations
 
@@ -148,7 +150,6 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 **Quality assurance**
 
 - **test-driven-development** — enforces the Red-Green-Refactor cycle (includes testing-anti-patterns reference)
-- **verification-before-completion** — verification gate before claiming done
 - **requesting-code-review** — code review request checklist
 
 **Meta**

@@ -117,15 +117,15 @@ The body of superpowers is a reference network between skills. The structure of 
                   │             │
                   ▼             ▼
         ┌─────────────┐  ┌──────────────────────┐
-        │ brainstorm  │  │ systematic-debugging  │
-        │ (design     │  │  (root cause first)   │
-        │  first)     │  └──────────┬────────────┘
-        └──────┬──────┘             │
-               │                    ▼
-               ▼             ┌─────────────────────────┐
-   ┌──────────────────────┐  │ verification-before-    │
-   │ using-git-worktrees  │  │ completion              │
-   │ (isolated workspace) │  └─────────────────────────┘
+        │ brainstorm  │  │ systematic-debugging │
+        │ (design     │  │  (root cause first)  │
+        │  first)     │  └──────────────────────┘
+        └──────┬──────┘
+               │
+               ▼
+   ┌──────────────────────┐
+   │ using-git-worktrees  │
+   │ (isolated workspace) │
    └──────────────────────┘
                │
                ▼
@@ -164,7 +164,7 @@ The body of superpowers is a reference network between skills. The structure of 
 
 ### Narration
 
-What this graph shows is that superpowers is not a mere collection of skills but a **workflow chain that covers the entire development cycle**. `using-superpowers` is the root, and beneath it are two primary entry points — new features enter via `brainstorming`, and bugs enter via `systematic-debugging`. Each of these skills has a defined terminal point: brainstorming must end with `writing-plans` (`brainstorming/SKILL.md:66`), and debugging must end with `verification-before-completion`.
+What this graph shows is that superpowers is not a mere collection of skills but a **workflow chain that covers the entire development cycle**. `using-superpowers` is the root, and beneath it are two primary entry points — new features enter via `brainstorming`, and bugs enter via `systematic-debugging`. Brainstorming has a defined terminal point: it must end with `writing-plans` (`brainstorming/SKILL.md:66`).
 
 An interesting design decision is that `subagent-driven-development` is not an implementation skill but an **orchestration skill**. Actual implementation is done by subagents, while the orchestrator only handles task extraction, context curation, and review dispatch (`subagent-driven-development/SKILL.md:11`). Subagents are instructed to follow the `test-driven-development` skill — creating a recursive structure where skills call other skills. The key benefit of this design is **context contamination prevention**: the orchestrator's long conversation history is not passed to the implementer; the implementer starts fresh, receiving only the task text and required context.
 

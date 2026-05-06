@@ -23,9 +23,8 @@ Skills under `skills/` are designed to be invoked **in order** for any non-trivi
 4. `writing-plans` — produces an implementation plan at `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md` as bite-sized TDD tasks (2–5 min each, with exact code blocks).
 5. `subagent-driven-development` — executes the plan one task at a time: implementer subagent → spec-compliance reviewer → code-quality reviewer. Prompts at `subagent-driven-development/{implementer,spec-reviewer,code-quality-reviewer}-prompt.md`.
 6. `test-driven-development` — sub-skill that each implementer subagent follows (Red → Verify red → Green → Verify green → Refactor).
-7. `verification-before-completion` — "no completion claim without fresh verification evidence" gate. Applies before any "done"/"passing" assertion.
-8. `requesting-code-review` — dispatch `harness-flow:code-reviewer` subagent (template at `requesting-code-review/code-reviewer.md`).
-9. `finishing-a-development-branch` — present a 4-option menu (merge locally / push & PR / keep / discard). Cleanup logic depends on whether harness-flow created the worktree.
+7. `requesting-code-review` — dispatch `harness-flow:code-reviewer` subagent (template at `requesting-code-review/code-reviewer.md`).
+8. `finishing-a-development-branch` — present a 4-option menu (merge locally / push & PR / keep / discard). Cleanup logic depends on whether harness-flow created the worktree.
 
 The chain ends when `finishing-a-development-branch` completes.
 
