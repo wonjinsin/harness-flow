@@ -104,7 +104,7 @@ Global (`~/.claude/settings.json`):
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME/.claude/harness-flow/hooks/run-hook.cmd\" session-start"
+            "command": "$HOME/.claude/harness-flow/hooks/session-start"
           }
         ]
       }
@@ -113,7 +113,7 @@ Global (`~/.claude/settings.json`):
 }
 ```
 
-Project-local (`<project>/.claude/settings.json`) — path is relative to the project root:
+Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`, the project-root variable Claude Code injects into hook commands:
 
 ```json
 {
@@ -124,7 +124,7 @@ Project-local (`<project>/.claude/settings.json`) — path is relative to the pr
         "hooks": [
           {
             "type": "command",
-            "command": "\".claude/harness-flow/hooks/run-hook.cmd\" session-start"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start"
           }
         ]
       }
@@ -132,8 +132,6 @@ Project-local (`<project>/.claude/settings.json`) — path is relative to the pr
   }
 }
 ```
-
-**Windows note**: the examples above don't call `session-start` directly — they call the `run-hook.cmd session-start` polyglot wrapper. `run-hook.cmd` is designed to run under both `cmd.exe` and `bash`, so the same `settings.json` works on macOS, Linux, and Windows.
 
 ---
 

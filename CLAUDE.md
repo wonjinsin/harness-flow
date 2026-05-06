@@ -31,17 +31,13 @@ The chain ends when `finishing-a-development-branch` completes.
 
 ## SessionStart Hook
 
-`hooks/session-start` (Bash) reads a skill file and emits JSON context at session start. Three output shapes — only one is emitted depending on detected platform:
+`hooks/session-start` (Bash, macOS · Claude Code only) reads `skills/using-harness-flow/SKILL.md` and emits a `hookSpecificOutput.additionalContext` JSON payload to inject session context. Matcher: `startup|clear|compact`. The script computes its own location from `$0`, so it works regardless of how it is invoked.
 
-| Platform             | JSON field                             | Detection                                  |
-| -------------------- | -------------------------------------- | ------------------------------------------ |
-| Cursor               | `additional_context`                   | `CURSOR_PLUGIN_ROOT` set                   |
-| Claude Code          | `hookSpecificOutput.additionalContext` | `CLAUDE_PLUGIN_ROOT` set, no `COPILOT_CLI` |
-| Copilot CLI / others | `additionalContext`                    | fallback                                   |
-
-`hooks/run-hook.cmd` is a polyglot `.cmd`/Bash wrapper so the same file works on Windows (cmd → Git Bash) and Unix.
-
-**Known stale reference:** `hooks/session-start:18` reads `using-superpowers/SKILL.md`, but that directory was renamed to `using-harness-flow/`. Update the path before relying on hook injection.
+Hook registration — env var conventions:
+- Plugin install → `hooks/hooks.json` uses `${CLAUDE_PLUGIN_ROOT}`, auto-injected by Claude Code's plugin runtime.
+- User settings (`~/.claude/settings.json`) → use `$HOME` (POSIX-standard; not explicitly documented for hook commands but reliable in practice).
+- Project settings (`<project>/.claude/settings.json`) → use `$CLAUDE_PROJECT_DIR` (officially supported). Relative paths are not safe — hook CWD is not specified in Claude Code docs.
+- Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" hooks/session-start` prints the JSON payload.
 
 ## Cross-Platform Tool Names
 
