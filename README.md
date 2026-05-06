@@ -60,6 +60,18 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
 
 ---
 
+## Hooks
+
+Three Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude Code only):
+
+- **`session-start.js`** — injects the `using-harness-flow` skill into every new/cleared/compacted session.
+- **`pre-bash.js`** — blocks dangerous Bash commands (`--no-verify`, `rm -rf` of root/home/cwd, `curl|wget|fetch ... | bash`). On `git commit`, runs `make fmt`, `make lint`, and a secret regex scan against the staged diff (missing Makefile targets are silently skipped).
+- **`post-edit.js`** — scans every Edit/Write/MultiEdit target for hardcoded secrets (AWS keys, GitHub PATs, GCP keys, private key headers, generic `password=`/`api_key=` assignments). Skips `.env.example`, `*.test.*`, `**/fixtures/**`.
+
+Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
+
+---
+
 ## Installation
 
 There are two installation methods. If you use more than one environment, install separately in each.
@@ -73,13 +85,13 @@ This repo exposes itself as a single-plugin marketplace via `.claude-plugin/mark
 /plugin install harness-flow@harness-flow
 ```
 
-Once installed, `hooks/hooks.json` is loaded automatically and the `using-harness-flow` context is injected at session start.
+Once installed, `hooks/hooks.json` is loaded automatically — all three hooks (session-start, pre-bash, post-edit) activate.
 
 ### B) Copy-paste mode — drop the repo into `.claude/`
 
 Place the repo directly under `.claude/` instead of going through the plugin system.
 
-In copy-paste mode, `$CLAUDE_PLUGIN_ROOT` is unset, so the bundled `hooks/hooks.json` is ignored. You have to register the hook in `settings.json` yourself. The `session-start` script derives the plugin root from its own location, so you don't need to set the environment variable.
+In copy-paste mode, `$CLAUDE_PLUGIN_ROOT` is unset, so the bundled `hooks/hooks.json` is ignored. You have to register hooks in `settings.json` yourself. The `session-start.js` script derives the plugin root from its own location, so you don't need to set the environment variable.
 
 **(B-1) Global — clone into `~/.claude/harness-flow/` (recommended)**
 
@@ -104,10 +116,23 @@ Global (`~/.claude/settings.json`):
       {
         "matcher": "startup|clear|compact",
         "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/harness-flow/hooks/session-start"
-          }
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/session-start.js" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-bash.js" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/post-edit.js" }
         ]
       }
     ]
@@ -124,10 +149,23 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
       {
         "matcher": "startup|clear|compact",
         "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start"
-          }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start.js" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-bash.js" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/post-edit.js" }
         ]
       }
     ]

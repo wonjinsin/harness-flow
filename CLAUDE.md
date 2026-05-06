@@ -28,15 +28,43 @@ Skills under `skills/` are designed to be invoked **in order** for any non-trivi
 
 The chain ends when `finishing-a-development-branch` completes.
 
-## SessionStart Hook
+## Hooks (Node.js, macOS · Claude Code only)
 
-`hooks/session-start` (Bash, macOS · Claude Code only) reads `skills/using-harness-flow/SKILL.md` and emits a `hookSpecificOutput.additionalContext` JSON payload to inject session context. Matcher: `startup|clear|compact`. The script computes its own location from `$0`, so it works regardless of how it is invoked.
+All hooks require Node.js 18+ and have zero npm dependencies. Registered in `hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`. Disable all hooks with `HARNESS_FLOW_HOOKS_OFF=1`.
 
-Hook registration — env var conventions:
+### `hooks/session-start.js` — SessionStart
+
+Reads `skills/using-harness-flow/SKILL.md` and emits `hookSpecificOutput.additionalContext` JSON to inject session context. Matcher: `startup|clear|compact`.
+
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/session-start.js`
+
+### `hooks/pre-bash.js` — PreToolUse(Bash)
+
+Blocks dangerous Bash commands before they run (exit 2):
+- `--no-verify` flag on any git command
+- `rm -rf` targeting `/`, `~`, `$HOME`, or `.`
+- Pipe-to-shell: `curl|wget|fetch ... | bash|sh|zsh|...`
+
+On `git commit` commands, runs the commit gate:
+1. `make fmt` (if target exists) — blocks if fmt modifies working tree; instructs re-stage
+2. `make lint` (if target exists) — blocks and surfaces stderr on failure
+3. Secret scan on `git diff --cached` — blocks if secret patterns detected
+
+Missing Makefile targets are silently skipped. `make` is only invoked at commit time.
+
+### `hooks/post-edit.js` — PostToolUse(Edit|Write|MultiEdit)
+
+Scans the modified file for secret patterns immediately after each edit. Blocks (exit 2) on match with file path and line number. Skips `.env.example`, `*.test.*`, `**/fixtures/**` to reduce false positives.
+
+### Hook registration env var conventions
+
 - Plugin install → `hooks/hooks.json` uses `${CLAUDE_PLUGIN_ROOT}`, auto-injected by Claude Code's plugin runtime.
-- User settings (`~/.claude/settings.json`) → use `$HOME` (POSIX-standard; not explicitly documented for hook commands but reliable in practice).
-- Project settings (`<project>/.claude/settings.json`) → use `$CLAUDE_PROJECT_DIR` (officially supported). Relative paths are not safe — hook CWD is not specified in Claude Code docs.
-- Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" hooks/session-start` prints the JSON payload.
+- User settings (`~/.claude/settings.json`) → use `$HOME` (POSIX-standard).
+- Project settings (`<project>/.claude/settings.json`) → use `$CLAUDE_PROJECT_DIR` (officially supported). Relative paths are not safe — hook CWD is unspecified.
+
+### Hook code conventions
+
+CommonJS (`require`), `'use strict'` at top, `node:*` built-ins only. stderr messages in English (LLM-readable). An external linter auto-formats JS files (notably converts single → double quotes) — don't fight it.
 
 ## Cross-Platform Tool Names
 
@@ -53,7 +81,8 @@ When editing a skill, keep tool references Claude-Code-native; the reference fil
 - **Add a skill**: create `skills/<name>/SKILL.md` with frontmatter `name:` and `description:`. The `description` determines auto-invocation trigger, so write it as a precise activation condition (see existing skills for tone).
 - **Edit a skill**: do not break the chain order above. If a skill links to another (e.g. `harness-flow:writing-plans`), keep the reference name stable.
 - **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
-- **No tests to run.** Validation = invoking the skill in a live session and observing behavior.
+- **Run hook tests**: `node --test` (Node 18+ built-in runner; unit tests at `tests/hooks/*.test.js`, smoke tests at `tests/hooks/smoke/*.smoke.test.js`). Skill behavior has no automated tests — validate by invoking in a live session.
+- **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
 
 ## Output Paths
 
