@@ -136,6 +136,14 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
+## User Review Gate
+
+After the self-review passes, ask the user to review the written plan before proceeding:
+
+> "Plan written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start implementation."
+
+Wait for the user's response. If they request changes, make them and re-run the self-review. Only proceed once the user approves.
+
 ## Execution Handoff
 
 After saving the plan, announce completion and proceed directly to Subagent-Driven execution:
