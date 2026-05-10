@@ -66,6 +66,36 @@ test('exits 0 for skip-glob path even with secret', () => {
   assert.equal(r.status, 0);
 });
 
+test('exits 0 for .env.local even with secret', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-skip-local-'));
+  const f = path.join(dir, '.env.local');
+  fs.writeFileSync(f, 'AKIA0123456789ABCDEF', 'utf-8');
+  const r = runWith({ tool_name: 'Edit', tool_input: { file_path: f } });
+  fs.unlinkSync(f);
+  fs.rmdirSync(dir);
+  assert.equal(r.status, 0);
+});
+
+test('exits 0 for *_test.go even with secret', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-skip-gotest-'));
+  const f = path.join(dir, 'handler_test.go');
+  fs.writeFileSync(f, 'AKIA0123456789ABCDEF', 'utf-8');
+  const r = runWith({ tool_name: 'Edit', tool_input: { file_path: f } });
+  fs.unlinkSync(f);
+  fs.rmdirSync(dir);
+  assert.equal(r.status, 0);
+});
+
+test('exits 0 for *Test.go (PascalCase, e.g. integration test) even with secret', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-skip-gotest-pascal-'));
+  const f = path.join(dir, 'IntegrationTest.go');
+  fs.writeFileSync(f, 'AKIA0123456789ABCDEF', 'utf-8');
+  const r = runWith({ tool_name: 'Edit', tool_input: { file_path: f } });
+  fs.unlinkSync(f);
+  fs.rmdirSync(dir);
+  assert.equal(r.status, 0);
+});
+
 test('exits 0 on bad payload (fail-open)', () => {
   const r = spawnSync('node', [SCRIPT], { input: 'not json', encoding: 'utf-8' });
   assert.equal(r.status, 0);

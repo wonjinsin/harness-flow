@@ -63,10 +63,21 @@ if (!filePath || !fs.existsSync(filePath)) {
 }
 
 // Skip paths where false positives are common:
-//   - .env.example: dummy values that intentionally look like real secrets
-//   - *.test.*:     test fixtures often hardcode example credentials
-//   - **/fixtures/: same reason as test files
-const SKIP_PATTERNS = [/\.env\.example$/, /\.test\./, /\/fixtures\//];
+//   - .env.example:   dummy values that intentionally look like real secrets
+//   - .env.local:     gitignored local secrets store; real values live here by design
+//   - *.test.*:       test fixtures often hardcode example credentials
+//   - *test.go,
+//     *Test.go:       Go unit/integration test conventions; may carry example creds.
+//                     Trade-off: also matches non-test files ending in `test.go`
+//                     (e.g. `latest.go`). Commit-time scan in pre-bash.js covers misses.
+//   - **/fixtures/:   same reason as test files
+const SKIP_PATTERNS = [
+  /\.env\.example$/,
+  /\.env\.local$/,
+  /\.test\./,
+  /[Tt]est\.go$/,
+  /\/fixtures\//,
+];
 if (SKIP_PATTERNS.some((re) => re.test(filePath))) {
   process.exit(0);
 }

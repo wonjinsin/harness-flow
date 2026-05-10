@@ -54,7 +54,7 @@ Missing Makefile targets are silently skipped. `make` is only invoked at commit 
 
 ### `hooks/post-edit.js` — PostToolUse(Edit|Write|MultiEdit)
 
-Scans the modified file for secret patterns immediately after each edit. Blocks (exit 2) on match with file path and line number. Skips `.env.example`, `*.test.*`, `**/fixtures/**` to reduce false positives.
+Scans the modified file for secret patterns immediately after each edit. Blocks (exit 2) on match with file path and line number. Skips `.env.example`, `.env.local`, `*.test.*`, `*test.go` / `*Test.go`, `**/fixtures/**` to reduce false positives.
 
 ### Hook registration env var conventions
 
