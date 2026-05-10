@@ -2,7 +2,7 @@
 
 ## Overview
 
-> A Claude Code plugin that wires eight skills into one gated workflow — design, isolation, planning, TDD, review, and finish — so the agent walks the full path instead of jumping to the end.
+> A Claude Code plugin that wires nine skills into two gated entry points — a feature track (design → isolation → planning → TDD → review → finish) and a bug-fix track (root-cause investigation → minimal fix) — so the agent walks the full path instead of jumping to the end.
 
 ### Problems it solves
 
@@ -57,6 +57,12 @@ Skills create artifacts lazily inside the active worktree (not the repo root):
 docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md   # brainstorming output
 docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
 ```
+
+---
+
+## Parallel track — bug fixing
+
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). Joins the main chain only at Phase 4, where it uses `test-driven-development` to write the failing test before fixing.
 
 ---
 
@@ -189,6 +195,10 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **test-driven-development** — enforces the Red-Green-Refactor cycle (includes testing-anti-patterns reference)
 - **requesting-code-review** — code review request checklist
+
+**Debugging**
+
+- **systematic-debugging** — root-cause-first bug investigation (4 phases, supporting techniques: root-cause-tracing, defense-in-depth, condition-based-waiting)
 
 **Meta**
 
