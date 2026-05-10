@@ -28,6 +28,22 @@ Skills under `skills/` are designed to be invoked **in order** for any non-trivi
 
 The chain ends when `finishing-a-development-branch` completes.
 
+## Parallel Track: Bug Fixing
+
+`systematic-debugging` is **not** part of the linear chain above — it's an
+orthogonal entry point for bug/test-failure/unexpected-behavior tasks.
+
+- Trigger: any technical issue (bug, test failure, performance, build failure)
+- Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
+- Four phases: Root Cause → Pattern Analysis → Hypothesis → Implementation
+- Joins the main chain only at Phase 4 Step 1, where it invokes
+  `harness-flow:test-driven-development` to write the failing test before fixing
+- Supporting files: `root-cause-tracing.md`, `defense-in-depth.md`,
+  `condition-based-waiting.md`
+
+When the user describes a symptom (not a feature), enter via systematic-debugging
+instead of brainstorming.
+
 ## Hooks (Node.js, macOS · Claude Code only)
 
 All hooks require Node.js 18+ and have zero npm dependencies. Registered in `hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`. Disable all hooks with `HARNESS_FLOW_HOOKS_OFF=1`.
