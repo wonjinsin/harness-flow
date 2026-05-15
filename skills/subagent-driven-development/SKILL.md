@@ -51,7 +51,7 @@ digraph process {
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Prompt user to run harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
@@ -70,7 +70,7 @@ digraph process {
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use harness-flow:finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Prompt user to run harness-flow:finishing-a-development-branch";
 }
 ```
 
@@ -188,8 +188,17 @@ Code reviewer: ✅ Approved
 [Dispatch final code-reviewer]
 Final reviewer: All requirements met, ready to merge
 
-Done!
+All tasks are complete. Please review the result, and when you're ready
+to finalize the branch, run the `harness-flow:finishing-a-development-branch` skill.
 ```
+
+## When All Tasks Complete
+
+After the final code reviewer subagent approves the entire implementation, **do not auto-invoke** `harness-flow:finishing-a-development-branch`. Instead, output the following message to the user and wait for their confirmation:
+
+> All tasks are complete. Please review the result, and when you're ready to finalize the branch, run the `harness-flow:finishing-a-development-branch` skill.
+
+The user reviews the result and decides when to proceed to branch finalization.
 
 ## Advantages
 

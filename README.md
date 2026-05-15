@@ -206,6 +206,17 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 ---
 
+## Credits & Third-Party Licenses
+
+Most skills in this repository are derived from prior MIT-licensed work. Original copyright notices and full license texts are reproduced in [`NOTICE`](NOTICE), as required by the MIT License. Each derived skill folder under `skills/` also contains its own `NOTICE` file, so individual skill folders can be copied elsewhere without losing required attribution.
+
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `finishing-a-development-branch`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-harness-flow`, `writing-plans`.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` additionally incorporates ideas from the `grill-me` skill.
+
+The `claude-md-revise` skill is original to this repository and is not derived from any upstream work.
+
+---
+
 ## See Also
 
 - `design/comparison.md` — 6-harness comparative analysis (Archon / ECC / GSD / gstack / OMC / superpowers). Explains why this plugin sits at "Layer C: in-harness skills" and the tradeoffs that implies.

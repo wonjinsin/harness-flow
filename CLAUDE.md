@@ -24,7 +24,8 @@ Skills under `skills/` are designed to be invoked **in order** for any non-trivi
 5. `subagent-driven-development` — executes the plan one task at a time: implementer subagent → spec-compliance reviewer → code-quality reviewer. Prompts at `subagent-driven-development/{implementer,spec-reviewer,code-quality-reviewer}-prompt.md`.
 6. `test-driven-development` — sub-skill that each implementer subagent follows (Red → Verify red → Green → Verify green → Refactor).
 7. `requesting-code-review` — dispatch `harness-flow:code-reviewer` subagent (template at `requesting-code-review/code-reviewer.md`).
-8. `finishing-a-development-branch` — present a 4-option menu (merge locally / push & PR / keep / discard). Cleanup logic depends on whether harness-flow created the worktree.
+8. `claude-md-revise` — invoked as an optional gate inside `finishing-a-development-branch` (Step 4). Surfaces session-derived knowledge (user corrections, "always/never" rules, project facts, anti-patterns, external-system references) and applies it as per-candidate diffs to the nearest project `CLAUDE.md` or to a project `rules/*.md`. Reads `~/.claude/projects/<slug>/<uuid>.jsonl` directly when context may have compacted. Reads user-scope files (`~/.claude/CLAUDE.md`, `~/.claude/rules/*.md`) for de-duplication only, never writes to them — surfaces a proposal instead.
+9. `finishing-a-development-branch` — Step 1: verify tests. Steps 2–3: detect environment & base branch. Step 4: optional `claude-md-revise` gate. Step 5: present 4-option menu (merge locally / push & PR / keep / discard). Steps 6–7: execute & cleanup. Cleanup logic depends on whether harness-flow created the worktree.
 
 The chain ends when `finishing-a-development-branch` completes.
 
