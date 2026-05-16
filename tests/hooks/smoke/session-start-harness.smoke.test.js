@@ -5,9 +5,9 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..');
-const SCRIPT = path.join(PLUGIN_ROOT, 'hooks', 'session-start.js');
+const SCRIPT = path.join(PLUGIN_ROOT, 'hooks', 'session-start-harness.js');
 
-test('session-start.js emits valid hookSpecificOutput JSON', () => {
+test('session-start-harness.js emits valid hookSpecificOutput JSON', () => {
   const result = spawnSync('node', [SCRIPT], {
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
     encoding: 'utf-8',
@@ -20,7 +20,7 @@ test('session-start.js emits valid hookSpecificOutput JSON', () => {
   assert.match(parsed.hookSpecificOutput.additionalContext, /using-harness-flow/);
 });
 
-test('session-start.js emits fallback when SKILL.md missing', () => {
+test('session-start-harness.js emits fallback when SKILL.md missing', () => {
   const result = spawnSync('node', [SCRIPT], {
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: '/nonexistent/path/xyz' },
     encoding: 'utf-8',

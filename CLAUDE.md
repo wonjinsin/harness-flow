@@ -49,11 +49,17 @@ instead of brainstorming.
 
 All hooks require Node.js 18+ and have zero npm dependencies. Registered in `hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`. Disable all hooks with `HARNESS_FLOW_HOOKS_OFF=1`.
 
-### `hooks/session-start.js` — SessionStart
+### `hooks/session-start-harness.js` — SessionStart
 
 Reads `skills/using-harness-flow/SKILL.md` and emits `hookSpecificOutput.additionalContext` JSON to inject session context. Matcher: `startup|clear|compact`.
 
-Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/session-start.js`
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/session-start-harness.js`
+
+### `hooks/session-start-caveman.js` — SessionStart
+
+Reads `skills/caveman/SKILL.md` and emits it as `additionalContext` wrapped in `<EXTREMELY_IMPORTANT>` tags, mirroring `session-start-harness.js`. Pre-activates caveman mode (token-efficient terse responses) at every session boundary. User can disable mid-session with "stop caveman" / "normal mode". Matcher: `startup|clear|compact`.
+
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/session-start-caveman.js`
 
 ### `hooks/pre-bash.js` — PreToolUse(Bash)
 

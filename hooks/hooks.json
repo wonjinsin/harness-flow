@@ -6,7 +6,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-harness.js\"",
+            "async": false
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-caveman.js\"",
             "async": false
           }
         ]
