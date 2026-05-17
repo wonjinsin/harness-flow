@@ -63,17 +63,23 @@ Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/session-start-caveman.js`
 
 ### `hooks/pre-bash.js` — PreToolUse(Bash)
 
-Blocks dangerous Bash commands before they run (exit 2):
-- `--no-verify` flag on any git command
-- `rm -rf` targeting `/`, `~`, `$HOME`, or `.`
-- Pipe-to-shell: `curl|wget|fetch ... | bash|sh|zsh|...`
+Pure dangerous-pattern matcher. Conservative: high-confidence-malicious only.
+On block, emits Claude Code's `hookSpecificOutput.permissionDecision: 'deny'`
+JSON (also exits 2) with `systemMessage` instructing the LLM to stop and ask
+the user — do NOT retry with a workaround.
 
-On `git commit` commands, runs the commit gate:
-1. `make fmt` (if target exists) — blocks if fmt modifies working tree; instructs re-stage
-2. `make lint` (if target exists) — blocks and surfaces stderr on failure
-3. Secret scan on `git diff --cached` — blocks if secret patterns detected
+Pattern groups (10 total, see `PATTERNS` in the file):
 
-Missing Makefile targets are silently skipped. `make` is only invoked at commit time.
+1. **Catastrophic shell ops** — `--no-verify`, `rm -rf /|~|$HOME|.`, pipe-to-shell
+2. **Secret-bearing file reads** — `.env`, SSH private keys, AWS/GCP credentials,
+   GCP service-account JSON
+3. **Cloud CLI calls (user authorization)** — `gcloud`, `aws`
+
+`make fmt`/`make lint` and staged-diff secret scan were removed — fmt/lint
+belong in git's native pre-commit hook, and commit-time secret scanning is
+better handled by dedicated tools (e.g. gitleaks).
+
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash.js`
 
 ### `hooks/post-edit.js` — PostToolUse(Edit|Write|MultiEdit)
 
@@ -106,6 +112,7 @@ When editing a skill, keep tool references Claude-Code-native; the reference fil
 - **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
 - **Run hook tests**: `node --test` (Node 18+ built-in runner; unit tests at `tests/hooks/*.test.js`, smoke tests at `tests/hooks/smoke/*.smoke.test.js`). Skill behavior has no automated tests — validate by invoking in a live session.
 - **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
+- **Add a dangerous pattern**: edit the `PATTERNS` array at the top of `hooks/pre-bash.js` with `{ id, regex, reason }`. Add unit test cases (match + non-match) to `tests/hooks/pre-bash.test.js`.
 
 ## Output Paths
 
