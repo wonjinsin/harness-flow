@@ -23,7 +23,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash.js\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash-commands.js\"",
+            "async": false
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash-secrets.js\"",
             "async": false
           }
         ]

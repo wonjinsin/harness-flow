@@ -61,25 +61,39 @@ Reads `skills/caveman/SKILL.md` and emits it as `additionalContext` wrapped in `
 
 Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/session-start-caveman.js`
 
-### `hooks/pre-bash.js` — PreToolUse(Bash)
+### `hooks/pre-bash-commands.js` — PreToolUse(Bash)
 
-Pure dangerous-pattern matcher. Conservative: high-confidence-malicious only.
+Destructive-action and cloud-CLI guard. Conservative: high-confidence-malicious only.
 On block, emits Claude Code's `hookSpecificOutput.permissionDecision: 'deny'`
 JSON (also exits 2) with `systemMessage` instructing the LLM to stop and ask
 the user — do NOT retry with a workaround.
 
-Pattern groups (10 total, see `PATTERNS` in the file):
+Patterns (5 total, see `PATTERNS` in the file):
 
-1. **Catastrophic shell ops** — `--no-verify`, `rm -rf /|~|$HOME|.`, pipe-to-shell
-2. **Secret-bearing file reads** — `.env`, SSH private keys, AWS/GCP credentials,
-   GCP service-account JSON
-3. **Cloud CLI calls (user authorization)** — `gcloud`, `aws`
+- `--no-verify` (bypassing pre-commit hooks)
+- `rm -rf /|~|$HOME|.`
+- pipe-to-shell (`curl|wget|fetch … | sh|bash|...`)
+- `gcloud` / `aws` CLI calls (user authorization required)
 
-`make fmt`/`make lint` and staged-diff secret scan were removed — fmt/lint
-belong in git's native pre-commit hook, and commit-time secret scanning is
-better handled by dedicated tools (e.g. gitleaks).
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash-commands.js`
 
-Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash.js`
+### `hooks/pre-bash-secrets.js` — PreToolUse(Bash)
+
+Secret-file read guard. Blocks shell commands that would expose secrets via
+stdout (`cat`, `less`, `head`, `tail`, `more`, `bat`). Same deny + exit-2
+contract as `pre-bash-commands.js`.
+
+Patterns (5 total, see `PATTERNS` in the file):
+
+- `.env` (any variant)
+- SSH private keys (`id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa`; `.pub` excluded)
+- `~/.aws/credentials`
+- `~/.config/gcloud/*credentials|tokens|adc|application_default*`
+- GCP service-account JSON
+
+The two hooks share `hooks/lib/bash-guard.js` (pattern-matcher factory + main loop).
+
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash-secrets.js`
 
 ### `hooks/post-edit.js` — PostToolUse(Edit|Write|MultiEdit)
 
@@ -112,7 +126,7 @@ When editing a skill, keep tool references Claude-Code-native; the reference fil
 - **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
 - **Run hook tests**: `node --test` (Node 18+ built-in runner; unit tests at `tests/hooks/*.test.js`, smoke tests at `tests/hooks/smoke/*.smoke.test.js`). Skill behavior has no automated tests — validate by invoking in a live session.
 - **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
-- **Add a dangerous pattern**: edit the `PATTERNS` array at the top of `hooks/pre-bash.js` with `{ id, regex, reason }`. Add unit test cases (match + non-match) to `tests/hooks/pre-bash.test.js`.
+- **Add a dangerous pattern**: pick the right hook — destructive/CLI actions go in `hooks/pre-bash-commands.js`, secret-file reads go in `hooks/pre-bash-secrets.js`. Add `{ id, regex, reason }` to its `PATTERNS` array and match + non-match test cases to the sibling `tests/hooks/pre-bash-{commands,secrets}.test.js`.
 
 ## Output Paths
 
