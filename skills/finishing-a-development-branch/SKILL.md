@@ -66,9 +66,14 @@ Or ask: "This branch split from main - is that correct?"
 
 ### Step 4: Offer CLAUDE.md Revision
 
-**Optional gate before the integration menu** — surfaces session learnings worth persisting to CLAUDE.md.
+**Default: ON.** Surfaces session learnings worth persisting to CLAUDE.md. The user saying "finish" or "proceed" is NOT a skip signal — it means run this step.
 
-Ask:
+**Skip only if:**
+
+- No commits were made this session
+- Hotfix branch explicitly flagged as time-critical
+
+Otherwise ask:
 
 ```
 This session may contain CLAUDE.md-worthy learnings (corrections, conventions, project facts).
@@ -78,11 +83,6 @@ Run claude-md-revise to surface candidates? (y/N)
 **If yes:** Invoke the `harness-flow:claude-md-revise` skill. It runs to completion (per-candidate approval), then returns here.
 
 **If no, or after revision completes:** Continue to Step 5 (Present Options).
-
-**Skip the prompt entirely if:**
-
-- Session was purely exploratory / no decisions made
-- Hotfix branch where speed matters more than memory hygiene
 
 ### Step 5: Present Options
 
