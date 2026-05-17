@@ -117,6 +117,8 @@ Which option?
 
 #### Option 1: Merge Locally
 
+Ask merge style if not specified: regular or squash.
+
 ```bash
 # Get main repo root for CWD safety
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
@@ -125,7 +127,11 @@ cd "$MAIN_ROOT"
 # Merge first — verify success before removing anything
 git checkout <base-branch>
 git pull
-git merge <feature-branch>
+
+git merge <feature-branch>            # regular merge
+# OR
+git merge --squash <feature-branch>   # squash merge
+git commit -m "<message summarizing the branch>"
 
 # Verify tests on merged result
 <test command>
@@ -136,7 +142,10 @@ git merge <feature-branch>
 Then: Cleanup worktree (Step 7), then delete branch:
 
 ```bash
-git branch -d <feature-branch>
+git branch -d <feature-branch>   # regular merge
+# OR
+git branch -D <feature-branch>   # squash merge requires -D — git treats the
+                                 # squashed commit as unrelated to <feature-branch>
 ```
 
 #### Option 2: Push and Create PR
