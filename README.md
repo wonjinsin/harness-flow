@@ -68,11 +68,13 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
 
 ## Hooks
 
-Three Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude Code only):
+Five Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude Code only):
 
-- **`session-start.js`** — injects the `using-harness-flow` skill into every new/cleared/compacted session.
-- **`pre-bash.js`** — blocks dangerous Bash commands (`--no-verify`, `rm -rf` of root/home/cwd, `curl|wget|fetch ... | bash`). On `git commit`, runs `make fmt`, `make lint`, and a secret regex scan against the staged diff (missing Makefile targets are silently skipped).
-- **`post-edit.js`** — runs file-type post-edit actions after every Edit/Write/MultiEdit. Current `RULES`: `*.go` → `make fmt` then `make lint` at the project root. Any command exit ≠ 0 blocks (exit 2) and feeds stdout/stderr back to the LLM; if the project has no `Makefile` the hook is a silent no-op.
+- **`session-start-harness.js`** — injects the `using-harness-flow` skill into every new/cleared/compacted session.
+- **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
+- **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
+- **`pre-secrets.js`** — PreToolUse(Read|Edit|Write|MultiEdit|Bash) secret-file access guard. Blocks any reference to secret-bearing paths: `.env` variants, SSH private keys (`id_rsa`/`id_ed25519`/`id_ecdsa`/`id_dsa`), `~/.aws/credentials`, gcloud credentials/ADC, GCP service-account JSON. Allowlist skips `.env.example`/`.sample`/`.template`/`.schema`/`.defaults`.
+- **`post-edit.js`** — runs file-type post-edit actions after every Edit/Write/MultiEdit. Current `RULES`: `*.go` → `make fmt` at the project root. Any command exit ≠ 0 blocks (exit 2) and feeds stdout/stderr back to the LLM; if the project has no `Makefile` the hook is a silent no-op.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
@@ -91,13 +93,13 @@ This repo exposes itself as a single-plugin marketplace via `.claude-plugin/mark
 /plugin install harness-flow@harness-flow
 ```
 
-Once installed, `hooks/hooks.json` is loaded automatically — all three hooks (session-start, pre-bash, post-edit) activate.
+Once installed, `hooks/hooks.json` is loaded automatically — all five hooks (session-start-harness, session-start-caveman, pre-bash-commands, pre-secrets, post-edit) activate.
 
 ### B) Copy-paste mode — drop the repo into `.claude/`
 
 Place the repo directly under `.claude/` instead of going through the plugin system.
 
-In copy-paste mode, `$CLAUDE_PLUGIN_ROOT` is unset, so the bundled `hooks/hooks.json` is ignored. You have to register hooks in `settings.json` yourself. The `session-start.js` script derives the plugin root from its own location, so you don't need to set the environment variable.
+In copy-paste mode, `$CLAUDE_PLUGIN_ROOT` is unset, so the bundled `hooks/hooks.json` is ignored. You have to register hooks in `settings.json` yourself. The session-start scripts derive the plugin root from their own location, so you don't need to set the environment variable.
 
 **(B-1) Global — clone into `~/.claude/harness-flow/` (recommended)**
 
@@ -122,7 +124,8 @@ Global (`~/.claude/settings.json`):
       {
         "matcher": "startup|clear|compact",
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/session-start.js" }
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/session-start-harness.js" },
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/session-start-caveman.js" }
         ]
       }
     ],
@@ -130,7 +133,13 @@ Global (`~/.claude/settings.json`):
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-bash.js" }
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-bash-commands.js" }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|Bash",
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-secrets.js" }
         ]
       }
     ],
@@ -155,7 +164,8 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
       {
         "matcher": "startup|clear|compact",
         "hooks": [
-          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start.js" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start-harness.js" },
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start-caveman.js" }
         ]
       }
     ],
@@ -163,7 +173,13 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-bash.js" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-bash-commands.js" }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|Bash",
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-secrets.js" }
         ]
       }
     ],
