@@ -25,10 +25,15 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash-commands.js\"",
             "async": false
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|Bash",
+        "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash-secrets.js\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-secrets.js\"",
             "async": false
           }
         ]

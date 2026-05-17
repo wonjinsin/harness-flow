@@ -1,14 +1,14 @@
 'use strict';
 
-// bash-guard.js — shared infrastructure for PreToolUse(Bash) pattern guards.
+// guard.js — shared infrastructure for PreToolUse hooks.
 // Pure pattern matcher factory + main loop.
 // Kill switch: HARNESS_FLOW_HOOKS_OFF=1. Fail-open on payload parse errors.
 
 const { readStdinSync, parsePayload, getCommand } = require('./payload.js');
 
 function makeMatcher(patterns) {
-  return function matchDangerous(cmd) {
-    const text = String(cmd == null ? '' : cmd);
+  return function matchDangerous(value) {
+    const text = String(value == null ? '' : value);
     for (const p of patterns) {
       if (p.regex.test(text)) return p;
     }
@@ -16,7 +16,7 @@ function makeMatcher(patterns) {
   };
 }
 
-function emitDeny(pattern, cmd) {
+function emitDeny(pattern, value, kind) {
   console.log(
     JSON.stringify({
       hookSpecificOutput: {
@@ -25,13 +25,13 @@ function emitDeny(pattern, cmd) {
         permissionDecisionReason: `[${pattern.id}] ${pattern.reason}`,
       },
       systemMessage:
-        `Blocked Bash command: ${cmd}\n\n` +
+        `Blocked ${kind}: ${value}\n\n` +
         `Stop here. Do NOT retry with a workaround. Ask the user how to proceed.`,
     }),
   );
 }
 
-function runGuard({ name, matchDangerous }) {
+function runGuard({ name, matchDangerous, kind = 'Bash command', getValue = getCommand }) {
   if (process.env.HARNESS_FLOW_HOOKS_OFF === '1') return;
 
   let payload;
@@ -42,10 +42,10 @@ function runGuard({ name, matchDangerous }) {
     return; // fail-open
   }
 
-  const cmd = getCommand(payload);
-  const hit = matchDangerous(cmd);
+  const value = getValue(payload);
+  const hit = matchDangerous(value);
   if (hit) {
-    emitDeny(hit, cmd);
+    emitDeny(hit, value, kind);
     process.exit(2); // belt-and-suspenders: JSON deny + exit code
   }
 }

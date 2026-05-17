@@ -1,108 +1,83 @@
 #!/usr/bin/env node
-"use strict";
+'use strict';
 
-// =============================================================================
-// post-edit.js — Post-edit secret scanner hook
-// =============================================================================
-//
-// WHEN: Fires on PostToolUse events where matcher matches Edit|Write|MultiEdit,
-//       i.e. immediately AFTER the LLM modifies a file.
-//
-// STDIN: { tool_name: 'Edit'|'Write'|'MultiEdit',
-//          tool_input: { file_path: '/abs/path', ... }, ... }
-//
-// WHAT: Reads the modified file and scans the entire content with the secret
-//       regex matrix (AWS keys, GCP, GitHub PATs, private key headers, generic
-//       password/api_key assignments). On match → exit 2 with file path + line.
-//
-// WHY: This is the FIRST line of defense for accidentally hardcoded secrets.
-//      The fix path is obvious at this point — the LLM just wrote the file,
-//      so a `git restore` or revert is trivial. Catching secrets here is
-//      cheaper than catching them at commit time (where the LLM has already
-//      moved on mentally).
-//
-//      pre-bash.js's commit gate is the SECOND line of defense — even if this
-//      hook is bypassed (kill switch, manual edit, etc.), commit time will
-//      re-scan the staged diff.
-//
-// EXCLUSIONS: Test fixtures and *.env.example commonly contain dummy/example
-//             keys that match real-secret patterns. We skip these paths to
-//             keep false-positive noise low.
-//
-// EXIT CODES:
-//   0 → no secrets, or excluded path, or fail-open path
-//   2 → secret detected (Claude Code shows stderr to the LLM)
-//
-// FAIL-OPEN: Missing files, unreadable files, parse errors → exit 0. We refuse
-//            to block edits because OUR scanner had a problem.
-// =============================================================================
+// post-edit.js — PostToolUse(Edit|Write|MultiEdit) post-edit action runner.
+// File-path matches a RULES regex → run that rule's commands at payload.cwd.
+// Any command exit ≠ 0 → expose stdout/stderr to the LLM and exit 2.
+// Kill switch: HARNESS_FLOW_HOOKS_OFF=1. Fail-open on payload parse / no Makefile.
 
-const fs = require("node:fs");
-const { readStdinSync, parsePayload, getFilePath } = require("./lib/payload.js");
-const { scanText } = require("./lib/secret-patterns.js");
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { readStdinSync, parsePayload, getFilePath } = require('./lib/payload.js');
 
-// Same single kill switch as the other hooks.
-if (process.env.HARNESS_FLOW_HOOKS_OFF === "1") {
-  process.exit(0);
+function getCwd(payload) {
+  // Claude Code PostToolUse payload includes `cwd`; fall back to process.cwd().
+  return (payload && payload.cwd) || process.cwd();
 }
 
-let payload;
-try {
-  payload = parsePayload(readStdinSync());
-} catch (err) {
-  console.error(`post-edit: payload parse error: ${err.message}`);
-  process.exit(0);
-}
-
-// Edit/Write/MultiEdit all carry tool_input.file_path. If absent (unexpected
-// payload shape) or the file no longer exists (deleted between events), there's
-// nothing to scan — fail-open.
-const filePath = getFilePath(payload);
-if (!filePath || !fs.existsSync(filePath)) {
-  process.exit(0);
-}
-
-// Skip paths where false positives are common:
-//   - .env.example:   dummy values that intentionally look like real secrets
-//   - .env.local:     gitignored local secrets store; real values live here by design
-//   - *.test.*:       test fixtures often hardcode example credentials
-//   - *test.go,
-//     *Test.go:       Go unit/integration test conventions; may carry example creds.
-//                     Trade-off: also matches non-test files ending in `test.go`
-//                     (e.g. `latest.go`). Commit-time scan in pre-bash.js covers misses.
-//   - **/fixtures/:   same reason as test files
-const SKIP_PATTERNS = [
-  /\.env\.example$/,
-  /\.env\.local$/,
-  /\.test\./,
-  /[Tt]est\.go$/,
-  /\/fixtures\//,
+const RULES = [
+  {
+    id: 'go-fmt',
+    regex: /\.go$/,
+    commands: ['make fmt'],
+  },
 ];
-if (SKIP_PATTERNS.some((re) => re.test(filePath))) {
-  process.exit(0);
-}
 
-// Read the entire file. We scan the full text (not just the diff) because Edit
-// may have only changed a small region but the secret could already be elsewhere
-// in the file from a prior edit.
-let content;
-try {
-  content = fs.readFileSync(filePath, "utf-8");
-} catch (err) {
-  // Binary files, permission errors, etc. — fail-open.
-  process.exit(0);
-}
-
-// scanText returns [{ name, line }] for every match. We log all matches before
-// exiting so the LLM sees every secret at once (cheaper than one-at-a-time
-// reveal across multiple Edit cycles).
-const matches = scanText(content);
-if (matches.length > 0) {
-  for (const m of matches) {
-    console.error(
-      `secret detected: ${m.name} at ${filePath}:${m.line}. Revert immediately or move to environment variable.`,
-    );
+function matchRule(filePath) {
+  const text = String(filePath == null ? '' : filePath);
+  if (!text) return null;
+  for (const r of RULES) {
+    if (r.regex.test(text)) return r;
   }
-  process.exit(2);
+  return null;
 }
-process.exit(0);
+
+const POST_EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit']);
+
+function main() {
+  if (process.env.HARNESS_FLOW_HOOKS_OFF === '1') return;
+
+  let payload;
+  try {
+    payload = parsePayload(readStdinSync());
+  } catch (err) {
+    console.error(`post-edit: payload parse error: ${err.message}`);
+    return; // fail-open
+  }
+
+  if (!POST_EDIT_TOOLS.has(payload && payload.tool_name)) return;
+
+  const filePath = getFilePath(payload);
+  const rule = matchRule(filePath);
+  if (!rule) return;
+
+  const cwd = getCwd(payload);
+  // Makefile absent → fail-open (this hook only fires when a Go project asked for it).
+  if (!fs.existsSync(path.join(cwd, 'Makefile'))) return;
+
+  for (const cmd of rule.commands) {
+    const r = spawnSync(cmd, {
+      cwd,
+      shell: true,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (r.status !== 0) {
+      const out = (r.stdout || '') + (r.stderr || '');
+      console.error(
+        `[${rule.id}] ${cmd} failed (exit ${r.status})\n${out}\n` +
+          `Note: earlier commands in this rule (e.g. make fmt) may have ` +
+          `modified ${filePath} on disk — re-Read before editing.\n` +
+          `Stop here. Fix the reported issue, do not retry blindly.`,
+      );
+      process.exit(2);
+    }
+  }
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = { RULES, matchRule };

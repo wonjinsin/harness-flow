@@ -5,7 +5,7 @@
 // Blocks high-confidence-malicious shell operations and unauthorized cloud CLI use.
 // See pre-bash-secrets.js for secret-file read protection.
 
-const { makeMatcher, runGuard } = require('./lib/bash-guard.js');
+const { makeMatcher, runGuard } = require('./lib/guard.js');
 
 const PATTERNS = [
   // Catastrophic shell operations

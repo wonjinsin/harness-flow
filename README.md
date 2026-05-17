@@ -72,7 +72,7 @@ Three Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude C
 
 - **`session-start.js`** — injects the `using-harness-flow` skill into every new/cleared/compacted session.
 - **`pre-bash.js`** — blocks dangerous Bash commands (`--no-verify`, `rm -rf` of root/home/cwd, `curl|wget|fetch ... | bash`). On `git commit`, runs `make fmt`, `make lint`, and a secret regex scan against the staged diff (missing Makefile targets are silently skipped).
-- **`post-edit.js`** — scans every Edit/Write/MultiEdit target for hardcoded secrets (AWS keys, GitHub PATs, GCP keys, private key headers, generic `password=`/`api_key=` assignments). Skips `.env.example`, `*.test.*`, `**/fixtures/**`.
+- **`post-edit.js`** — runs file-type post-edit actions after every Edit/Write/MultiEdit. Current `RULES`: `*.go` → `make fmt` then `make lint` at the project root. Any command exit ≠ 0 blocks (exit 2) and feeds stdout/stderr back to the LLM; if the project has no `Makefile` the hook is a silent no-op.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 

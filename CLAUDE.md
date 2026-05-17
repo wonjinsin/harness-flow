@@ -77,13 +77,19 @@ Patterns (5 total, see `PATTERNS` in the file):
 
 Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash-commands.js`
 
-### `hooks/pre-bash-secrets.js` — PreToolUse(Bash)
+### `hooks/pre-secrets.js` — PreToolUse(Read|Edit|Write|MultiEdit|Bash)
 
-Secret-file read guard. Blocks shell commands that would expose secrets via
-stdout (`cat`, `less`, `head`, `tail`, `more`, `bat`). Same deny + exit-2
-contract as `pre-bash-commands.js`.
+Secret-file access guard. Single hook, single `PATTERNS` array (path-shape).
+Dispatch by `tool_name`:
 
-Patterns (5 total, see `PATTERNS` in the file):
+- `Read|Edit|Write|MultiEdit` → match `tool_input.file_path` directly against `PATTERNS` (ALLOWLIST first)
+- `Bash` → split `tool_input.command` on whitespace + shell separators, then apply the same matcher to each token
+
+Posture: any reference to a secret-bearing path is blocked — read (`cat .env`), write (`echo X > .env`), move (`mv ~/.aws/credentials …`), edit (`vim ~/.ssh/id_rsa`), or stage (`git add .env`). No reader-verb whitelist: the file is treated as untouchable. Trade-off: descriptive uses like `echo "use .env file"` are also blocked; deemed acceptable because the deny message instructs the LLM to stop and ask.
+
+ALLOWLIST skips `.env.example`/`.sample`/`.template`/`.schema`/`.defaults` for both Bash and file tools.
+
+Same deny + exit-2 contract as `pre-bash-commands.js`. Families (5 total, see `PATTERNS` in the file):
 
 - `.env` (any variant)
 - SSH private keys (`id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa`; `.pub` excluded)
@@ -91,13 +97,15 @@ Patterns (5 total, see `PATTERNS` in the file):
 - `~/.config/gcloud/*credentials|tokens|adc|application_default*`
 - GCP service-account JSON
 
-The two hooks share `hooks/lib/bash-guard.js` (pattern-matcher factory + main loop).
+Both hooks share `hooks/lib/guard.js` (`emitDeny` + `runGuard` parameterized by `kind`/`getValue`).
 
-Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash-secrets.js`
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-secrets.js`
 
 ### `hooks/post-edit.js` — PostToolUse(Edit|Write|MultiEdit)
 
-Scans the modified file for secret patterns immediately after each edit. Blocks (exit 2) on match with file path and line number. Skips `.env.example`, `.env.local`, `*.test.*`, `*test.go` / `*Test.go`, `**/fixtures/**` to reduce false positives.
+`RULES = [{ id, regex, commands }]` matches the edited `file_path` and runs the matched rule's shell commands sequentially at the payload `cwd` (falls back to `process.cwd()`). Current rule: `\.go$` → `make fmt`. Any command exit ≠ 0 prints `[<id>] <cmd> failed (exit N)` + stdout/stderr + a reminder that earlier commands may have modified the file on disk, then exits 2 to feed the LLM. Fail-open when the project has no `Makefile`.
+
+Add a new language/check by appending `{ id, regex, commands }` to `RULES` in `hooks/post-edit.js` and adding the corresponding `make` targets.
 
 ### Hook registration env var conventions
 
@@ -126,7 +134,7 @@ When editing a skill, keep tool references Claude-Code-native; the reference fil
 - **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
 - **Run hook tests**: `node --test` (Node 18+ built-in runner; unit tests at `tests/hooks/*.test.js`, smoke tests at `tests/hooks/smoke/*.smoke.test.js`). Skill behavior has no automated tests — validate by invoking in a live session.
 - **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
-- **Add a dangerous pattern**: pick the right hook — destructive/CLI actions go in `hooks/pre-bash-commands.js`, secret-file reads go in `hooks/pre-bash-secrets.js`. Add `{ id, regex, reason }` to its `PATTERNS` array and match + non-match test cases to the sibling `tests/hooks/pre-bash-{commands,secrets}.test.js`.
+- **Add a dangerous pattern**: pick the right hook — destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array; same regex covers both Bash and file tools). Add match + non-match cases in `tests/hooks/pre-bash-commands.test.js` or `tests/hooks/pre-secrets.test.js`.
 
 ## Output Paths
 
