@@ -212,6 +212,13 @@ You MUST complete each phase before proceeding to the next.
 
    This is NOT a failed hypothesis - this is a wrong architecture.
 
+## After the Fix Lands
+
+Once the fix is verified and the bug is resolved:
+
+1. **If the session surfaced a reusable lesson** — a correction, an anti-pattern ("don't do X"), a rule, or a non-obvious external fact — invoke the `harness-flow:claude-md-revise` skill to surface it as a CLAUDE.md candidate. Debugging sessions are a common source of anti-patterns, so check. This is **conditional**: skip it when the fix taught nothing worth persisting (`claude-md-revise`'s own triggers decide). Do this *before* finalizing the branch, so any approved edit lands with the fix.
+2. Then proceed to `harness-flow:finishing-a-development-branch` to integrate the work.
+
 ## Red Flags - STOP and Follow Process
 
 If you catch yourself thinking:
@@ -285,6 +292,8 @@ These techniques are part of systematic debugging and available in this director
 
 **Related skills:**
 - **harness-flow:test-driven-development** - For creating failing test case (Phase 4, Step 1)
+- **harness-flow:claude-md-revise** - After the fix, surface any reusable lesson (anti-pattern, rule, fact) to CLAUDE.md (conditional)
+- **harness-flow:finishing-a-development-branch** - Integrate the work once the fix is verified
 
 ## Real-World Impact
 

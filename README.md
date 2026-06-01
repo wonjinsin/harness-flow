@@ -46,6 +46,7 @@ After analyzing six Claude Code harnesses ([`design/comparison.md`](design/compa
 4. **subagent-driven-development** — runs an implementer subagent per task, then reviews in two stages: spec compliance and code quality.
    - 4-1. **test-driven-development** — sub-skill each implementer subagent follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
    - 4-2. **requesting-code-review** — template used twice: (a) per task by the code quality reviewer subagent, and (b) once at the end as a final review of the entire implementation before moving on to step 5.
+   - 4-3. **claude-md-revise** — after the final review (default ON), surfaces session learnings (corrections, "always/never" rules, project facts, anti-patterns) as per-candidate CLAUDE.md edits, while the branch is still open, before handing off to step 5.
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
 
@@ -62,7 +63,7 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
 
 ## Parallel track — bug fixing
 
-**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). Joins the main chain only at Phase 4, where it uses `test-driven-development` to write the failing test before fixing.
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). Joins the main chain only at Phase 4, where it uses `test-driven-development` to write the failing test before fixing. After a verified fix it conditionally surfaces `claude-md-revise` candidates (debugging sessions often reveal anti-patterns), then hands off to `finishing-a-development-branch`.
 
 ---
 

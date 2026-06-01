@@ -64,27 +64,7 @@ git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 
 Or ask: "This branch split from main - is that correct?"
 
-### Step 4: Offer CLAUDE.md Revision
-
-**Default: ON.** Surfaces session learnings worth persisting to CLAUDE.md. The user saying "finish" or "proceed" is NOT a skip signal — it means run this step.
-
-**Skip only if:**
-
-- No commits were made this session
-- Hotfix branch explicitly flagged as time-critical
-
-Otherwise ask:
-
-```
-This session may contain CLAUDE.md-worthy learnings (corrections, conventions, project facts).
-Run claude-md-revise to surface candidates? (y/N)
-```
-
-**If yes:** Invoke the `harness-flow:claude-md-revise` skill. It runs to completion (per-candidate approval), then returns here.
-
-**If no, or after revision completes:** Continue to Step 5 (Present Options).
-
-### Step 5: Present Options
+### Step 4: Present Options
 
 **Normal repo and named-branch worktree — present exactly these 4 options:**
 
@@ -113,7 +93,7 @@ Which option?
 
 **Don't add explanation** - keep options concise.
 
-### Step 6: Execute Choice
+### Step 5: Execute Choice
 
 #### Option 1: Merge Locally
 
@@ -136,10 +116,10 @@ git commit -m "<message summarizing the branch>"
 # Verify tests on merged result
 <test command>
 
-# Only after merge succeeds: cleanup worktree (Step 7), then delete branch
+# Only after merge succeeds: cleanup worktree (Step 6), then delete branch
 ```
 
-Then: Cleanup worktree (Step 7), then delete branch:
+Then: Cleanup worktree (Step 6), then delete branch:
 
 ```bash
 git branch -d <feature-branch>   # regular merge
@@ -195,13 +175,13 @@ MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-tople
 cd "$MAIN_ROOT"
 ```
 
-Then: Cleanup worktree (Step 7), then force-delete branch:
+Then: Cleanup worktree (Step 6), then force-delete branch:
 
 ```bash
 git branch -D <feature-branch>
 ```
 
-### Step 7: Cleanup Workspace
+### Step 6: Cleanup Workspace
 
 **Only runs for Options 1 and 4.** Options 2 and 3 always preserve the worktree.
 

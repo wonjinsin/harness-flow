@@ -1,6 +1,6 @@
 ---
 name: claude-md-revise
-description: Use when finishing a development branch and the session contained user corrections, "always/never" rules, project-specific facts, anti-patterns, or external-system references worth persisting. Also use when the user explicitly says "remember this in CLAUDE.md", "add this to project memory", or repeats the same correction twice. Do NOT use for code conventions visible by reading the code, one-off task state, or personal preferences unrelated to this project.
+description: Use after completing implementation or a bug fix, before finalizing the branch, when the session contained user corrections, "always/never" rules, project-specific facts, anti-patterns, or external-system references worth persisting. Also use when the user explicitly says "remember this in CLAUDE.md", "add this to project memory", or repeats the same correction twice. Do NOT use for code conventions visible by reading the code, one-off task state, or personal preferences unrelated to this project.
 ---
 
 # claude-md-revise
@@ -15,7 +15,7 @@ Surface session-derived knowledge worth persisting to project `CLAUDE.md` or pro
 
 ## When to Use
 
-- About to invoke `finishing-a-development-branch` and the session had real corrections, conventions, or external constraints
+- Implementation or a bug fix just completed (final review passed, or `systematic-debugging` Phase 4 verified) and the session had real corrections, conventions, or external constraints — surface candidates *before* finalizing the branch
 - User said "remember this", "add to project memory", "persist this in CLAUDE.md"
 - User repeated the same correction 2+ times (signal of a real rule, not a one-off)
 - A non-obvious external fact came up (deadline, owner, deprecated path, external system)

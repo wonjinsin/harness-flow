@@ -51,6 +51,7 @@ digraph process {
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
+    "Surface claude-md-revise candidates (if session had learnings)" [shape=box];
     "Prompt user to run harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
@@ -70,7 +71,8 @@ digraph process {
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Prompt user to run harness-flow:finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Surface claude-md-revise candidates (if session had learnings)";
+    "Surface claude-md-revise candidates (if session had learnings)" -> "Prompt user to run harness-flow:finishing-a-development-branch";
 }
 ```
 
@@ -194,7 +196,24 @@ to finalize the branch, run the `harness-flow:finishing-a-development-branch` sk
 
 ## When All Tasks Complete
 
-After the final code reviewer subagent approves the entire implementation, **do not auto-invoke** `harness-flow:finishing-a-development-branch`. Instead, output the following message to the user and wait for their confirmation:
+After the final code reviewer subagent approves the entire implementation, do two things **in order**: first persist session learnings, then hand off to the user.
+
+### Step 1: Surface CLAUDE.md learnings (default: ON)
+
+Invoke the `harness-flow:claude-md-revise` skill to surface session-derived knowledge worth persisting (user corrections, "always/never" rules, project facts, anti-patterns, external-system references). Run it **now** — while the branch is still open — so any approved CLAUDE.md edits land in this branch before merge.
+
+This is not optional cleanup. The user saying "finish", "we're done", or "proceed" is NOT a skip signal — it means run this step.
+
+**Skip only if:**
+
+- No commits were made this session
+- Hotfix branch explicitly flagged as time-critical
+
+`claude-md-revise` runs to completion (per-candidate approval), then returns here.
+
+### Step 2: Hand off to the user
+
+**Do not auto-invoke** `harness-flow:finishing-a-development-branch`. Output the following message and wait for the user's confirmation:
 
 > All tasks are complete. Please review the result, and when you're ready to finalize the branch, run the `harness-flow:finishing-a-development-branch` skill.
 
@@ -279,6 +298,7 @@ The user reviews the result and decides when to proceed to branch finalization.
 - **harness-flow:using-git-worktrees** - Ensures (creates or verifies existing) isolated workspace before starting
 - **harness-flow:writing-plans** - Creates the plan this skill executes
 - **harness-flow:requesting-code-review** - Code review template for reviewer subagents
+- **harness-flow:claude-md-revise** - Surface session learnings to CLAUDE.md after the final review, before finishing
 - **harness-flow:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**
