@@ -51,6 +51,7 @@ digraph skill_flow {
     "About to EnterPlanMode?" [shape=doublecircle];
     "Already brainstormed?" [shape=diamond];
     "Invoke brainstorming skill" [shape=box];
+    "Request creates or changes code/files?" [shape=diamond];
     "Might any skill apply?" [shape=diamond];
     "Invoke Skill tool" [shape=box];
     "Announce: 'Using [skill] to [purpose]'" [shape=box];
@@ -64,7 +65,9 @@ digraph skill_flow {
     "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
     "Invoke brainstorming skill" -> "Might any skill apply?";
 
-    "User message received" -> "Might any skill apply?";
+    "User message received" -> "Request creates or changes code/files?";
+    "Request creates or changes code/files?" -> "Already brainstormed?" [label="yes"];
+    "Request creates or changes code/files?" -> "Might any skill apply?" [label="no"];
     "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
     "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
     "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
@@ -93,6 +96,17 @@ These thoughts mean STOP—you're rationalizing:
 | "I'll just do this one thing first" | Check BEFORE doing anything.                           |
 | "This feels productive"             | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means"            | Knowing the concept ≠ using the skill. Invoke it.      |
+
+These thoughts specifically skip **brainstorming** before you start building:
+
+| Thought                                       | Reality                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| "The user already told me exactly what to build" | A request states WHAT, not the design. Brainstorming surfaces the assumptions hidden in "exactly." Invoke it. |
+| "This is a change to existing code, not a new feature" | Modifying behavior is creative work. Changes break assumptions too. Invoke brainstorming. |
+| "It's a one-line / tiny change"               | Small changes are where unexamined assumptions cause the most rework. Size doesn't exempt the gate. |
+| "They asked for code, not a design"           | "Add X" / "fix Y" never means skip brainstorming. The gate runs first regardless of phrasing. |
+| "It's just a quick script / throwaway"        | Quick scripts encode assumptions about inputs, scope, and edge cases. Brainstorm them too. |
+| "We're past planning, I'm just implementing"  | If no design was presented and approved this session, you have NOT brainstormed. Invoke it. |
 
 ## Skill Priority
 

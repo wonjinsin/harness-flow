@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation. Based on superpowers(https://github.com/obra/superpowers) and grill-me(https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md)."
+description: "You MUST use this BEFORE writing or changing any code or files for a feature, fix, refactor, or script — including small or fully-specified ones. Triggers on requests like \"add X\", \"build/make/create X\", \"change/update how X works\", \"let's refactor Y\", \"a new endpoint/page/component\", \"a quick script to X\", or any request to modify existing behavior — even when the user seems to already know what they want. Do NOT use for diagnosing a bug or test failure (use systematic-debugging), when an approved spec/plan already exists (use writing-plans), or for trivial mechanical edits with one obvious form (typo, rename, version bump, dependency upgrade). Based on superpowers(https://github.com/obra/superpowers) and grill-me(https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md)."
 ---
 
 # Brainstorming Ideas Into Designs
