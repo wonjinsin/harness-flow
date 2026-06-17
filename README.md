@@ -204,7 +204,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **subagent-driven-development** — subagent-based implementation + two-stage review
+- **subagent-driven-development** — subagent-based implementation + per-task review (merged spec + quality verdicts) + final whole-branch review
 - **using-git-worktrees** — parallel development branch isolation
 - **finishing-a-development-branch** — merge/PR decision workflow
 

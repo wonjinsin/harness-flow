@@ -27,13 +27,13 @@ This enables `spawn_agent`, `wait`, and `close_agent` for skills like `dispatchi
 ## Template-based agent dispatch
 
 harness-flow skills dispatch a `general-purpose` agent and fill a prompt template
-(e.g. `code-reviewer.md`, `code-quality-reviewer-prompt.md`). Codex creates generic
+(e.g. `code-reviewer.md`, `task-reviewer-prompt.md`). Codex creates generic
 agents from built-in roles (`default`, `explorer`, `worker`).
 
 When a skill says to dispatch a `general-purpose` agent with a prompt template:
 
 1. Find the skill's prompt template (e.g., `code-reviewer.md` or
-   `code-quality-reviewer-prompt.md`)
+   `task-reviewer-prompt.md`)
 2. Read the prompt content
 3. Fill any template placeholders (`{BASE_SHA}`, `{DESCRIPTION}`, etc.)
 4. Spawn a `worker` agent with the filled content as the `message`
