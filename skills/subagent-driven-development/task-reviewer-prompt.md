@@ -11,7 +11,9 @@ more, nothing less) and is well-built (clean, tested, maintainable)
 Subagent (general-purpose):
   description: "Review Task N (spec + quality)"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
-         model silently inherits the session's most expensive one]
+         model silently inherits the session's most expensive one.
+         Reviewer floor is mid-tier: sonnet for a routine diff,
+         opus for a subtle/high-risk one]
   prompt: |
     You are reviewing one task's implementation: first whether it matches its
     requirements, then whether it is well-built. This is a task-scoped gate,

@@ -121,6 +121,17 @@ that implementer. Single-file mechanical fixes also take the cheapest tier.
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
 
+**Tier → model alias (Claude Code).** The tiers above are harness-agnostic;
+below is the mapping this repo dispatches with. Use the short aliases, not
+versioned IDs (`claude-sonnet-5`, …): when a named model is unavailable or
+unrecognized, Claude Code silently falls back to the inherited — often the
+most expensive — model, which is the exact leak this section prevents. Aliases
+dodge that and never go stale. On non-Claude harnesses, map the tier to your
+own dispatch model:
+- cheap → `haiku`
+- standard → `sonnet`
+- most capable → `opus`
+
 ## Handling Implementer Status
 
 Implementer subagents report one of four statuses. Handle each appropriately:
@@ -271,7 +282,9 @@ You: I'm using Subagent-Driven Development to execute this plan.
 
 Task 1: Hook installation script
 
-[Run task-brief for Task 1; dispatch implementer with brief + report paths + context]
+[Run task-brief for Task 1; dispatch implementer
+ (model: haiku — cheap: 1-2 files, complete spec)
+ with brief + report paths + context]
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 
@@ -284,7 +297,9 @@ Implementer: "Got it. Implementing now..."
   - Self-review: Found I missed --force flag, added it
   - Committed
 
-[Run review-package, dispatch task reviewer with the printed path]
+[Run review-package, dispatch task reviewer
+ (model: sonnet — standard: mid-tier reviewer floor)
+ with the printed path]
 Task reviewer: Spec ✅ - all requirements met, nothing extra.
   Strengths: Good test coverage, clean. Issues: None. Task quality: Approved.
 
@@ -292,7 +307,9 @@ Task reviewer: Spec ✅ - all requirements met, nothing extra.
 
 Task 2: Recovery modes
 
-[Run task-brief for Task 2; dispatch implementer with brief + report paths + context]
+[Run task-brief for Task 2; dispatch implementer
+ (model: sonnet — standard: multi-file, integration concerns)
+ with brief + report paths + context]
 
 Implementer: [No questions, proceeds]
 Implementer:
@@ -301,13 +318,17 @@ Implementer:
   - Self-review: All good
   - Committed
 
-[Run review-package, dispatch task reviewer with the printed path]
+[Run review-package, dispatch task reviewer
+ (model: sonnet — standard: mid-tier reviewer floor)
+ with the printed path]
 Task reviewer: Spec ❌:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
   Issues (Important): Magic number (100)
 
-[Dispatch fix subagent with all findings]
+[Dispatch fix subagent
+ (model: haiku — cheap: mechanical fix, named findings)
+ with all findings]
 Fixer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Task reviewer reviews again]
@@ -318,7 +339,8 @@ Task reviewer: Spec ✅. Task quality: Approved.
 ...
 
 [After all tasks]
-[Dispatch final code-reviewer]
+[Dispatch final code-reviewer
+ (model: opus — most capable: whole-branch review)]
 Final reviewer: All requirements met, ready to merge
 
 [Surface claude-md-revise candidates, then proceed to finishing]

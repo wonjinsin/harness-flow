@@ -101,6 +101,20 @@ Both hooks share `hooks/lib/guard.js` (`emitDeny` + `runGuard` parameterized by 
 
 Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-secrets.js`
 
+### `hooks/pre-agent-model.js` — PreToolUse(Agent|Task)
+
+SDD model-omission guard. When a `subagent-driven-development` dispatch omits `model`, Claude Code silently inherits the session's most expensive model (Opus) — the leak this hook closes at the moment of dispatch (passive docs were ignored on every prior dispatch).
+
+Scoped to SDD by matching the dispatch `description` against `SDD_DESC` (`/^Implement Task \d+:|^Review Task \d+ \(spec \+ quality\)/`, anchored on the distinctive shape each of `implementer-prompt.md` / `task-reviewer-prompt.md` sets verbatim). Every other Agent dispatch — Explore, general-purpose searches — passes untouched, so there is **no blast radius**. Fires when the description matches AND `model` is absent, empty, or `inherit` (case-insensitive; all resolve to the session default). Reads `tool_input.model` directly: an omitted model arrives as an **absent key** (empirically confirmed), not null/empty.
+
+**Coverage boundary (intentional):** only the per-task implementer and task-reviewer dispatches — plus re-reviews, which reuse the reviewer template — are scoped. The final whole-branch review (`requesting-code-review`, description `"Review code changes"`) and the fix-wave subagents are deliberately uncovered: the fixer has no stable description to key on, and an omitted-model final review inherits the session model, which in an SDD session is already the opus tier that review wants.
+
+Does NOT use `guard.js`'s `runGuard`/`emitDeny`: the deny `systemMessage` must steer the controller to *re-dispatch with an explicit tier* (cheap→haiku / standard→sonnet / most-capable→opus, reviewer floor sonnet), the opposite of the secret/bash guards' "stop and ask the user." Same deny + exit-2 contract otherwise. Ceiling: a presence-check enforces "you chose a model," not "you chose cheap" — the reason text nudges toward the cheapest fitting tier but cannot force it.
+
+Recent Claude Code versions renamed the dispatch tool `Task` → `Agent` (`Task` kept as a back-compat alias); the matcher covers both.
+
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-agent-model.js`
+
 ### `hooks/post-edit.js` — PostToolUse(Edit|Write|MultiEdit)
 
 `RULES = [{ id, regex, commands }]` matches the edited `file_path` and runs the matched rule's shell commands sequentially at the payload `cwd` (falls back to `process.cwd()`). Current rule: `\.go$` → `make fmt`. Any command exit ≠ 0 prints `[<id>] <cmd> failed (exit N)` + stdout/stderr + a reminder that earlier commands may have modified the file on disk, then exits 2 to feed the LLM. Fail-open when the project has no `Makefile`.
