@@ -14,7 +14,7 @@
 
 - Gates the spec-agreement step so no implementation can start without explicit user approval
 - Isolates each task into its own worktree, then forces an explicit merge / PR / keep / discard decision at the end
-- Splits implementation and review into separate subagents that run in parallel within one session
+- Splits implementation and review into separate subagents — one implementer per Task Group, reviewed at each group boundary (a ≤3-task plan runs inline, no dispatch)
 
 ### Who it's for
 
@@ -41,11 +41,11 @@ After analyzing six Claude Code harnesses ([`design/comparison.md`](design/compa
 2. **brainstorming** — refines the spec before implementation. Includes a `<HARD-GATE>` that blocks moving on without user approval. Output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md`.
    - 2-1. **using-git-worktrees** — invoked from inside brainstorming to isolate the workspace before writing any files. Detects existing worktrees → prefers native tools → falls back to manual.
 
-3. **writing-plans** — decomposes the design into 2–5 minute TDD tasks. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+3. **writing-plans** — decomposes the design into TDD tasks (2–5 minutes sizes a *step*, not the task) and wraps related tasks into Task Groups (2–3 each), the unit the executor dispatches. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **subagent-driven-development** — runs an implementer subagent per task, then reviews in two stages: spec compliance and code quality.
+4. **subagent-driven-development** — runs one implementer subagent per Task Group (a ≤3-task plan runs inline, no dispatch), then reviews each group in two stages: spec compliance and code quality.
    - 4-1. **test-driven-development** — sub-skill each implementer subagent follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — template used twice: (a) per task by the code quality reviewer subagent, and (b) once at the end as a final review of the entire implementation before moving on to step 5.
+   - 4-2. **requesting-code-review** — template used twice: (a) per group by the code quality reviewer subagent, and (b) once at the end as a final review of the entire implementation before moving on to step 5.
    - 4-3. **claude-md-revise** — after the final review (default ON), surfaces session learnings (corrections, "always/never" rules, project facts, anti-patterns) as per-candidate CLAUDE.md edits, while the branch is still open, before handing off to step 5.
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
@@ -69,12 +69,13 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
 
 ## Hooks
 
-Five Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude Code only):
+Six Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude Code only):
 
 - **`session-start-harness.js`** — injects the `using-harness-flow` skill into every new/cleared/compacted session.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — PreToolUse(Read|Edit|Write|MultiEdit|Bash) secret-file access guard. Blocks any reference to secret-bearing paths: `.env` variants, SSH private keys (`id_rsa`/`id_ed25519`/`id_ecdsa`/`id_dsa`), `~/.aws/credentials`, gcloud credentials/ADC, GCP service-account JSON. Allowlist skips `.env.example`/`.sample`/`.template`/`.schema`/`.defaults`.
+- **`pre-agent-model.js`** — PreToolUse(Agent|Task) SDD model-omission guard. When a `subagent-driven-development` implementer/reviewer dispatch omits `model`, it silently inherits the session's most expensive model (Opus); this hook denies such a dispatch so the controller re-dispatches with an explicit tier. Scoped to SDD dispatch descriptions — every other Agent dispatch passes untouched.
 - **`post-edit.js`** — runs file-type post-edit actions after every Edit/Write/MultiEdit. Current `RULES`: `*.go` → `make fmt` at the project root. Any command exit ≠ 0 blocks (exit 2) and feeds stdout/stderr back to the LLM; if the project has no `Makefile` the hook is a silent no-op.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
@@ -94,7 +95,7 @@ This repo exposes itself as a single-plugin marketplace via `.claude-plugin/mark
 /plugin install harness-flow@harness-flow
 ```
 
-Once installed, `hooks/hooks.json` is loaded automatically — all five hooks (session-start-harness, session-start-caveman, pre-bash-commands, pre-secrets, post-edit) activate.
+Once installed, `hooks/hooks.json` is loaded automatically — all six hooks (session-start-harness, session-start-caveman, pre-bash-commands, pre-secrets, pre-agent-model, post-edit) activate.
 
 ### B) Copy-paste mode — drop the repo into `.claude/`
 
@@ -142,6 +143,12 @@ Global (`~/.claude/settings.json`):
         "hooks": [
           { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-secrets.js" }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-agent-model.js" }
+        ]
       }
     ],
     "PostToolUse": [
@@ -182,6 +189,12 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
         "hooks": [
           { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-secrets.js" }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-agent-model.js" }
+        ]
       }
     ],
     "PostToolUse": [
@@ -204,7 +217,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **subagent-driven-development** — subagent-based implementation + per-task review (merged spec + quality verdicts) + final whole-branch review
+- **subagent-driven-development** — subagent-based implementation (one implementer per Task Group; ≤3-task plans inline) + per-group review (merged spec + quality verdicts) + final whole-branch review
 - **using-git-worktrees** — parallel development branch isolation
 - **finishing-a-development-branch** — merge/PR decision workflow
 
@@ -220,6 +233,9 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 **Meta**
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
+- **writing-skills** — create, edit, and verify skills before deployment
+- **claude-md-revise** — surface session-derived knowledge into the nearest project `CLAUDE.md` / rules file
+- **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 
 ---
 

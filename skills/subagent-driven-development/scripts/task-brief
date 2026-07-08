@@ -17,23 +17,45 @@ plan=$1
 n=$2
 [ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
 
+# Group mode when the plan uses "### Group N" headings; else per-task (legacy).
+if grep -qE '^###[ \t]+Group[ \t]+[0-9]' "$plan"; then
+  mode=group
+else
+  mode=task
+fi
+
 if [ $# -eq 3 ]; then
   out=$3
 else
   dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace")
-  out="$dir/task-${n}-brief.md"
+  if [ "$mode" = group ]; then out="$dir/group-${n}-brief.md"; else out="$dir/task-${n}-brief.md"; fi
 fi
 
-awk -v n="$n" '
-  /^```/ { infence = !infence }
-  !infence && /^#+[ \t]+Task[ \t]+[0-9]+/ {
-    intask = ($0 ~ ("^#+[ \t]+Task[ \t]+" n "([^0-9]|$)"))
-  }
-  intask { print }
-' "$plan" > "$out"
+if [ "$mode" = group ]; then
+  awk -v n="$n" '
+    /^```/ { infence = !infence }
+    !infence && /^###[ \t]+Group[ \t]+[0-9]+/ {
+      ingroup = ($0 ~ ("^###[ \t]+Group[ \t]+" n "([^0-9]|$)"))
+    }
+    !infence && /^##[ \t]/ && !/^###/ { ingroup = 0 }
+    ingroup { print }
+  ' "$plan" > "$out"
+  label="group ${n}"
+  pat="Group ${n}"
+else
+  awk -v n="$n" '
+    /^```/ { infence = !infence }
+    !infence && /^#+[ \t]+Task[ \t]+[0-9]+/ {
+      intask = ($0 ~ ("^#+[ \t]+Task[ \t]+" n "([^0-9]|$)"))
+    }
+    intask { print }
+  ' "$plan" > "$out"
+  label="task ${n}"
+  pat="Task ${n}"
+fi
 
 if [ ! -s "$out" ]; then
-  echo "task ${n} not found in ${plan} (no heading matching 'Task ${n}')" >&2
+  echo "${label} not found in ${plan} (no heading matching '${pat}')" >&2
   exit 3
 fi
 

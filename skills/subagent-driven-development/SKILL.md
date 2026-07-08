@@ -5,11 +5,11 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching a fresh implementer subagent per task, a task review (spec compliance + code quality) after each, and a broad whole-branch review at the end.
+Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group, and a broad whole-branch review at the end.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + task review (spec + quality) + broad final review = high quality, fast iteration
+**Core principle:** One implementer per group (tiny plans inline) + group review (spec + quality) + broad final review = high quality, fewer cold-starts
 
 **Narration:** between tool calls, narrate at most one short line — the
 ledger and the tool results carry the record.
@@ -21,16 +21,35 @@ ledger and the tool results carry the record.
 ```dot
 digraph when_to_use {
     "Have implementation plan?" [shape=diamond];
+    "Total tasks <= 3?" [shape=diamond];
     "Tasks mostly independent?" [shape=diamond];
-    "subagent-driven-development" [shape=box];
+    "Inline: Read test-driven-development, implement in current context" [shape=box];
+    "subagent-driven-development (per-group dispatch)" [shape=box];
     "Manual execution or brainstorm first" [shape=box];
 
-    "Have implementation plan?" -> "Tasks mostly independent?" [label="yes"];
+    "Have implementation plan?" -> "Total tasks <= 3?" [label="yes"];
     "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
-    "Tasks mostly independent?" -> "subagent-driven-development" [label="yes"];
+    "Total tasks <= 3?" -> "Inline: Read test-driven-development, implement in current context" [label="yes"];
+    "Total tasks <= 3?" -> "Tasks mostly independent?" [label="no"];
+    "Tasks mostly independent?" -> "subagent-driven-development (per-group dispatch)" [label="yes"];
     "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
 }
 ```
+
+## Inline Path (plans with ≤3 tasks)
+
+When the whole plan is ≤3 tasks, do NOT dispatch per-group implementers — the
+cold-start of a fresh subagent costs more than the work. Instead:
+
+1. Read `harness-flow:test-driven-development` into your current context (via
+   the Skill tool) and implement each task inline, following Red→Green→Refactor.
+2. Commit one task at a time (same discipline as a dispatched implementer).
+3. After the last task, run the full suite + formatter/typecheck once.
+4. **Still dispatch the final whole-branch review** — a fresh-context reviewer
+   is the one isolation worth keeping. Then proceed to the finishing steps.
+
+Skip the per-task/per-group reviewer dispatches on this path; the single
+whole-branch review covers a plan this small.
 
 ## The Process
 
@@ -38,37 +57,37 @@ digraph when_to_use {
 digraph process {
     rankdir=TB;
 
-    subgraph cluster_per_task {
-        label="Per Task";
-        "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
+    subgraph cluster_per_group {
+        label="Per Group";
+        "Dispatch one implementer per group (./implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-        "Write diff file, dispatch task reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
-        "Task reviewer reports spec ✅ and quality approved?" [shape=diamond];
+        "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [shape=box];
+        "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
+        "Group reviewer reports spec ✅ and quality approved?" [shape=diamond];
         "Dispatch fix subagent for Critical/Important findings" [shape=box];
-        "Mark task complete in todo list and progress ledger" [shape=box];
+        "Mark group complete in todo list and progress ledger" [shape=box];
     }
 
     "Read plan, note context and global constraints, create todos" [shape=box];
-    "More tasks remain?" [shape=diamond];
+    "More groups remain?" [shape=diamond];
     "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" [shape=box];
     "Surface claude-md-revise candidates (if session had learnings)" [shape=box];
     "Use harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, note context and global constraints, create todos" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
+    "Read plan, note context and global constraints, create todos" -> "Dispatch one implementer per group (./implementer-prompt.md)";
+    "Dispatch one implementer per group (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Write diff file, dispatch task reviewer subagent (./task-reviewer-prompt.md)";
-    "Write diff file, dispatch task reviewer subagent (./task-reviewer-prompt.md)" -> "Task reviewer reports spec ✅ and quality approved?";
-    "Task reviewer reports spec ✅ and quality approved?" -> "Dispatch fix subagent for Critical/Important findings" [label="no"];
-    "Dispatch fix subagent for Critical/Important findings" -> "Write diff file, dispatch task reviewer subagent (./task-reviewer-prompt.md)" [label="re-review"];
-    "Task reviewer reports spec ✅ and quality approved?" -> "Mark task complete in todo list and progress ledger" [label="yes"];
-    "Mark task complete in todo list and progress ledger" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" [label="no"];
+    "Answer questions, provide context" -> "Dispatch one implementer per group (./implementer-prompt.md)";
+    "Implementer subagent asks questions?" -> "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [label="no"];
+    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)";
+    "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" -> "Group reviewer reports spec ✅ and quality approved?";
+    "Group reviewer reports spec ✅ and quality approved?" -> "Dispatch fix subagent for Critical/Important findings" [label="no"];
+    "Dispatch fix subagent for Critical/Important findings" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="re-review"];
+    "Group reviewer reports spec ✅ and quality approved?" -> "Mark group complete in todo list and progress ledger" [label="yes"];
+    "Mark group complete in todo list and progress ledger" -> "More groups remain?";
+    "More groups remain?" -> "Dispatch one implementer per group (./implementer-prompt.md)" [label="yes"];
+    "More groups remain?" -> "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" [label="no"];
     "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" -> "Surface claude-md-revise candidates (if session had learnings)";
     "Surface claude-md-revise candidates (if session had learnings)" -> "Use harness-flow:finishing-a-development-branch";
 }
@@ -76,7 +95,7 @@ digraph process {
 
 ## Pre-Flight Plan Review
 
-Before dispatching Task 1, scan the plan once for conflicts:
+Before dispatching the first group, scan the plan once for conflicts:
 
 - tasks that contradict each other or the plan's Global Constraints
 - anything the plan explicitly mandates that the review rubric treats as a
@@ -116,10 +135,12 @@ When the task's plan text contains the complete code to write, the
 implementation is transcription plus testing: use the cheapest tier for
 that implementer. Single-file mechanical fixes also take the cheapest tier.
 
-**Task complexity signals (implementation tasks):**
-- Touches 1-2 files with a complete spec → cheap model
-- Touches multiple files with integration concerns → standard model
-- Requires design judgment or broad codebase understanding → most capable model
+**Group complexity signals (implementation groups):** a group's tier is the
+highest-complexity task it contains — one integration task pulls the whole
+group up.
+- Every task in the group touches 1-2 files with a complete spec → cheap model
+- Any task touches multiple files with integration concerns → standard model
+- Any task requires design judgment or broad codebase understanding → most capable model
 
 **Tier → model alias (Claude Code).** The tiers above are harness-agnostic;
 below is the mapping this repo dispatches with. Use the short aliases, not
@@ -136,7 +157,7 @@ own dispatch model:
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** Generate the review package (`scripts/review-package BASE HEAD`, from this skill's directory — it prints the unique file path it wrote; BASE is the commit you recorded before dispatching the implementer — never `HEAD~1`, which silently drops all but the last commit of a multi-commit task), then dispatch the task reviewer with the printed path.
+**DONE:** (per group) Generate the review package (`scripts/review-package BASE HEAD`, from this skill's directory — it prints the unique file path it wrote; BASE is the commit you recorded before dispatching the implementer — never `HEAD~1`, which silently drops all but the last commit of a multi-commit task), then dispatch the task reviewer with the printed path.
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
 
@@ -225,9 +246,10 @@ Everything you paste into a dispatch prompt — and everything a subagent
 prints back — stays resident in your context for the rest of the session
 and is re-read on every later turn. Hand artifacts over as files:
 
-- **Task brief:** before dispatching an implementer, run this skill's
-  `scripts/task-brief PLAN_FILE N` — it extracts the task's full text to a
-  uniquely named file and prints the path. Compose the dispatch so the
+- **Group brief:** before dispatching an implementer, run this skill's
+  `scripts/task-brief PLAN_FILE N` with the GROUP number — it extracts the
+  whole group's text (all its tasks) to a uniquely named file and prints the
+  path. (On a group-less plan it extracts a single task — same call.) Compose the dispatch so the
   brief stays the single source of requirements. Your dispatch should
   contain: (1) one line on where this task fits in the project; (2) the
   brief path, introduced as "read this first — it is your requirements,
@@ -259,7 +281,7 @@ a ledger file, not only in todos.
   at the first task not marked complete.
 - When a task's review comes back clean, append one line to the ledger in
   the same message as your other bookkeeping:
-  `Task N: complete (commits <base7>..<head7>, review clean)`.
+  `Group N: complete (commits <base7>..<head7>, review clean)`.
 - The ledger is your recovery map: the commits it names exist in git even
   when your context no longer remembers creating them. After compaction,
   trust the ledger and `git log` over your own recollection.
@@ -278,12 +300,12 @@ a ledger file, not only in todos.
 You: I'm using Subagent-Driven Development to execute this plan.
 
 [Read plan file once: docs/harness-flow/plans/feature-plan.md]
-[Create todos for all tasks]
+[Create todos for all groups]
 
-Task 1: Hook installation script
+Group 1: Hook installation (Tasks 1.1, 1.2)
 
-[Run task-brief for Task 1; dispatch implementer
- (model: haiku — cheap: 1-2 files, complete spec)
+[Run task-brief for Group 1; dispatch implementer
+ (model: haiku — cheap: both tasks touch 1-2 files, complete spec)
  with brief + report paths + context]
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
@@ -292,53 +314,56 @@ You: "User level (~/.config/harness-flow/hooks/)"
 
 Implementer: "Got it. Implementing now..."
 [Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
+  - Task 1.1: Implemented install-hook command, 5/5 tests passing, committed
+    (self-review: found I missed --force flag, added it before committing)
+  - Task 1.2: Added config validation for the hook manifest, 4/4 tests passing, committed
+  - Group verification: ran the full suite once — 9/9 passing
 
-[Run review-package, dispatch task reviewer
+[Run review-package, dispatch group reviewer
  (model: sonnet — standard: mid-tier reviewer floor)
  with the printed path]
-Task reviewer: Spec ✅ - all requirements met, nothing extra.
-  Strengths: Good test coverage, clean. Issues: None. Task quality: Approved.
+Group reviewer: Spec ✅ - all requirements met across both tasks, nothing extra.
+  Strengths: Good test coverage, clean commits. Issues: None. Group quality: Approved.
 
-[Mark Task 1 complete]
+[Mark Group 1 complete: ledger line
+ "Group 1: complete (commits a1b2c3d..e4f5a6b, review clean)"]
 
-Task 2: Recovery modes
+Group 2: Recovery modes (Tasks 2.1, 2.2, 2.3)
 
-[Run task-brief for Task 2; dispatch implementer
- (model: sonnet — standard: multi-file, integration concerns)
+[Run task-brief for Group 2; dispatch implementer
+ (model: sonnet — standard: Task 2.3's integration work pulls the group up)
  with brief + report paths + context]
 
 Implementer: [No questions, proceeds]
 Implementer:
-  - Added verify/repair modes
-  - 8/8 tests passing
-  - Self-review: All good
-  - Committed
+  - Task 2.1: Added verify mode, 4/4 tests passing, committed
+  - Task 2.2: Added repair mode, 5/5 tests passing, committed
+  - Task 2.3: Wired progress reporting into both modes, 3/3 tests passing, committed
+  - Group verification: ran the full suite once — 12/12 passing
 
-[Run review-package, dispatch task reviewer
+[Run review-package, dispatch group reviewer
  (model: sonnet — standard: mid-tier reviewer floor)
  with the printed path]
-Task reviewer: Spec ❌:
-  - Missing: Progress reporting (spec says "report every 100 items")
+Group reviewer: Spec ❌ (Task 2.3):
+  - Missing: Progress cadence (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
   Issues (Important): Magic number (100)
 
 [Dispatch fix subagent
  (model: haiku — cheap: mechanical fix, named findings)
  with all findings]
-Fixer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
+Fixer: Removed --json flag, fixed the progress interval, extracted
+  PROGRESS_INTERVAL constant. Re-ran the 3 tests covering Task 2.3 — 3/3 passing.
 
-[Task reviewer reviews again]
-Task reviewer: Spec ✅. Task quality: Approved.
+[Group reviewer reviews again]
+Group reviewer: Spec ✅. Group quality: Approved.
 
-[Mark Task 2 complete]
+[Mark Group 2 complete: ledger line
+ "Group 2: complete (commits e4f5a6b..c7d8e9f, review clean)"]
 
 ...
 
-[After all tasks]
+[After all groups]
 [Dispatch final code-reviewer
  (model: opus — most capable: whole-branch review)]
 Final reviewer: All requirements met, ready to merge

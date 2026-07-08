@@ -67,6 +67,29 @@ test('missing description passes (cannot identify SDD dispatch)', () => {
   assert.equal(checkDispatch({ prompt: 'do something', model: undefined }), null);
 });
 
+// Group dispatches (coarsened SDD unit) behave like Task dispatches
+test('group implementer dispatch without model is a hit', () => {
+  const hit = checkDispatch({ description: 'Implement Group 1: auth core', prompt: 'x' });
+  assert.equal(hit && hit.id, 'sdd-model-required');
+});
+test('group reviewer dispatch without model is a hit', () => {
+  const hit = checkDispatch({ description: 'Review Group 2 (spec + quality)', prompt: 'x' });
+  assert.equal(hit && hit.id, 'sdd-model-required');
+});
+test('multi-digit group number still matches', () => {
+  const hit = checkDispatch({ description: 'Implement Group 12: something' });
+  assert.equal(hit && hit.id, 'sdd-model-required');
+});
+test('explicit model on a group dispatch passes', () => {
+  assert.equal(checkDispatch({ description: 'Implement Group 1: x', model: 'haiku' }), null);
+});
+test('"Implement Group N ..." without the colon passes (no blast radius)', () => {
+  assert.equal(checkDispatch({ description: 'Implement Group 5 later this week' }), null);
+});
+test('"Review Group N ..." without the (spec + quality) suffix passes (no blast radius)', () => {
+  assert.equal(checkDispatch({ description: 'Review Group 3 in the ticket' }), null);
+});
+
 // Robustness
 test('checkDispatch handles null/undefined safely', () => {
   assert.equal(checkDispatch(null), null);

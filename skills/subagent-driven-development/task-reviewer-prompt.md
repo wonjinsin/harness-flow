@@ -9,20 +9,20 @@ more, nothing less) and is well-built (clean, tested, maintainable)
 
 ```
 Subagent (general-purpose):
-  description: "Review Task N (spec + quality)"
+  description: "Review Group N (spec + quality)"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
          model silently inherits the session's most expensive one.
          Reviewer floor is mid-tier: sonnet for a routine diff,
          opus for a subtle/high-risk one]
   prompt: |
-    You are reviewing one task's implementation: first whether it matches its
-    requirements, then whether it is well-built. This is a task-scoped gate,
-    not a merge review — a broad whole-branch review happens separately after
-    all tasks are complete.
+    You are reviewing one Task Group's implementation (tasks N.1 … N.k, one commit each):
+    first whether it matches its requirements, then whether it is well-built.
+    This is a group-scoped gate, not a merge review — a broad whole-branch
+    review happens separately after all groups are complete.
 
     ## What Was Requested
 
-    Read the task brief: [BRIEF_FILE]
+    Read the group brief: [BRIEF_FILE]  (every task in the group)
 
     Global constraints from the spec/design that bind this task:
     [GLOBAL_CONSTRAINTS]
@@ -103,6 +103,10 @@ Subagent (general-purpose):
     **Tests:**
     - Do the new and changed tests verify real behavior, not mocks?
     - Are the task's edge cases covered?
+    - Does each task in the group assert its stated invariants and edge cases
+      — exact-length/boundary results, empty/whitespace input, named error
+      conditions — not only the happy-path examples? A task whose tests cover
+      only the examples is a finding.
 
     **Structure:**
     - Does each file have one clear responsibility with a well-defined interface?

@@ -4,18 +4,19 @@ Use this template when dispatching an implementer subagent.
 
 ```
 Subagent (general-purpose):
-  description: "Implement Task N: [task name]"
+  description: "Implement Group N: [group name]"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
          model silently inherits the session's most expensive one.
          e.g. haiku (cheap, plan has complete code),
          sonnet (standard, multi-file/integration)]
   prompt: |
-    You are implementing Task N: [task name]
+    You are implementing Group N: [group name] — tasks N.1 … N.k in order.
 
-    ## Task Description
+    ## Group Brief
 
-    Read your task brief first: [BRIEF_FILE]
-    It contains the full task text from the plan.
+    Read your group brief first: [BRIEF_FILE]
+    It contains every task in this group (N.1 … N.k) with the full text
+    from the plan. Implement the tasks in order — each is one TDD cycle.
 
     ## Context
 
@@ -33,13 +34,25 @@ Subagent (general-purpose):
 
     ## Your Job
 
-    Once you're clear on requirements:
-    1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work
-    5. Self-review (see below)
-    6. Report back
+    Once you're clear on requirements, work through the group's tasks in
+    order. For EACH task N.1 … N.k:
+    1. Follow TDD: write the failing test, see it fail, implement, see it pass.
+       Test this task at the SAME density you would if it were your whole
+       assignment — being one of several tasks in the group is not a reason to
+       test it more thinly. The test asserts the task's stated invariants and
+       edge cases, not only the happy-path examples: exact-length/boundary
+       results, empty and whitespace input, and every error condition the task
+       names (e.g. a `throws` assertion where the task says it throws).
+    2. Commit that task before starting the next (one commit per task)
+
+    After the LAST task in the group, run ONCE (not per task):
+    - the full test suite for the changed code — every test green, including
+      each task's own tests; a test you wrote that the code does not satisfy is
+      a defect to fix now, not to ship
+    - the project's formatter / typecheck if the repo has one
+      (e.g. `make fmt`; skip if no such target exists)
+
+    Then self-review the whole group (see below) and report back.
 
     Work from: [directory]
 
@@ -117,9 +130,12 @@ Subagent (general-purpose):
     Write your full report to [REPORT_FILE]:
     - What you implemented (or what you attempted, if blocked)
     - What you tested and test results
-    - **TDD Evidence** (if TDD was required for this task):
-      - RED: command run, relevant failing output before implementation, and why the failure was expected
-      - GREEN: command run and relevant passing output after implementation
+    - **TDD Evidence** (per task in the group):
+      - For each task N.M: RED (failing command + output + why expected)
+        and GREEN (passing command + output), plus the edge cases that task's
+        tests assert (boundaries, empty/whitespace, named error conditions)
+    - **Group-end verification:** the full-suite run and formatter/typecheck
+      result (command + output), run once after the last task
     - Files changed
     - Self-review findings (if any)
     - Any issues or concerns
@@ -127,7 +143,7 @@ Subagent (general-purpose):
     Then report back with ONLY (under 15 lines — the detail lives in the
     report file):
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
-    - Commits created (short SHA + subject)
+    - Commits created — one per task N.M (short SHA + subject)
     - One-line test summary (e.g. "14/14 passing, output pristine")
     - Your concerns, if any
     - The report file path

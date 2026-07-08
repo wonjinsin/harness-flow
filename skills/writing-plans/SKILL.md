@@ -43,9 +43,32 @@ deliverable needs them; split only where a reviewer could meaningfully
 reject one task while approving its neighbor. Each task ends with an
 independently testable deliverable.
 
+## Task Groups
+
+Wrap 2–3 related tasks into a **Task Group** — the unit `subagent-driven-development`
+dispatches to one implementer. Group tasks that share context and run in
+sequence (e.g. a parser task and the middleware that consumes it). A group
+is the coarser gate: one implementer builds all its tasks (one commit each),
+and one reviewer reviews the group's combined diff.
+
+- Heading: `### Group N: <name>`, with tasks nested as `#### Task N.M: <name>`.
+- Keep a group to 2–3 tasks. A task that is naturally standalone is its own
+  one-task group.
+- Group by shared context, not to hit a count. Do not split a single test
+  cycle across groups.
+- If the whole plan is ≤3 tasks, still write it (grouped or not) — the
+  executor runs tiny plans inline, without dispatch.
+
+**Backward compatibility:** a plan may omit groups entirely and use flat
+`### Task N` headings — `subagent-driven-development` then treats each task as
+its own group. Do not retrofit groups onto that convention unless you are
+writing a new plan.
+
 ## Bite-Sized Task Granularity
 
-**Each step is one action (2-5 minutes):**
+**Each *step* (not task) is one action (2-5 minutes):** a task is ~5 such
+steps; a group is 2–3 tasks. The 2–5 minutes sizes a step, never the dispatch
+unit.
 
 - "Write the failing test" - step
 - "Run it to make sure it fails" - step
@@ -81,7 +104,9 @@ include this section.]
 ## Task Structure
 
 ````markdown
-### Task N: [Component Name]
+### Group N: [Group Name]
+
+#### Task N.1: [Component Name]
 
 **Files:**
 
@@ -127,6 +152,52 @@ Expected: PASS
 git add tests/path/test.py src/path/file.py
 git commit -m "feat: add specific feature"
 ```
+
+#### Task N.2: [Second Component]
+
+**Files:**
+
+- Create: `exact/path/to/other_file.py`
+- Modify: `exact/path/to/file.py:12-18`
+- Test: `tests/exact/path/to/other_test.py`
+
+**Interfaces:**
+
+- Consumes: `function(input)` from Task N.1 (see Produces above)
+- Produces: [what later tasks rely on — exact function names, parameter
+  and return types]
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+def test_other_behavior():
+    result = other_function(function(input))
+    assert result == expected
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest tests/path/other_test.py::test_name -v`
+Expected: FAIL with "other_function not defined"
+
+- [ ] **Step 3: Write minimal implementation**
+
+```python
+def other_function(value):
+    return expected
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pytest tests/path/other_test.py::test_name -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/path/other_test.py src/path/other_file.py
+git commit -m "feat: add other feature"
+```
 ````
 
 ## No Placeholders
@@ -171,7 +242,7 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 After saving the plan, announce completion and proceed directly to Subagent-Driven execution:
 
-**"Plan complete and saved to `docs/harness-flow/plans/<filename>.md`. Proceeding with Subagent-Driven execution — fresh subagent per task with two-stage review between tasks."**
+**"Plan complete and saved to `docs/harness-flow/plans/<filename>.md`. Proceeding with Subagent-Driven execution — one implementer per Task Group (or inline for a ≤3-task plan), with review at each group boundary."**
 
 - **REQUIRED SUB-SKILL:** Use harness-flow:subagent-driven-development
-- Fresh subagent per task + two-stage review
+- Implementer per group + group-boundary review (tiny plans run inline)

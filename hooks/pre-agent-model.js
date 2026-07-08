@@ -12,10 +12,11 @@
 const { readStdinSync, parsePayload } = require('./lib/payload.js');
 
 // SDD dispatch descriptions, set verbatim by the implementer/task-reviewer
-// prompt templates: "Implement Task N: ..." and "Review Task N (spec + quality)".
-// Anchored on each template's distinctive shape (the colon / the suffix) so an
-// unrelated dispatch like "Review Task 3 in the ticket" is not caught.
-const SDD_DESC = /^Implement Task \d+:|^Review Task \d+ \(spec \+ quality\)/;
+// prompt templates: "Implement Group N: ..." and "Review Group N (spec + quality)".
+// "Task" is kept as a backward-compat alias for pre-group plans. Anchored on each
+// template's distinctive shape (the colon / the suffix) so an unrelated dispatch
+// like "Review Group 3 in the ticket" is not caught.
+const SDD_DESC = /^Implement (Task|Group) \d+:|^Review (Task|Group) \d+ \(spec \+ quality\)/;
 
 // A model value that resolves to "the session default" is exactly the leak.
 function modelChosen(model) {
