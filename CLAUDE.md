@@ -29,6 +29,13 @@ Skills under `skills/` are designed to be invoked **in order** for any non-trivi
 
 The chain ends when `finishing-a-development-branch` completes.
 
+**Worktree/subagent gotcha:** when running `subagent-driven-development` from inside a
+git worktree, dispatched implementer subagents may execute in the **main repo checkout**
+(on the base branch), not the worktree — so their `git commit` lands on the wrong branch.
+After each implementer reports DONE, verify the commit is on the feature branch
+(`git log` in the worktree); if it landed on the main checkout, cherry-pick it onto the
+feature branch and `git reset` the main checkout back.
+
 ## Parallel Track: Bug Fixing
 
 `systematic-debugging` is **not** part of the linear chain above — it's an
@@ -137,7 +144,6 @@ Skills use Claude Code tool names (`Task`, `TodoWrite`, `Skill`). Translations f
 
 - `codex-tools.md` — Codex (`spawn_agent`, `wait`, `close_agent`, `update_plan`)
 - `copilot-tools.md` — Copilot CLI
-- `gemini-tools.md` — Gemini CLI
 
 When editing a skill, keep tool references Claude-Code-native; the reference files do the translation.
 
