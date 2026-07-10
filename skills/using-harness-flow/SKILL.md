@@ -19,7 +19,7 @@ This is not negotiable. You cannot rationalize your way out of this.
 
 **Invoke relevant or requested skills BEFORE any response or action** — including clarifying questions, exploring the codebase, or checking files. Even a 1% chance a skill might apply means invoke it to check. If it turns out wrong for the situation, you don't have to use it.
 
-**Before writing or changing any code/file — and before entering plan mode:** if you haven't already brainstormed this session, invoke the brainstorming skill first.
+**Before writing or changing any code/file — and before entering plan mode:** classify the work first (see Size the Work First) and follow its route. Standard-tier work requires brainstorming before any code.
 
 Then announce "Using [skill] to [purpose]" and follow the skill exactly. If it has a checklist, create a TodoWrite todo per item.
 
@@ -29,6 +29,23 @@ When multiple skills apply, process skills come first — they set the approach,
 
 - "Let's build X" → brainstorming first, then implementation skills.
 - "Fix this bug" → systematic-debugging first, then domain skills.
+
+## Size the Work First
+
+Code-work requests (feature, refactor, script — not bug diagnosis, which routes to systematic-debugging) get a tier before anything else. Highest signal wins; **when unsure, take the higher tier** — up costs minutes, down skips safeguards.
+
+| Signal | trivial | standard |
+|---|---|---|
+| Change size | 1–2 files, few lines | larger |
+| New dependency/contract | none | possible |
+| Design ambiguity | none — obvious | anything less than obvious |
+
+An existing consumed contract (function, endpoint, format — internal or public) changed or removed in a way its consumers can observe; schema or config-format change; any edit on an auth/session/secrets path; new external dependency; data migration or irreversible data operation; concurrency/locking semantics → standard regardless of size, and 2+ viable approaches **that the user's request leaves open** likewise (a fully pinned spec leaves none; a behavior-preserving addition — new optional flag/param with a back-compat default — is not a trigger, size it by the table). **Before declaring trivial, read `references/sizing.md` (baits, caps) — a trivial declaration without that read is invalid.** Any other borderline call → read it too.
+
+Declare and proceed — one line the user can override, naming the closest standard trigger you rejected and why: `Tier: trivial — 1 file, few lines; closest trigger: contract change — additive, back-compat`.
+
+- **trivial** — implement inline in the current checkout with test-driven-development; self-review the diff, and check the cumulative diff for the whole request against sizing.md's trivial caps before commit (`git diff HEAD --stat`) (over cap → its retroactive procedure). Needing a second trivial commit for the same request means it was never trivial — reclassify standard. Then report done — finishing-a-development-branch does not apply (no branch).
+- **standard** — the full chain from brainstorming, unchanged.
 
 ## Red Flags
 
@@ -43,22 +60,11 @@ These thoughts mean STOP—you're rationalizing:
 | "Let me gather information first"   | Skills tell you HOW to gather information.             |
 | "This doesn't need a formal skill"  | If a skill exists, use it.                             |
 | "I remember this skill"             | Skills evolve. Read current version.                   |
-| "This doesn't count as a task"      | Action = task. Check for skills.                       |
 | "The skill is overkill"             | Simple things become complex. Use it.                  |
 | "I'll just do this one thing first" | Check BEFORE doing anything.                           |
-| "This feels productive"             | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means"            | Knowing the concept ≠ using the skill. Invoke it.      |
 
-These thoughts specifically skip **brainstorming** before you start building:
-
-| Thought                                       | Reality                                                                              |
-| --------------------------------------------- | ------------------------------------------------------------------------------------ |
-| "The user already told me exactly what to build" | A request states WHAT, not the design. Brainstorming surfaces the assumptions hidden in "exactly." Invoke it. |
-| "This is a change to existing code, not a new feature" | Modifying behavior is creative work. Changes break assumptions too. Invoke brainstorming. |
-| "It's a one-line / tiny change"               | Small changes are where unexamined assumptions cause the most rework. Size doesn't exempt the gate. |
-| "They asked for code, not a design"           | "Add X" / "fix Y" never means skip brainstorming. The gate runs first regardless of phrasing. |
-| "It's just a quick script / throwaway"        | Quick scripts encode assumptions about inputs, scope, and edge cases. Brainstorm them too. |
-| "We're past planning, I'm just implementing"  | If no design was presented and approved this session, you have NOT brainstormed. Invoke it. |
+Sizing rationalizations ("it's just a tiny change", "they asked for code, not a design", "quick script, no design needed") are tier-shopping — the classifier decides, not the pressure. When in doubt: higher tier, never lower.
 
 ## Platform Adaptation
 

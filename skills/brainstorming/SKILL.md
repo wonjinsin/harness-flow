@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this BEFORE writing or changing any code or files for a feature, fix, refactor, or script — including small or fully-specified ones. Triggers on requests like \"add X\", \"build/make/create X\", \"change/update how X works\", \"let's refactor Y\", \"a new endpoint/page/component\", \"a quick script to X\", or any request to modify existing behavior — even when the user seems to already know what they want. Do NOT use for diagnosing a bug or test failure (use systematic-debugging), when an approved spec/plan already exists (use writing-plans), or for trivial mechanical edits with one obvious form (typo, rename, version bump, dependency upgrade). Based on superpowers(https://github.com/obra/superpowers) and grill-me(https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md)."
+description: "You MUST use this BEFORE writing or changing any code or files for a feature, fix, refactor, or script — including small or fully-specified ones. Triggers on requests like \"add X\", \"build/make/create X\", \"change/update how X works\", \"let's refactor Y\", \"a new endpoint/page/component\", \"a quick script to X\", or any request to modify existing behavior — even when the user seems to already know what they want. Do NOT use for diagnosing a bug or test failure (use systematic-debugging), when an approved spec/plan already exists (use writing-plans), or for work classified trivial by using-harness-flow's Size the Work First (mechanical edits — typo, rename, version bump — take the trivial route). Based on superpowers(https://github.com/obra/superpowers) and grill-me(https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md)."
 ---
 
 # Brainstorming Ideas Into Designs
@@ -13,9 +13,9 @@ Start by understanding the current project context, then ask questions one at a 
 Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
 </HARD-GATE>
 
-## Anti-Pattern: "This Is Too Simple To Need A Design"
+## Tier Check
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+This skill is the standard-tier path. If using-harness-flow classified the work trivial, follow that route instead — trivial needs no design dialogue. No tier declared yet? Classify now (using-harness-flow → Size the Work First) before proceeding. "Too simple to need a design" is never a reason to skip — it is a reason to classify: trivial carries its own safeguards (TDD, self-review, diff caps), so the gate's intent survives at both tiers.
 
 ## Checklist
 

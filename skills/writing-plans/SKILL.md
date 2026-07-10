@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code. Based on superpowers(https://github.com/obra/superpowers).
+description: Use when you have an approved spec for a multi-step task, before touching code. Based on superpowers(https://github.com/obra/superpowers).
 ---
 
 # Writing Plans

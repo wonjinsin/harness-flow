@@ -36,6 +36,8 @@ After analyzing six Claude Code harnesses ([`design/comparison.md`](design/compa
 
 ## Skill chain — the order work flows in
 
+Work is tiered before the chain starts: **trivial** (1–2 files, obvious, no contract/security/ambiguity triggers) runs inline with TDD and a self-review — no worktree, docs, or approvals; **standard** runs the full chain. Objective diff caps backstop the classification (`skills/using-harness-flow/references/sizing.md`).
+
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
 2. **brainstorming** — refines the spec before implementation. Includes a `<HARD-GATE>` that blocks moving on without user approval. Output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md`.
