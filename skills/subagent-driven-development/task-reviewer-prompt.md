@@ -142,6 +142,24 @@ Subagent (general-purpose):
     Acknowledge what was done well before listing issues — accurate praise
     helps the implementer trust the rest of the feedback.
 
+    ## Finding Class (required on every Critical/Important finding)
+
+    Tag each Critical and Important finding with exactly one `class` — it tells
+    the controller whether a fix subagent can resolve it:
+    - `impl-fix` — the implementation is wrong, incomplete, or low-quality
+      against a correct spec. Re-dispatching a fixer can resolve it. This is
+      the default.
+    - `plan-escalate` — the plan/brief/spec text itself is wrong or internally
+      contradictory, so no implementation of it can be correct (e.g. it
+      mandates an interface that conflicts with another stated requirement, or
+      requires behavior the constraints forbid). A fixer cannot resolve this;
+      the human must decide. Every plan-mandated finding is `plan-escalate`.
+
+    Default to `impl-fix` when unsure, and state the evidence for choosing
+    `plan-escalate` — the plan text that is wrong or the two requirements that
+    conflict. Do not escalate merely because a fix is large or you dislike the
+    design.
+
     ## Output Format
 
     ### Spec Compliance
@@ -161,8 +179,9 @@ Subagent (general-purpose):
     #### Important (Should Fix)
     #### Minor (Nice to Have)
 
-    For each issue: file:line, what's wrong, why it matters, how to fix
-    (if not obvious).
+    For each Critical/Important issue: `class: impl-fix | plan-escalate`,
+    file:line, what's wrong, why it matters, how to fix (if not obvious).
+    (Minor findings need no class.)
 
     ### Assessment
 
@@ -188,7 +207,8 @@ Subagent (general-purpose):
   wrote; the package never enters the controller's context)
 
 **Reviewer returns:** Spec Compliance verdict (✅/❌/⚠️), Strengths, Issues
-(Critical/Important/Minor), Task quality verdict
+(Critical/Important/Minor, each Critical/Important tagged `class: impl-fix |
+plan-escalate`), Task quality verdict
 
 A fix dispatch can address spec gaps and quality findings together;
 re-review after fixes covers both verdicts.

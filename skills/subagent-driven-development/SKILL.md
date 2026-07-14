@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group, and a broad whole-branch review at the end.
+Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group except cheap-tier groups (which the final review nets), and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, impl-fix runs a fix loop capped at 3 re-reviews.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
@@ -63,9 +63,12 @@ digraph process {
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [shape=box];
+        "Group tier == cheap?" [shape=diamond];
         "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
         "Group reviewer reports spec ✅ and quality approved?" [shape=diamond];
-        "Dispatch fix subagent for Critical/Important findings" [shape=box];
+        "plan-escalate finding or 3 re-reviews reached?" [shape=diamond];
+        "Escalate to human" [shape=box];
+        "Dispatch fix subagent for impl-fix findings" [shape=box];
         "Mark group complete in todo list and progress ledger" [shape=box];
     }
 
@@ -80,10 +83,14 @@ digraph process {
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch one implementer per group (./implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [label="no"];
-    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)";
+    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Group tier == cheap?";
+    "Group tier == cheap?" -> "Mark group complete in todo list and progress ledger" [label="yes — skip reviewer, final review nets it"];
+    "Group tier == cheap?" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="no"];
     "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" -> "Group reviewer reports spec ✅ and quality approved?";
-    "Group reviewer reports spec ✅ and quality approved?" -> "Dispatch fix subagent for Critical/Important findings" [label="no"];
-    "Dispatch fix subagent for Critical/Important findings" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="re-review"];
+    "Group reviewer reports spec ✅ and quality approved?" -> "plan-escalate finding or 3 re-reviews reached?" [label="no"];
+    "plan-escalate finding or 3 re-reviews reached?" -> "Escalate to human" [label="yes"];
+    "plan-escalate finding or 3 re-reviews reached?" -> "Dispatch fix subagent for impl-fix findings" [label="no"];
+    "Dispatch fix subagent for impl-fix findings" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="re-review (++reviewCycles)"];
     "Group reviewer reports spec ✅ and quality approved?" -> "Mark group complete in todo list and progress ledger" [label="yes"];
     "Mark group complete in todo list and progress ledger" -> "More groups remain?";
     "More groups remain?" -> "Dispatch one implementer per group (./implementer-prompt.md)" [label="yes"];
@@ -240,6 +247,49 @@ final whole-branch review. When you fill a reviewer template:
   Per-finding fixers each rebuild context and re-run suites; a real
   session's final-review fix wave cost more than all its tasks combined.
 
+## Review Gating: Skip the Reviewer for Cheap-Tier Groups
+
+Reuse the group's implementation tier (see "Group complexity signals") to
+decide whether the group earns a dedicated reviewer dispatch:
+
+- **Group tier is `cheap`** (every task touches 1-2 files with a complete
+  spec) → **do NOT dispatch the group reviewer.** Trust the implementer's
+  self-review, record `Group N: review skipped (cheap)` in the ledger, and
+  move to the next group. The final whole-branch review is the net.
+- **Group tier is `standard` or `most capable`** → dispatch the group
+  reviewer as usual and run the review loop below.
+
+When you dispatch the final whole-branch review, list the groups you skipped
+in its prompt ("Groups 3 and 5 had no dedicated review — cover them here")
+so the one broad review deliberately covers the ungated code.
+
+This is the same risk signal that already routes cheap groups to a cheap
+implementer model: a low-risk, fully-specified, small-surface group is
+exactly the one the final review can safely net, so a per-group reviewer
+cold-start on it is pure overhead. It is not a license to widen what counts
+as `cheap` — the tier definition is unchanged.
+
+## Review Loop: Escalation and Retry Cap
+
+The reviewer tags each Critical/Important finding with a `class` (see
+`task-reviewer-prompt.md`). Route the review result by class, and cap the
+loop so a finding a fixer cannot resolve does not spin forever:
+
+- **Any `plan-escalate` finding → stop, do not dispatch a fixer.** The plan
+  or spec text itself is wrong, so no implementation fixes it. Present the
+  finding beside the plan text it contradicts and ask the human which
+  governs — the same escalation any plan contradiction gets. Resume only
+  after the human resolves it.
+- **`impl-fix` findings only → run the fix → re-review loop, capped at 3
+  re-reviews per group.** Track the count in the progress ledger as
+  `reviewCycles: <n>` for the group and increment it on every re-review
+  dispatch. When a group reaches 3 re-reviews with findings still open,
+  **stop and escalate to the human** — three fixer rounds that did not
+  converge signal the task, not the implementation, needs a decision.
+- The ledger counter is authoritative: after a compaction or resume, read
+  `reviewCycles` from the ledger, not your recollection, so the cap cannot
+  be silently reset by re-entering the loop.
+
 ## File Handoffs
 
 Everything you paste into a dispatch prompt — and everything a subagent
@@ -282,6 +332,12 @@ a ledger file, not only in todos.
 - When a task's review comes back clean, append one line to the ledger in
   the same message as your other bookkeeping:
   `Group N: complete (commits <base7>..<head7>, review clean)`.
+- While a group is still in the review loop, record its re-review count as
+  `Group N: reviewCycles <n>` and update it on each re-review dispatch. This
+  is the authoritative source for the 3-re-review cap (see "Review Loop:
+  Escalation and Retry Cap") — after a resume, read it back instead of
+  restarting the count from zero. A group reviewed with no dispatched
+  reviewer (the cheap-tier skip in "Review Gating") needs no counter.
 - The ledger is your recovery map: the commits it names exist in git even
   when your context no longer remembers creating them. After compaction,
   trust the ledger and `git log` over your own recollection.
