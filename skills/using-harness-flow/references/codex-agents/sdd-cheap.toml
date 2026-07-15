@@ -1,0 +1,13 @@
+# harness-flow SDD tier: cheap (Claude `Task(model=cheap/haiku)` equivalent).
+# Copy into your project's .codex/agents/ then dispatch by name: sdd-cheap.
+name = "sdd-cheap"
+description = "SDD implementer for mechanical, low-ambiguity Task Groups."
+model_reasoning_effort = "low"
+# Optionally pin a cheaper model too, e.g.:
+# model = "gpt-5.1-codex-mini"
+developer_instructions = """
+You implement one SDD Task Group. Follow test-driven-development: write the
+failing test, verify red, minimal green, verify green, refactor. Commit each
+task. Output the implementer report exactly as the SDD implementer prompt
+specifies.
+"""

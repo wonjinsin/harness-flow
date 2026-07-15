@@ -1,6 +1,6 @@
 {
   "name": "harness-flow",
-  "description": "Personal skills library for Claude Code: TDD, worktree workflows, subagent-driven development, and battle-tested engineering patterns",
+  "description": "Personal skills library: TDD, worktree workflows, subagent-driven development, and battle-tested engineering patterns. Cross-harness (Claude Code + Codex).",
   "version": "1.1.7",
   "author": {
     "name": "wonjinsin",
@@ -9,12 +9,6 @@
   "homepage": "https://github.com/wonjinsin/harness-flow",
   "repository": "https://github.com/wonjinsin/harness-flow",
   "license": "MIT",
-  "keywords": [
-    "skills",
-    "tdd",
-    "worktrees",
-    "subagent",
-    "workflows",
-    "best-practices"
-  ]
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json"
 }

@@ -1,0 +1,11 @@
+{
+  "name": "harness-flow",
+  "plugins": [
+    {
+      "name": "harness-flow",
+      "description": "Cross-harness skills library (Claude Code + Codex)",
+      "source": { "path": "./" },
+      "category": "workflow"
+    }
+  ]
+}

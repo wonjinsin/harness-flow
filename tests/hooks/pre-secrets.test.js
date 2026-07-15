@@ -284,3 +284,58 @@ test('matchFilePath does not match Bash-shaped string "cat .env" (has whitespace
 test('matchFilePath does not match "rm -rf /"', () => {
   assert.equal(matchFilePath('rm -rf /'), null);
 });
+
+// ---------- apply_patch (Codex) ----------
+
+const { getPatch } = require('../../hooks/lib/payload.js');
+
+test('getPatch reads tool_input.input', () => {
+  assert.equal(
+    getPatch({ tool_input: { input: '*** Begin Patch\n*** Update File: .env\n*** End Patch' } }),
+    '*** Begin Patch\n*** Update File: .env\n*** End Patch',
+  );
+});
+
+test('getPatch falls back to tool_input.command', () => {
+  assert.equal(getPatch({ tool_input: { command: 'apply_patch xyz' } }), 'apply_patch xyz');
+});
+
+test('getPatch returns empty string when fields absent', () => {
+  assert.equal(getPatch({ tool_input: {} }), '');
+});
+
+test('getPatch fails safe: unknown field name still lets matchBashCommand catch the secret', () => {
+  const patch = '*** Begin Patch\n*** Update File: config/.env\n+X=1\n*** End Patch';
+  const out = getPatch({ tool_input: { patch } });
+  assert.equal(matchBashCommand(out).id, 'read-dotenv');
+});
+
+test('apply_patch touching .env is caught via matchBashCommand tokenization', () => {
+  const patch = '*** Begin Patch\n*** Update File: config/.env\n+SECRET=1\n*** End Patch';
+  assert.equal(matchBashCommand(patch).id, 'read-dotenv');
+});
+
+test('apply_patch touching id_rsa is caught', () => {
+  const patch = '*** Begin Patch\n*** Add File: /home/u/.ssh/id_rsa\n*** End Patch';
+  assert.equal(matchBashCommand(patch).id, 'read-ssh-key');
+});
+
+test('apply_patch touching .env.example is allowed', () => {
+  const patch = '*** Begin Patch\n*** Update File: .env.example\n*** End Patch';
+  assert.equal(matchBashCommand(patch), null);
+});
+
+// ---------- apply_patch end-to-end deny via spawnSync ----------
+
+const { spawnSync } = require('node:child_process');
+const SCRIPT = require('node:path').join(__dirname, '..', '..', 'hooks', 'pre-secrets.js');
+
+test('apply_patch on .env denies end-to-end (exit 2)', () => {
+  const payload = {
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: .env\n+X=1\n*** End Patch' },
+  };
+  const res = spawnSync('node', [SCRIPT], { input: JSON.stringify(payload), encoding: 'utf-8' });
+  assert.equal(res.status, 2);
+  assert.match(res.stdout + res.stderr, /permissionDecision|deny|secret|\.env/i);
+});

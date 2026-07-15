@@ -63,7 +63,7 @@ The final body is: the template's headings, in the template's order, each filled
 
 ```bash
 git push -u origin <branch>     # only if the branch isn't already pushed
-gh pr create --base <base> --title "<title>" --body-file <tmp-file>
+gh pr create --base <base> --title "<title>" --body-file <tmp-file> --assignee @me
 ```
 
 Write the body to a temp file and pass `--body-file` — inline `--body "$(cat <<EOF ...)"` breaks on quoting and is hard to review.

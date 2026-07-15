@@ -17,6 +17,7 @@ const {
   parsePayload,
   getCommand,
   getFilePath,
+  getPatch,
 } = require('./lib/payload.js');
 
 // Skip these even when they would otherwise match the dotenv pattern — they're
@@ -105,6 +106,10 @@ function main() {
     value = getCommand(payload);
     hit = matchBashCommand(value);
     kind = 'Bash command';
+  } else if (tool === 'apply_patch') {
+    value = getPatch(payload);
+    hit = matchBashCommand(value);
+    kind = 'apply_patch';
   } else if (FILE_TOOLS.has(tool)) {
     value = getFilePath(payload);
     hit = matchFilePath(value);

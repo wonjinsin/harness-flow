@@ -12,6 +12,23 @@ Skills use Claude Code tool names. When you encounter these in a skill, use your
 | `Skill` tool (invoke a skill)    | Skills load natively — just follow the instructions               |
 | `Read`, `Write`, `Edit` (files)  | Use your native file tools                                        |
 | `Bash` (run commands)            | Use your native shell tools                                       |
+| File-edit patches                | `apply_patch` — the secret guard scans the patch body itself and blocks writes touching `.env`, SSH keys, and similar secret files |
+
+## Installing the plugin in Codex
+
+Codex supports plugin, skill, and hook install directly — install harness-flow
+the same way as any other plugin marketplace source:
+
+```bash
+codex plugin marketplace add wonjinsin/harness-flow
+# or, from a local checkout:
+codex plugin marketplace add .
+```
+
+Hooks reference `${CLAUDE_PLUGIN_ROOT}`; Codex treats this as a compat alias
+and resolves it the same way. Some macOS installs have been reported missing
+this alias (see issue #448) — if a hook fails to find its script, verify
+`CLAUDE_PLUGIN_ROOT` is set in the environment Codex launches hooks with.
 
 ## Subagent dispatch requires multi-agent support
 
@@ -63,12 +80,25 @@ specified in the instructions above.
 - Wrap instructions in XML tags — the model treats tagged blocks as authoritative
 - End with an explicit execution directive to prevent summarization of the instructions
 
-### When this workaround can be removed
+### SDD model tiering (profiles)
 
-This approach compensates for Codex's plugin system not yet supporting an `agents`
-field in `plugin.json`. When `RawPluginManifest` gains an `agents` field, the
-plugin can symlink to `agents/` (mirroring the existing `skills/` symlink) and
-skills can dispatch named agent types directly.
+Claude Code's `subagent-driven-development` picks a tier per dispatch —
+`Task(model=cheap/haiku)` for mechanical groups, `standard/sonnet` for groups
+requiring judgment, and a sonnet-or-higher floor for the reviewer. Claude Code
+enforces the choice with `hooks/pre-agent-model.js`, which blocks a dispatch
+that omits `model`.
+
+Codex has no equivalent hook: `SubagentStart` cannot block a dispatch, and the
+target model isn't exposed to it, so there is nothing to gate on. The Codex
+equivalent is a custom agent **profile** per tier, not a hook:
+
+1. Copy the templates from `references/codex-agents/` (`sdd-cheap.toml`,
+   `sdd-standard.toml`, `sdd-review.toml`) into your project's `.codex/agents/`.
+2. Dispatch by profile name (`sdd-cheap`, `sdd-standard`, `sdd-review`) instead
+   of passing a `model` parameter.
+3. Each profile's tier lever is `model_reasoning_effort` (`low` / `medium` /
+   `high` — verified-valid Codex values). `model` is left commented in each
+   template for users who also want to pin a specific model per tier.
 
 ## Environment Detection
 
