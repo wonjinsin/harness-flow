@@ -147,6 +147,14 @@ the implementer's single source of requirements — exact values (numbers,
 magic strings, signatures, test cases) live here, not in the dispatch
 prompt.
 
+A brief-check pass IS the brief's definition of done — authoring ends
+there, and the action after exit 0 is the dispatch itself. Executing the
+brief's code anywhere (its tests, its TDD cycles, a sandbox or scratch
+copy, "outside the brief") is the implementer's cycle at the
+implementer's tier: red/green evidence comes from the implementer's run.
+If you doubt a step while authoring, fix the step's text and re-run
+brief-check — doubt is resolved in the text, not by executing it.
+
 **Legacy plan file instead of a spec section?** Extract the brief with
 `scripts/task-brief PLAN_FILE N` as before — extraction replaces
 authoring, and brief-check is not needed (the plan document was already
