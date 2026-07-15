@@ -24,6 +24,10 @@ Subagent (general-purpose):
 
     Read the group brief: [BRIEF_FILE]  (every task in the group)
 
+    The spec's decomposition contract for this group (the brief must
+    implement exactly this — tasks, files, interfaces):
+    [SPEC_GROUP_ENTRY]
+
     Global constraints from the spec/design that bind this task:
     [GLOBAL_CONSTRAINTS]
 
@@ -147,18 +151,22 @@ Subagent (general-purpose):
     Tag each Critical and Important finding with exactly one `class` — it tells
     the controller whether a fix subagent can resolve it:
     - `impl-fix` — the implementation is wrong, incomplete, or low-quality
-      against a correct spec. Re-dispatching a fixer can resolve it. This is
+      against a correct brief. Re-dispatching a fixer can resolve it. This is
       the default.
-    - `plan-escalate` — the plan/brief/spec text itself is wrong or internally
+    - `brief-fix` — the brief itself deviates from the spec's decomposition
+      contract above: it omits a listed requirement, contradicts a stated
+      interface, or invents scope the spec section does not contain. The
+      controller must rewrite the brief before any fix. Cite both lines: the
+      spec-section line and the brief line that conflict.
+    - `plan-escalate` — the spec text itself is wrong or internally
       contradictory, so no implementation of it can be correct (e.g. it
       mandates an interface that conflicts with another stated requirement, or
       requires behavior the constraints forbid). A fixer cannot resolve this;
       the human must decide. Every plan-mandated finding is `plan-escalate`.
 
     Default to `impl-fix` when unsure, and state the evidence for choosing
-    `plan-escalate` — the plan text that is wrong or the two requirements that
-    conflict. Do not escalate merely because a fix is large or you dislike the
-    design.
+    `brief-fix` or `plan-escalate` — the conflicting lines. Do not escalate
+    merely because a fix is large or you dislike the design.
 
     ## Output Format
 
@@ -179,7 +187,7 @@ Subagent (general-purpose):
     #### Important (Should Fix)
     #### Minor (Nice to Have)
 
-    For each Critical/Important issue: `class: impl-fix | plan-escalate`,
+    For each Critical/Important issue: `class: impl-fix | brief-fix | plan-escalate`,
     file:line, what's wrong, why it matters, how to fix (if not obvious).
     (Minor findings need no class.)
 
@@ -192,8 +200,12 @@ Subagent (general-purpose):
 
 **Placeholders:**
 - `[MODEL]` — REQUIRED: reviewer model per SKILL.md Model Selection
-- `[BRIEF_FILE]` — REQUIRED: the task brief file (`scripts/task-brief PLAN N`
-  prints the path; same file the implementer worked from)
+- `[BRIEF_FILE]` — REQUIRED: the group brief file (controller-authored at
+  dispatch time and brief-check-clean; on the legacy path, printed by
+  scripts/task-brief)
+- `[SPEC_GROUP_ENTRY]` — REQUIRED (new path): the group's entry from the
+  spec's Implementation Groups section, verbatim; on the legacy path use
+  the plan's group text and note it as such
 - `[GLOBAL_CONSTRAINTS]` — the binding requirements copied verbatim from
   the plan's Global Constraints section or the spec: exact values, formats,
   and stated relationships between components (not process rules — those
@@ -208,7 +220,7 @@ Subagent (general-purpose):
 
 **Reviewer returns:** Spec Compliance verdict (✅/❌/⚠️), Strengths, Issues
 (Critical/Important/Minor, each Critical/Important tagged `class: impl-fix |
-plan-escalate`), Task quality verdict
+brief-fix | plan-escalate`), Task quality verdict
 
 A fix dispatch can address spec gaps and quality findings together;
 re-review after fixes covers both verdicts.

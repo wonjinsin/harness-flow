@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Deterministic placeholder guard for dispatch-time group briefs.
+# A brief the controller authors must contain real content — this script
+# rejects the placeholder patterns writing-plans used to forbid in plan
+# documents, so the guard survives the plan's demotion to execution state.
+#
+# Usage: brief-check BRIEF_FILE
+# Exit: 0 pass / 1 findings (stderr: "line N: reason") / 2 usage error.
+set -euo pipefail
+
+if [ $# -ne 1 ]; then
+  echo "usage: brief-check BRIEF_FILE" >&2
+  exit 2
+fi
+
+brief=$1
+[ -f "$brief" ] || { echo "no such brief file: $brief" >&2; exit 2; }
+
+# Unbalanced/unclosed code fences: an odd count of ``` lines means some
+# content silently falls "inside" a fence for the rest of the file, which
+# would suppress the placeholder scan below for that content.
+fail=0
+fence_count=$(grep -c '^```' "$brief" || true)
+if [ $(( fence_count % 2 )) -ne 0 ]; then
+  echo "unbalanced code fences in brief" >&2
+  fail=1
+fi
+
+# Placeholder patterns, checked outside code fences only: fenced content is
+# the task's shipped code, not brief prose. "tbd" is case-insensitive;
+# "TODO" is matched case-sensitively (uppercase only) so ordinary English
+# words like "todo list" / "todos" don't false-positive. Both use a
+# word-boundary technique since BSD awk has no \b.
+while IFS= read -r hit; do
+  echo "$hit" >&2
+  fail=1
+done < <(awk '
+  /^```/ { infence = !infence; next }
+  infence { next }
+  {
+    raw = $0
+    low = tolower($0)
+    if (raw ~ /(^|[^[:alnum:]])TODO([^[:alnum:]]|$)/ ||
+        low ~ /(^|[^[:alnum:]])tbd([^[:alnum:]]|$)/ ||
+        low ~ /implement later|fill in|appropriate error handling|add validation|handle edge cases|similar to (task|group)/)
+      printf "line %d: placeholder: %s\n", NR, $0
+  }
+' "$brief")
+
+# A brief whose steps carry no code fence at all cannot contain the exact
+# test/implementation code a dispatch-grade brief promises.
+if ! grep -q '^```' "$brief"; then
+  echo "no code fence in brief — step code blocks are required" >&2
+  fail=1
+fi
+
+exit "$fail"

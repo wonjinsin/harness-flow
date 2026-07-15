@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group except cheap-tier groups (which the final review nets), and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, impl-fix runs a fix loop capped at 3 re-reviews.
+Execute a spec's `## Implementation Groups` section (or a legacy standalone plan file) by authoring one brief per Task Group at dispatch time, dispatching one implementer per group (or running inline for a ≤3-task decomposition), a group review (spec compliance + code quality) after each group except cheap-tier groups (which the final review nets), and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, brief-fix regenerates the controller-authored brief, impl-fix runs a fix loop capped at 3 re-reviews.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
@@ -20,15 +20,15 @@ ledger and the tool results carry the record.
 
 ```dot
 digraph when_to_use {
-    "Have implementation plan?" [shape=diamond];
+    "Spec has ## Implementation Groups (or legacy plan file)?" [shape=diamond];
     "Total tasks <= 3?" [shape=diamond];
     "Tasks mostly independent?" [shape=diamond];
     "Inline: Read test-driven-development, implement in current context" [shape=box];
     "subagent-driven-development (per-group dispatch)" [shape=box];
     "Manual execution or brainstorm first" [shape=box];
 
-    "Have implementation plan?" -> "Total tasks <= 3?" [label="yes"];
-    "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
+    "Spec has ## Implementation Groups (or legacy plan file)?" -> "Total tasks <= 3?" [label="yes"];
+    "Spec has ## Implementation Groups (or legacy plan file)?" -> "Manual execution or brainstorm first" [label="no"];
     "Total tasks <= 3?" -> "Inline: Read test-driven-development, implement in current context" [label="yes"];
     "Total tasks <= 3?" -> "Tasks mostly independent?" [label="no"];
     "Tasks mostly independent?" -> "subagent-driven-development (per-group dispatch)" [label="yes"];
@@ -43,6 +43,8 @@ cold-start of a fresh subagent costs more than the work. Instead:
 
 1. Read `harness-flow:test-driven-development` into your current context (via
    the Skill tool) and implement each task inline, following Red→Green→Refactor.
+   Read the group definitions from the spec's Implementation Groups section; a
+   brief file is unnecessary — you hold the full context inline.
 2. Commit one task at a time (same discipline as a dispatched implementer).
 3. After the last task, run the full suite + formatter/typecheck once.
 4. **Still dispatch the final whole-branch review** — a fresh-context reviewer
@@ -67,18 +69,20 @@ digraph process {
         "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
         "Group reviewer reports spec ✅ and quality approved?" [shape=diamond];
         "plan-escalate finding or 3 re-reviews reached?" [shape=diamond];
+        "brief-fix findings?" [shape=diamond];
+        "Rewrite brief per spec section, re-run brief-check" [shape=box];
         "Escalate to human" [shape=box];
-        "Dispatch fix subagent for impl-fix findings" [shape=box];
+        "Dispatch fix subagent for the findings" [shape=box];
         "Mark group complete in todo list and progress ledger" [shape=box];
     }
 
-    "Read plan, note context and global constraints, create todos" [shape=box];
+    "Read spec's Implementation Groups section (or legacy plan), note global constraints, create todos" [shape=box];
     "More groups remain?" [shape=diamond];
     "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" [shape=box];
     "Surface claude-md-revise candidates (if session had learnings)" [shape=box];
     "Use harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, note context and global constraints, create todos" -> "Dispatch one implementer per group (./implementer-prompt.md)";
+    "Read spec's Implementation Groups section (or legacy plan), note global constraints, create todos" -> "Dispatch one implementer per group (./implementer-prompt.md)";
     "Dispatch one implementer per group (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch one implementer per group (./implementer-prompt.md)";
@@ -89,8 +93,11 @@ digraph process {
     "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" -> "Group reviewer reports spec ✅ and quality approved?";
     "Group reviewer reports spec ✅ and quality approved?" -> "plan-escalate finding or 3 re-reviews reached?" [label="no"];
     "plan-escalate finding or 3 re-reviews reached?" -> "Escalate to human" [label="yes"];
-    "plan-escalate finding or 3 re-reviews reached?" -> "Dispatch fix subagent for impl-fix findings" [label="no"];
-    "Dispatch fix subagent for impl-fix findings" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="re-review (++reviewCycles)"];
+    "plan-escalate finding or 3 re-reviews reached?" -> "brief-fix findings?" [label="no"];
+    "brief-fix findings?" -> "Rewrite brief per spec section, re-run brief-check" [label="yes"];
+    "Rewrite brief per spec section, re-run brief-check" -> "Dispatch fix subagent for the findings";
+    "brief-fix findings?" -> "Dispatch fix subagent for the findings" [label="no"];
+    "Dispatch fix subagent for the findings" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="re-review (++reviewCycles)"];
     "Group reviewer reports spec ✅ and quality approved?" -> "Mark group complete in todo list and progress ledger" [label="yes"];
     "Mark group complete in todo list and progress ledger" -> "More groups remain?";
     "More groups remain?" -> "Dispatch one implementer per group (./implementer-prompt.md)" [label="yes"];
@@ -102,7 +109,10 @@ digraph process {
 
 ## Pre-Flight Plan Review
 
-Before dispatching the first group, scan the plan once for conflicts:
+**Legacy plan files only** — a dispatch-time-authored brief cannot go
+stale against the codebase, so the new path needs no pre-flight scan.
+When executing a standalone plan file, scan it once before the first
+group for conflicts:
 
 - tasks that contradict each other or the plan's Global Constraints
 - anything the plan explicitly mandates that the review rubric treats as a
@@ -113,6 +123,34 @@ each finding beside the plan text that mandates it, asking which governs —
 before execution begins, not one interrupt per discovery mid-plan. If the
 scan is clean, proceed without comment. The review loop remains the net for
 conflicts that only emerge from implementation.
+
+## Authoring the Group Brief
+
+The spec's Implementation Groups section is the decomposition contract;
+the step script is yours to write, per group, at dispatch time. Before
+dispatching group N, author `$(scripts/sdd-workspace)/group-N-brief.md`
+containing, in order:
+
+1. The group's entry from the spec section, verbatim (tasks, Files,
+   Interfaces).
+2. The spec's Global Constraints, copied verbatim.
+3. Per task, the full TDD step cycle with complete content: the failing
+   test code, the run command with expected failure, the minimal
+   implementation code, the run command with expected pass, the commit
+   step. Write the code against the current codebase — including the
+   actual merged code of earlier groups, not the section's predictions.
+
+Then run this skill's `scripts/brief-check <brief-path>`. Exit 1 lists
+placeholder lines on stderr: replace each flagged line with the real
+content it stands for and re-run. Dispatch only on exit 0. The brief is
+the implementer's single source of requirements — exact values (numbers,
+magic strings, signatures, test cases) live here, not in the dispatch
+prompt.
+
+**Legacy plan file instead of a spec section?** Extract the brief with
+`scripts/task-brief PLAN_FILE N` as before — extraction replaces
+authoring, and brief-check is not needed (the plan document was already
+reviewed).
 
 ## Model Selection
 
@@ -275,17 +313,22 @@ The reviewer tags each Critical/Important finding with a `class` (see
 `task-reviewer-prompt.md`). Route the review result by class, and cap the
 loop so a finding a fixer cannot resolve does not spin forever:
 
-- **Any `plan-escalate` finding → stop, do not dispatch a fixer.** The plan
-  or spec text itself is wrong, so no implementation fixes it. Present the
-  finding beside the plan text it contradicts and ask the human which
-  governs — the same escalation any plan contradiction gets. Resume only
-  after the human resolves it.
-- **`impl-fix` findings only → run the fix → re-review loop, capped at 3
-  re-reviews per group.** Track the count in the progress ledger as
-  `reviewCycles: <n>` for the group and increment it on every re-review
-  dispatch. When a group reaches 3 re-reviews with findings still open,
-  **stop and escalate to the human** — three fixer rounds that did not
-  converge signal the task, not the implementation, needs a decision.
+- **Any `plan-escalate` finding → stop, do not dispatch a fixer.** The
+  spec text itself is wrong, so no implementation of it can be correct.
+  Present the finding beside the spec text it contradicts and ask the
+  human which governs. Resume only after the human resolves it.
+- **`brief-fix` findings → rewrite the brief, then fix.** The
+  controller-authored brief contradicts or omits what the spec section
+  requires — that is your authoring error, not the human's decision.
+  Rewrite the flagged brief content against the spec, re-run
+  `scripts/brief-check`, dispatch one fixer with the corrected brief, and
+  re-review. Each re-review increments the same `reviewCycles` counter.
+- **`impl-fix` findings only → run the fix → re-review loop.** Track
+  `reviewCycles: <n>` in the progress ledger and increment it on every
+  re-review dispatch, whatever the class mix. When a group reaches 3
+  re-reviews with findings still open, **stop and escalate to the
+  human** — three rounds that did not converge signal the task, not the
+  implementation, needs a decision.
 - The ledger counter is authoritative: after a compaction or resume, read
   `reviewCycles` from the ledger, not your recollection, so the cap cannot
   be silently reset by re-entering the loop.
@@ -296,10 +339,10 @@ Everything you paste into a dispatch prompt — and everything a subagent
 prints back — stays resident in your context for the rest of the session
 and is re-read on every later turn. Hand artifacts over as files:
 
-- **Group brief:** before dispatching an implementer, run this skill's
-  `scripts/task-brief PLAN_FILE N` with the GROUP number — it extracts the
-  whole group's text (all its tasks) to a uniquely named file and prints the
-  path. (On a group-less plan it extracts a single task — same call.) Compose the dispatch so the
+- **Group brief:** before dispatching an implementer, author the group's
+  brief per "Authoring the Group Brief" above (legacy plan file: extract
+  with `scripts/task-brief PLAN_FILE N` instead — same output location).
+  Compose the dispatch so the
   brief stays the single source of requirements. Your dispatch should
   contain: (1) one line on where this task fits in the project; (2) the
   brief path, introduced as "read this first — it is your requirements,
@@ -309,7 +352,7 @@ and is re-read on every later turn. Hand artifacts over as files:
   report contract. Exact values (numbers, magic strings, signatures, test
   cases) appear only in the brief.
 - **Report file:** name the implementer's report file after the brief
-  (brief `…/task-N-brief.md` → report `…/task-N-report.md`) and put it in
+  (brief `…/group-N-brief.md` → report `…/group-N-report.md`) and put it in
   the dispatch prompt. The implementer writes the full report there and
   returns only status, commits, a one-line test summary, and concerns.
 - **Reviewer inputs:** the task reviewer gets three paths — the same brief
@@ -355,12 +398,12 @@ a ledger file, not only in todos.
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file once: docs/harness-flow/plans/feature-plan.md]
+[Read the spec's Implementation Groups section once]
 [Create todos for all groups]
 
 Group 1: Hook installation (Tasks 1.1, 1.2)
 
-[Run task-brief for Group 1; dispatch implementer
+[Author brief for Group 1 (brief-check clean); dispatch implementer
  (model: haiku — cheap: both tasks touch 1-2 files, complete spec)
  with brief + report paths + context]
 
@@ -386,7 +429,7 @@ Group reviewer: Spec ✅ - all requirements met across both tasks, nothing extra
 
 Group 2: Recovery modes (Tasks 2.1, 2.2, 2.3)
 
-[Run task-brief for Group 2; dispatch implementer
+[Author brief for Group 2 (brief-check clean); dispatch implementer
  (model: sonnet — standard: Task 2.3's integration work pulls the group up)
  with brief + report paths + context]
 
@@ -483,8 +526,9 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - Skip task review, or accept a report missing either verdict (spec compliance AND task quality are both required)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
-- Make a subagent read the whole plan file (hand it its task brief —
-  `scripts/task-brief` — instead)
+- Make a subagent read the whole spec (hand it its group brief instead)
+- Dispatch an implementer whose brief has not passed scripts/brief-check
+  (new path)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (reviewer found spec issues = not done)
@@ -519,7 +563,7 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 
 **Required workflow skills:**
 - **harness-flow:using-git-worktrees** - Ensures isolated workspace (creates one or verifies existing)
-- **harness-flow:writing-plans** - Creates the plan this skill executes
+- **harness-flow:writing-plans** - Writes the Implementation Groups section this skill executes
 - **harness-flow:requesting-code-review** - Code review template for the final whole-branch review
 - **harness-flow:claude-md-revise** - Surface session learnings to CLAUDE.md after the final review, before finishing
 - **harness-flow:finishing-a-development-branch** - Complete development after all tasks

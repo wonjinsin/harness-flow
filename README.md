@@ -43,7 +43,7 @@ Work is tiered before the chain starts: **trivial** (1–2 files, obvious, no co
 2. **brainstorming** — refines the spec before implementation. Includes a `<HARD-GATE>` that blocks moving on without user approval. Output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md`.
    - 2-1. **using-git-worktrees** — invoked from inside brainstorming to isolate the workspace before writing any files. Detects existing worktrees → prefers native tools → falls back to manual.
 
-3. **writing-plans** — decomposes the design into TDD tasks (2–5 minutes sizes a *step*, not the task) and wraps related tasks into Task Groups (2–3 each), the unit the executor dispatches. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+3. **writing-plans** — decomposes the design into TDD tasks (2–5 minutes sizes a *step*, not the task) and wraps related tasks into Task Groups (2–3 each), the unit the executor dispatches. Output: appends an `## Implementation Groups` section to the spec document (groups, Files, `tier` tag, verbatim Interfaces — no separate plan document).
 
 4. **subagent-driven-development** — runs one implementer subagent per Task Group (a ≤3-task plan runs inline, no dispatch), then reviews each group in two stages: spec compliance and code quality.
    - 4-1. **test-driven-development** — sub-skill each implementer subagent follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
@@ -58,7 +58,8 @@ Skills create artifacts lazily inside the active worktree (not the repo root):
 
 ```
 docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md   # brainstorming output
-docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
+docs/harness-flow/plans/                                # legacy only — decompositions now live in the
+                                                         # spec's `## Implementation Groups` section
 ```
 
 ---

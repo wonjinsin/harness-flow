@@ -165,6 +165,8 @@ Skills produce artifacts lazily inside the active worktree (not the repo root):
 - `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md` (brainstorming output)
 - `docs/harness-flow/plans/` — legacy only; new decompositions live in the spec's `## Implementation Groups` section
 
+**In this repo `docs/harness-flow/` is gitignored** — specs/sections are per-feature working artifacts and are not committed; durable records (retrospectives, analyses) get promoted to `design/` instead. Do not `git add -f` a spec.
+
 ## See Also
 
 - `design/comparison.md` — 6-harness comparative analysis (Archon / ECC / GSD / gstack / OMC / superpowers). Explains why this plugin sits in "Layer C: in-harness skills" and the tradeoffs that implies.
