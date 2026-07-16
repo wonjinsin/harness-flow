@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute a spec's `## Implementation Groups` section (or a legacy standalone plan file) by authoring one brief per Task Group at dispatch time, dispatching one implementer per group (or running inline for a ≤3-task decomposition), a group review (spec compliance + code quality) after each group except cheap-tier groups (which the final review nets), and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, brief-fix regenerates the controller-authored brief, impl-fix runs a fix loop capped at 3 re-reviews.
+Execute a spec's `## Implementation Groups` section (or a legacy standalone plan file) by authoring one brief per Task Group at dispatch time, dispatching one implementer per group (or running inline for a ≤3-task decomposition), a group review (spec compliance + code quality) after each group except legacy-path cheap-tier groups (which the final review nets), and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, brief-fix regenerates the controller-authored brief, impl-fix runs a fix loop capped at 3 re-reviews.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
@@ -65,7 +65,7 @@ digraph process {
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [shape=box];
-        "Group tier == cheap?" [shape=diamond];
+        "Legacy plan path AND group tier == cheap?" [shape=diamond];
         "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
         "Group reviewer reports spec ✅ and quality approved?" [shape=diamond];
         "plan-escalate finding or 3 re-reviews reached?" [shape=diamond];
@@ -87,9 +87,9 @@ digraph process {
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch one implementer per group (./implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [label="no"];
-    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Group tier == cheap?";
-    "Group tier == cheap?" -> "Mark group complete in todo list and progress ledger" [label="yes — skip reviewer, final review nets it"];
-    "Group tier == cheap?" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="no"];
+    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Legacy plan path AND group tier == cheap?";
+    "Legacy plan path AND group tier == cheap?" -> "Mark group complete in todo list and progress ledger" [label="yes — skip reviewer, final review nets it"];
+    "Legacy plan path AND group tier == cheap?" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="no"];
     "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" -> "Group reviewer reports spec ✅ and quality approved?";
     "Group reviewer reports spec ✅ and quality approved?" -> "plan-escalate finding or 3 re-reviews reached?" [label="no"];
     "plan-escalate finding or 3 re-reviews reached?" -> "Escalate to human" [label="yes"];
@@ -293,15 +293,24 @@ final whole-branch review. When you fill a reviewer template:
   Per-finding fixers each rebuild context and re-run suites; a real
   session's final-review fix wave cost more than all its tasks combined.
 
-## Review Gating: Skip the Reviewer for Cheap-Tier Groups
+## Review Gating: Skip the Reviewer for Legacy-Path Cheap Groups
 
-Reuse the group's implementation tier (see "Group complexity signals") to
-decide whether the group earns a dedicated reviewer dispatch:
+Reuse the group's implementation tier (see "Group complexity signals") plus
+the dispatch payload's provenance to decide whether the group earns a
+dedicated reviewer dispatch:
 
-- **Group tier is `cheap`** (every task touches 1-2 files with a complete
-  spec) → **do NOT dispatch the group reviewer.** Trust the implementer's
-  self-review, record `Group N: review skipped (cheap)` in the ledger, and
-  move to the next group. The final whole-branch review is the net.
+- **Legacy plan file AND group tier is `cheap`** → **do NOT dispatch the
+  group reviewer.** The brief was extracted verbatim (`scripts/task-brief`)
+  from a plan document the user already reviewed and approved, so the
+  content reaching the implementer has passed a human gate. Trust the
+  implementer's self-review, record `Group N: review skipped (cheap,
+  legacy)` in the ledger, and move on. The final whole-branch review is
+  the net.
+- **Any group on the spec-section path (controller-authored brief)** →
+  dispatch the group reviewer regardless of tier. An authored brief is new
+  writing no human has reviewed — `scripts/brief-check` only rejects
+  placeholders — and a cheap implementer transcribes it verbatim, so the
+  group reviewer is the first reader of that content.
 - **Group tier is `standard` or `most capable`** → dispatch the group
   reviewer as usual and run the review loop below.
 
@@ -309,11 +318,10 @@ When you dispatch the final whole-branch review, list the groups you skipped
 in its prompt ("Groups 3 and 5 had no dedicated review — cover them here")
 so the one broad review deliberately covers the ungated code.
 
-This is the same risk signal that already routes cheap groups to a cheap
-implementer model: a low-risk, fully-specified, small-surface group is
-exactly the one the final review can safely net, so a per-group reviewer
-cold-start on it is pure overhead. It is not a license to widen what counts
-as `cheap` — the tier definition is unchanged.
+The skip's premise is prior review, not low risk alone: a low-risk,
+fully-specified, small-surface group whose text a human already approved is
+exactly the one the final review can safely net. It is not a license to
+widen what counts as `cheap` — the tier definition is unchanged.
 
 ## Review Loop: Escalation and Retry Cap
 
@@ -388,7 +396,7 @@ a ledger file, not only in todos.
   is the authoritative source for the 3-re-review cap (see "Review Loop:
   Escalation and Retry Cap") — after a resume, read it back instead of
   restarting the count from zero. A group reviewed with no dispatched
-  reviewer (the cheap-tier skip in "Review Gating") needs no counter.
+  reviewer (the legacy-path cheap skip in "Review Gating") needs no counter.
 - The ledger is your recovery map: the commits it names exist in git even
   when your context no longer remembers creating them. After compaction,
   trust the ledger and `git log` over your own recollection.

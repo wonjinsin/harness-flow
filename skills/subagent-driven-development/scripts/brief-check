@@ -16,28 +16,29 @@ fi
 brief=$1
 [ -f "$brief" ] || { echo "no such brief file: $brief" >&2; exit 2; }
 
-# Unbalanced/unclosed code fences: an odd count of ``` lines means some
-# content silently falls "inside" a fence for the rest of the file, which
-# would suppress the placeholder scan below for that content.
-fail=0
-fence_count=$(grep -c '^```' "$brief" || true)
-if [ $(( fence_count % 2 )) -ne 0 ]; then
-  echo "unbalanced code fences in brief" >&2
-  fail=1
-fi
-
-# Placeholder patterns, checked outside code fences only: fenced content is
-# the task's shipped code, not brief prose. "tbd" is case-insensitive;
-# "TODO" is matched case-sensitively (uppercase only) so ordinary English
-# words like "todo list" / "todos" don't false-positive. Both use a
-# word-boundary technique since BSD awk has no \b.
-while IFS= read -r hit; do
-  echo "$hit" >&2
-  fail=1
-done < <(awk '
-  /^```/ { infence = !infence; next }
-  infence { next }
+# One fence-aware pass. Fences may be indented (list nesting) and use 3+
+# backticks; a fence closes only on a run of backticks at least as long as
+# its opener with nothing but whitespace after (CommonMark's length rule) —
+# so an inner ``` inside a ````-fenced block stays fence content. All three
+# checks (placeholder scan, balance, fence presence) share this scanner;
+# a naive /^```/ toggle mis-reads both indented and nested fences.
+findings=$(awk '
+  function ticklen(line,   t) {
+    t = line
+    sub(/^[ \t]*/, "", t)
+    if (t !~ /^```/) return 0
+    match(t, /^`+/)
+    return RLENGTH
+  }
   {
+    n = ticklen($0)
+    if (infence) {
+      t = $0
+      sub(/^[ \t]*/, "", t)
+      if (n >= openlen && t ~ /^`+[ \t]*$/) infence = 0
+      next
+    }
+    if (n >= 3) { infence = 1; openlen = n; fences++; next }
     raw = $0
     low = tolower($0)
     if (raw ~ /(^|[^[:alnum:]])TODO([^[:alnum:]]|$)/ ||
@@ -45,13 +46,13 @@ done < <(awk '
         low ~ /implement later|fill in|appropriate error handling|add validation|handle edge cases|similar to (task|group)/)
       printf "line %d: placeholder: %s\n", NR, $0
   }
+  END {
+    if (infence) print "unbalanced code fences in brief"
+    if (fences == 0) print "no code fence in brief — step code blocks are required"
+  }
 ' "$brief")
 
-# A brief whose steps carry no code fence at all cannot contain the exact
-# test/implementation code a dispatch-grade brief promises.
-if ! grep -q '^```' "$brief"; then
-  echo "no code fence in brief — step code blocks are required" >&2
-  fail=1
+if [ -n "$findings" ]; then
+  printf "%s\n" "$findings" >&2
+  exit 1
 fi
-
-exit "$fail"

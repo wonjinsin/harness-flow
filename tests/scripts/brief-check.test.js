@@ -110,3 +110,38 @@ test("no args is usage error (exit 2)", () => {
   const r = spawnSync(SCRIPT, [], { encoding: "utf8" });
   assert.strictEqual(r.status, 2);
 });
+
+test("indented fence: TODO inside is ignored, counts as a fence", () => {
+  const indented = [
+    "### Group 1: Parser",
+    "**Step 1: nested in a list**",
+    "- list item:",
+    "  ```js",
+    "  // TODO markers in shipped code are the task's business",
+    "  assert.equal(1, 1);",
+    "  ```",
+  ].join("\n");
+  const r = runCheck(indented);
+  assert.strictEqual(r.status, 0, r.stderr);
+});
+
+test("4-backtick fence: inner ``` does not toggle state (TBD stays fenced)", () => {
+  const nested = [
+    "### Group 1: Docs task",
+    "**Step 1: write the markdown file**",
+    "````markdown",
+    "```bash",
+    "Interface: TBD is documented content, not brief prose",
+    "```",
+    "````",
+  ].join("\n");
+  const r = runCheck(nested);
+  assert.strictEqual(r.status, 0, r.stderr);
+});
+
+test("indented fence left open at EOF is unbalanced (exit 1)", () => {
+  const open = CLEAN_BRIEF + "\n- item:\n  ```js\n  // never closed\n";
+  const r = runCheck(open);
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stderr, /unbalanced code fences in brief/);
+});

@@ -137,3 +137,60 @@ workflow 8 에이전트(변경 감사 / 산술 검증 / 블라인드 판정 2 / 
 4. eval2 생산자 비교를 대칭 조건으로 재실행.
 5. 스킬 텍스트 순증을 토큰 모델에 산입.
 6. brief-fix class의 경로 스코프 명문화.
+
+## 9. 부록 (2026-07-16) — follow-up 1·2·3 실행 결과 (release 1.2.2)
+
+사용자 지시로 follow-up 1–3을 실행. 2·3의 구현 자체를 3그룹 spec으로 구성해
+그 실행을 follow-up 1의 "n≥3그룹 실기능 인컨텍스트 계정" 실측 대상으로 사용.
+
+### Follow-up 3 — brief-check 펜스 파서 수리 (완료)
+
+단일 awk 상태 머신으로 재작성: 열림 = 선행 공백 + backtick ≥3 (길이 기록),
+닫힘 = backtick ≥ 열림 길이 + 공백 잔여만 (CommonMark 길이 규칙), 3개 검사
+(placeholder 스캔·균형·존재)가 스캐너 공유. §8의 재현 버그 2건이 Red 테스트로
+선행 후 green (기존 20 + 신규 3 = 23, 스위트 206). exit 계약 불변.
+
+### Follow-up 2 — review gating 스코프 축소 (완료)
+
+스킵 조건을 "레거시 plan 파일 경로 AND cheap"으로 축소 — 저작 brief 경로는
+전 티어 그룹 리뷰어 dispatch. 근거: 스킵의 전제는 "저위험"이 아니라 "사전
+리뷰 존재"(레거시 brief = 사용자 승인 plan의 verbatim 추출)였음. SKILL.md
+인트로·digraph(4곳)·Review Gating 섹션·ledger 문구, CLAUDE.md 동기화.
+부수 효과: Example Workflow의 잠재 모순(cheap 그룹이 리뷰받는 예시)이 해소.
+
+### Follow-up 1 — n=3 실측과 revert 재상정 (트리거 발화, keep 결론)
+
+같은 기능의 반사실 1.1.7-style plan(step-level 전체)을 저작해 비교
+(토큰 프록시 chars/4, 한글 과소추정이나 양 arm 동일 구성):
+
+| 분해 산출물 | tok≈ |
+|---|---|
+| OLD: plan 문서 1개 | 2,741 |
+| NEW: 섹션 429 + brief 3개 (1,385/1,165/500) | 3,479 |
+
+**이중 저작 불리 실측 확정: +738 tok (+26.9%), 그룹당 반복 성분 200–350 tok
+(n에 선형).** §8의 구조적 예측이 검증됨 — revert 재상정 트리거 발화.
+
+**재상정 결론: keep.** ① 절대량 ~0.7k/기능은 같은 기능의 실행 비용
+(구현 130k + 리뷰 189k tok)의 0.3% — 토큰 레버로 무의미. n=10 외삽도 ~3k.
+② 이 기능에서 NEW−OLD 총 토큰 차의 ~99%는 follow-up 2의 추가 리뷰어
+2 dispatch(+86.2k, G1·G3 지적 0건)로, 문서 아키텍처와 직교하는 품질 게이트
+구매 비용. 진짜 토큰 레버는 게이팅 정책이지 spec/plan 구조가 아님.
+③ revert는 무신호 절단 버그와 게이트 2개(사람 왕복)를 복귀시킴.
+비율(+27%)을 게이트로 삼으면 revert 논거가 성립하므로 최종 선택권은
+사용자에게 있음 — 절대량 기준 권고는 keep.
+
+### 실행 계측 (SDD, 이 기능)
+
+- G1 impl haiku 36.6k/86s · rev sonnet 45.2k/149s — 승인, 지적 0
+- G2 impl sonnet 59.4k/106s · rev sonnet 44.3k/37s — 승인, 지적 0
+  (brief의 digraph 개수 오기 2엣지→3엣지를 구현자가 적발, 컨트롤러가
+  brief·spec 사후 수정 — brief-fix 리뷰 라운드 없이 흡수)
+- G3 impl haiku 34.4k/71s · rev sonnet 41.1k/28s — 승인, 지적 0
+- 최종 whole-branch review opus 58.4k/312s — Ready to merge, Critical/Important 0
+
+### 남은 follow-up
+
+4 (eval2 대칭 재실행) · 5 (스킬 텍스트 비용 산입) · 6 (brief-fix 스코프
+명문화 — 단, 리뷰어 템플릿의 조건부화는 미머지 section-only 브랜치에 자산
+존재)은 미착수.
