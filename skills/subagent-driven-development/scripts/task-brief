@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# LEGACY-PLAN PATH ONLY. Extract one group's/task's full text from a
-# standalone implementation plan file into a brief the implementer reads
-# in one call. New work has no plan file — the controller AUTHORS the
-# brief at dispatch time (see SKILL.md "Authoring the Group Brief") and
-# gates it with scripts/brief-check.
+# Extract one task's full text from an implementation plan into a file the
+# implementer reads in one call, so the task text never has to be pasted
+# through the controller's context.
 #
 # Usage: task-brief PLAN_FILE TASK_NUMBER [OUTFILE]
 # Default OUTFILE: <repo-root>/.harness-flow/sdd/task-<N>-brief.md
-# (per worktree; concurrent runs in the same working tree share it.)
+# (per worktree; concurrent runs in the same working tree share it).
 set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then

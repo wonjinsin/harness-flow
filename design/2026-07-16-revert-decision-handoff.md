@@ -1,8 +1,15 @@
 # plan-demotion 복귀 결정 — 새 세션 실행 핸드오프
 
 **날짜**: 2026-07-16
-**상태**: 결정 완료 (사용자 확정) · 실행 대기
-**대상 릴리스**: 1.3.0
+**상태**: **실행 완료 — 단, §2의 점진 revert가 아니라 사용자 지시로 hard-reset 방식으로 종결.**
+master 트리를 832eb5e(1.1.7)와 동일하게 되돌리고 design/ 문서 3건만 보존
+(reset --hard는 권한 정책 차단 → 내용 동일한 가산 커밋으로 수행; 히스토리
+축약을 원하면 `git reset --hard <이 커밋>`을 직접 실행).
+CLAUDE.md는 832eb5e 오염분(함정 1)을 0398517 문구로 수동 교정함.
+**Task 2(fence-aware task-brief 이식)는 완성·테스트 통과 상태로 미머지 브랜치
+`worktree-revert-plan-arch`(tip d85bacc: 7a9eb4a 복원 + d85bacc fence 이식,
+Red 3건→Green, 186/186)에 보존** — 필요 시 d85bacc의 task-brief + 테스트만
+cherry-pick하면 됨. 이하 §2~§4는 결정 당시의 계획 원문 (기록용).
 
 ## 1. 결정과 근거 (재논의 불필요)
 

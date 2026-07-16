@@ -25,10 +25,11 @@ You MUST create a task for each of these items and complete them in order:
 2. **Grill on decisions** — one at a time with your recommended answer; walk the decision tree depth-first, resolving dependencies before branching
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
 4. **Present design** — in sections scaled to their complexity, get user approval after each section
-5. **Set up isolated worktree** — once the design is approved and BEFORE writing any file to disk, invoke the `using-git-worktrees` skill. The spec (including its Implementation Groups section) and all subsequent implementation must live inside this worktree.
+5. **Set up isolated worktree** — once the design is approved and BEFORE writing any file to disk, invoke the `using-git-worktrees` skill. The spec, plan, and all subsequent implementation must live inside this worktree.
 6. **Write design doc** — save to `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md` (inside the worktree) and commit
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
-8. **Transition to decomposition** — invoke writing-plans to append the Implementation Groups section; the user reviews the completed document once there (design + decomposition in one gate)
+8. **User reviews written spec** — ask user to review the spec file before proceeding
+9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
 ## Process Flow
 
@@ -42,7 +43,8 @@ digraph brainstorming {
     "Invoke using-git-worktrees" [shape=box];
     "Write design doc" [shape=box];
     "Spec self-review\n(fix inline)" [shape=box];
-    "Invoke writing-plans skill\n(user reviews the completed doc there)" [shape=doublecircle];
+    "User reviews spec?" [shape=diamond];
+    "Invoke writing-plans skill" [shape=doublecircle];
 
     "Explore project context" -> "Ask clarifying questions";
     "Ask clarifying questions" -> "Propose 2-3 approaches";
@@ -52,7 +54,9 @@ digraph brainstorming {
     "User approves design?" -> "Invoke using-git-worktrees" [label="yes"];
     "Invoke using-git-worktrees" -> "Write design doc";
     "Write design doc" -> "Spec self-review\n(fix inline)";
-    "Spec self-review\n(fix inline)" -> "Invoke writing-plans skill\n(user reviews the completed doc there)";
+    "Spec self-review\n(fix inline)" -> "User reviews spec?";
+    "User reviews spec?" -> "Write design doc" [label="changes requested"];
+    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
 }
 ```
 
@@ -64,7 +68,7 @@ digraph brainstorming {
 
 - Check out the current project state first (files, docs, recent commits)
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
-- If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → decomposition → implementation cycle.
+- If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea
 - If a question can be answered by exploring the codebase, explore instead of asking
 - Walk down each branch of the decision tree, resolving dependencies one-by-one. Don't jump between unrelated branches.
@@ -113,20 +117,21 @@ After writing the spec document, look at it with fresh eyes:
 
 1. **Placeholder scan:** Any "TBD", "TODO", incomplete sections, or vague requirements? Fix them.
 2. **Internal consistency:** Do any sections contradict each other? Does the architecture match the feature descriptions?
-3. **Scope check:** Is this focused enough for a single spec, or does it need decomposition into sub-projects?
+3. **Scope check:** Is this focused enough for a single implementation plan, or does it need decomposition?
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
-**Document review:**
-The user reviews the written document once, after writing-plans appends
-the Implementation Groups section — design and decomposition in a single
-gate, owned by writing-plans. Do not run a separate spec-file review here;
-the in-dialogue section approvals above already validated the design.
+**User Review Gate:**
+After the spec review loop passes, ask the user to review the written spec before proceeding:
+
+> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
+
+Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
 
 **Implementation:**
 
-- Invoke the writing-plans skill to append the Implementation Groups section — the single user review of the completed document happens there.
+- Invoke the writing-plans skill to create a detailed implementation plan
 - Do NOT invoke any other skill. writing-plans is the next step.
 
 ## Key Principles
