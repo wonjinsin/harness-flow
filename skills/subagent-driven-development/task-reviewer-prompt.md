@@ -211,4 +211,33 @@ Subagent (general-purpose):
 plan-escalate`), Task quality verdict
 
 A fix dispatch can address spec gaps and quality findings together;
-re-review after fixes covers both verdicts.
+re-review after fixes covers both verdicts via the verify-fix variant below.
+
+## Re-review Variant (verify-fix)
+
+A re-review after an impl-fix wave does not re-review the whole group — the
+final whole-branch review nets that. Its scope is the fix itself. Dispatch
+with the same template, with these replacements:
+
+- **Diff Under Review** → the fix-diff package only:
+  `scripts/review-package FIX_BASE HEAD` where FIX_BASE is the HEAD you
+  recorded immediately before dispatching the fixer. Do not hand the
+  original group package again.
+- **What Was Requested** → keep the brief path (context for spec findings),
+  and paste the open findings verbatim from the previous review under a
+  `## Open Findings` heading.
+- **Scope instruction** (replaces Part 1 and Part 2):
+
+  ```
+  For each finding under ## Open Findings, verdict: resolved (cite the hunk
+  that resolves it) or unresolved (cite what is still wrong). Then check the
+  fix diff itself for new defects — same calibration and class tags as a
+  group review. Do not re-review code outside the fix diff.
+  ```
+
+- **Output** → per-finding resolved/unresolved verdicts, any new findings
+  (Critical/Important tagged with `class`), and the same final
+  **Task quality: Approved | Needs fixes** verdict.
+
+Each verify-fix dispatch still increments `reviewCycles` — the 3-re-review
+cap is unchanged.

@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group except cheap-tier groups (which the final review nets), and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, impl-fix runs a fix loop capped at 3 re-reviews.
+Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group except gated groups — cheap-tier groups and the plan's last group, which the final review nets — and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, impl-fix runs a fix loop capped at 3 re-reviews.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
@@ -63,7 +63,7 @@ digraph process {
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [shape=box];
-        "Group tier == cheap?" [shape=diamond];
+        "Group review gated? (cheap tier OR last group)" [shape=diamond];
         "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
         "Group reviewer reports spec ✅ and quality approved?" [shape=diamond];
         "plan-escalate finding or 3 re-reviews reached?" [shape=diamond];
@@ -83,9 +83,9 @@ digraph process {
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch one implementer per group (./implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [label="no"];
-    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Group tier == cheap?";
-    "Group tier == cheap?" -> "Mark group complete in todo list and progress ledger" [label="yes — skip reviewer, final review nets it"];
-    "Group tier == cheap?" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="no"];
+    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Group review gated? (cheap tier OR last group)";
+    "Group review gated? (cheap tier OR last group)" -> "Mark group complete in todo list and progress ledger" [label="yes — skip reviewer, final review nets it"];
+    "Group review gated? (cheap tier OR last group)" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="no"];
     "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" -> "Group reviewer reports spec ✅ and quality approved?";
     "Group reviewer reports spec ✅ and quality approved?" -> "plan-escalate finding or 3 re-reviews reached?" [label="no"];
     "plan-escalate finding or 3 re-reviews reached?" -> "Escalate to human" [label="yes"];
@@ -125,6 +125,13 @@ Use the least powerful model that can handle each role to conserve cost and incr
 **Architecture and design tasks**: use the most capable available model.
 The final whole-branch review is one of these — dispatch it on the most
 capable available model, not the session default.
+
+**Exception — all-cheap plans:** when every group in the plan is cheap-tier,
+dispatch the final whole-branch review on the standard tier instead. The
+catch rate for cheap-tier defects is measured at 100% on the standard tier
+even at 6.5× diff dilution (design/2026-07-14-execution-speedup-retrospective.md
+§7). Count the tier labels in the plan: any standard or most-capable group
+keeps the final review on the most capable model.
 
 **Review tasks**: choose the model with the same judgment, scaled to the
 diff's size, complexity, and risk. A small mechanical diff does not need the
@@ -241,33 +248,38 @@ final whole-branch review. When you fill a reviewer template:
   covering test files in the dispatch — a one-line fix does not need the
   whole suite. Before re-dispatching the reviewer, confirm the fix report
   contains the covering tests, the command run, and the output; dispatch
-  the re-review once all three are present.
+  the re-review once all three are present (use the verify-fix variant —
+  see "Review Loop" and task-reviewer-prompt.md).
 - If the final whole-branch review returns findings, dispatch ONE fix
   subagent with the complete findings list — not one fixer per finding.
   Per-finding fixers each rebuild context and re-run suites; a real
   session's final-review fix wave cost more than all its tasks combined.
 
-## Review Gating: Skip the Reviewer for Cheap-Tier Groups
+## Review Gating: Which Groups Skip the Dedicated Reviewer
 
-Reuse the group's implementation tier (see "Group complexity signals") to
-decide whether the group earns a dedicated reviewer dispatch:
+Two mechanical signals — the group's tier and its position in the plan —
+decide whether a group earns a dedicated reviewer dispatch:
 
 - **Group tier is `cheap`** (every task touches 1-2 files with a complete
-  spec) → **do NOT dispatch the group reviewer.** Trust the implementer's
-  self-review, record `Group N: review skipped (cheap)` in the ledger, and
-  move to the next group. The final whole-branch review is the net.
-- **Group tier is `standard` or `most capable`** → dispatch the group
-  reviewer as usual and run the review loop below.
+  spec) → skip the group reviewer. Trust the implementer's self-review and
+  record `Group N: review skipped (cheap)` in the ledger. This is the same
+  risk signal that already routes the group to a cheap implementer model —
+  not a license to widen what counts as `cheap`; the tier definition is
+  unchanged.
+- **The group is the plan's last group** (any tier) → skip the group
+  reviewer and record `Group N: review skipped (last group)`. The final
+  whole-branch review starts immediately after this group, so a dedicated
+  reviewer buys no earlier catch, and no downstream groups exist for a
+  defect to propagate into.
+- **Neither applies** → dispatch the group reviewer and run the review loop
+  below.
 
-When you dispatch the final whole-branch review, list the groups you skipped
-in its prompt ("Groups 3 and 5 had no dedicated review — cover them here")
-so the one broad review deliberately covers the ungated code.
-
-This is the same risk signal that already routes cheap groups to a cheap
-implementer model: a low-risk, fully-specified, small-surface group is
-exactly the one the final review can safely net, so a per-group reviewer
-cold-start on it is pure overhead. It is not a license to widen what counts
-as `cheap` — the tier definition is unchanged.
+When you dispatch the final whole-branch review, list every skipped group in
+its prompt and hand it each skipped group's brief file path plus the global
+constraints that bound it ("Groups 3 and 5 had no dedicated review — cover
+spec compliance and quality for them; briefs: <paths>"). The one broad
+review deliberately covers the ungated code and inherits the group
+reviewer's spec-compliance duty for those groups.
 
 ## Review Loop: Escalation and Retry Cap
 
@@ -281,9 +293,15 @@ loop so a finding a fixer cannot resolve does not spin forever:
   governs — the same escalation any plan contradiction gets. Resume only
   after the human resolves it.
 - **`impl-fix` findings only → run the fix → re-review loop, capped at 3
-  re-reviews per group.** Track the count in the progress ledger as
-  `reviewCycles: <n>` for the group and increment it on every re-review
-  dispatch. When a group reaches 3 re-reviews with findings still open,
+  re-reviews per group.** Re-reviews use the verify-fix variant (see
+  task-reviewer-prompt.md): the open findings verbatim plus the fix-diff
+  package (`scripts/review-package FIX_BASE HEAD`, FIX_BASE = the HEAD
+  recorded before the fixer) — not the original group package. Track the
+  count in the progress ledger as `reviewCycles: <n>` for the group and
+  increment it on every re-review dispatch. A verify-fix result exits the
+  loop when every open finding is resolved, no new Critical/Important
+  findings appear, and task quality is Approved. When a group reaches 3
+  re-reviews with findings still open,
   **stop and escalate to the human** — three fixer rounds that did not
   converge signal the task, not the implementation, needs a decision.
 - The ledger counter is authoritative: after a compaction or resume, read
@@ -336,8 +354,8 @@ a ledger file, not only in todos.
   `Group N: reviewCycles <n>` and update it on each re-review dispatch. This
   is the authoritative source for the 3-re-review cap (see "Review Loop:
   Escalation and Retry Cap") — after a resume, read it back instead of
-  restarting the count from zero. A group reviewed with no dispatched
-  reviewer (the cheap-tier skip in "Review Gating") needs no counter.
+  restarting the count from zero. A group whose review was skipped (see
+  "Review Gating") needs no counter.
 - The ledger is your recovery map: the commits it names exist in git even
   when your context no longer remembers creating them. After compaction,
   trust the ledger and `git log` over your own recollection.
@@ -352,82 +370,8 @@ a ledger file, not only in todos.
 
 ## Example Workflow
 
-```
-You: I'm using Subagent-Driven Development to execute this plan.
-
-[Read plan file once: docs/harness-flow/plans/feature-plan.md]
-[Create todos for all groups]
-
-Group 1: Hook installation (Tasks 1.1, 1.2)
-
-[Run task-brief for Group 1; dispatch implementer
- (model: haiku — cheap: both tasks touch 1-2 files, complete spec)
- with brief + report paths + context]
-
-Implementer: "Before I begin - should the hook be installed at user or system level?"
-
-You: "User level (~/.config/harness-flow/hooks/)"
-
-Implementer: "Got it. Implementing now..."
-[Later] Implementer:
-  - Task 1.1: Implemented install-hook command, 5/5 tests passing, committed
-    (self-review: found I missed --force flag, added it before committing)
-  - Task 1.2: Added config validation for the hook manifest, 4/4 tests passing, committed
-  - Group verification: ran the full suite once — 9/9 passing
-
-[Run review-package, dispatch group reviewer
- (model: sonnet — standard: mid-tier reviewer floor)
- with the printed path]
-Group reviewer: Spec ✅ - all requirements met across both tasks, nothing extra.
-  Strengths: Good test coverage, clean commits. Issues: None. Group quality: Approved.
-
-[Mark Group 1 complete: ledger line
- "Group 1: complete (commits a1b2c3d..e4f5a6b, review clean)"]
-
-Group 2: Recovery modes (Tasks 2.1, 2.2, 2.3)
-
-[Run task-brief for Group 2; dispatch implementer
- (model: sonnet — standard: Task 2.3's integration work pulls the group up)
- with brief + report paths + context]
-
-Implementer: [No questions, proceeds]
-Implementer:
-  - Task 2.1: Added verify mode, 4/4 tests passing, committed
-  - Task 2.2: Added repair mode, 5/5 tests passing, committed
-  - Task 2.3: Wired progress reporting into both modes, 3/3 tests passing, committed
-  - Group verification: ran the full suite once — 12/12 passing
-
-[Run review-package, dispatch group reviewer
- (model: sonnet — standard: mid-tier reviewer floor)
- with the printed path]
-Group reviewer: Spec ❌ (Task 2.3):
-  - Missing: Progress cadence (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
-  Issues (Important): Magic number (100)
-
-[Dispatch fix subagent
- (model: haiku — cheap: mechanical fix, named findings)
- with all findings]
-Fixer: Removed --json flag, fixed the progress interval, extracted
-  PROGRESS_INTERVAL constant. Re-ran the 3 tests covering Task 2.3 — 3/3 passing.
-
-[Group reviewer reviews again]
-Group reviewer: Spec ✅. Group quality: Approved.
-
-[Mark Group 2 complete: ledger line
- "Group 2: complete (commits e4f5a6b..c7d8e9f, review clean)"]
-
-...
-
-[After all groups]
-[Dispatch final code-reviewer
- (model: opus — most capable: whole-branch review)]
-Final reviewer: All requirements met, ready to merge
-
-[Surface claude-md-revise candidates, then proceed to finishing]
-
-Done!
-```
+See [references/example-workflow.md](references/example-workflow.md) for a
+full worked example (dispatch, gating, fix→re-review, final review).
 
 ## When All Tasks Complete
 
@@ -443,38 +387,6 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - Hotfix branch explicitly flagged as time-critical
 
 `claude-md-revise` runs to completion (per-candidate approval), then proceed to `harness-flow:finishing-a-development-branch`.
-
-## Advantages
-
-**vs. Manual execution:**
-- Subagents follow TDD naturally
-- Fresh context per task (no confusion)
-- Parallel-safe (subagents don't interfere)
-- Subagent can ask questions (before AND during work)
-
-**vs. Executing Plans:**
-- Same session (no handoff)
-- Continuous progress (no waiting)
-- Review checkpoints automatic
-
-**Efficiency gains:**
-- Controller curates exactly what context is needed; bulk artifacts move
-  as files, not pasted text
-- Subagent gets complete information upfront
-- Questions surfaced before work begins (not after)
-
-**Quality gates:**
-- Self-review catches issues before handoff
-- Task review carries two verdicts: spec compliance and code quality
-- Review loops ensure fixes actually work
-- Spec compliance prevents over/under-building
-- Code quality ensures implementation is well-built
-
-**Cost:**
-- More subagent invocations (implementer + reviewer per task)
-- Controller does more prep work (extracting all tasks upfront)
-- Review loops add iterations
-- But catches issues early (cheaper than debugging later)
 
 ## Red Flags
 
