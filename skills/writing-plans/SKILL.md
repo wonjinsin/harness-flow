@@ -59,11 +59,6 @@ and one reviewer reviews the group's combined diff.
 - If the whole plan is ≤3 tasks, still write it (grouped or not) — the
   executor runs tiny plans inline, without dispatch.
 
-**Backward compatibility:** a plan may omit groups entirely and use flat
-`### Task N` headings — `subagent-driven-development` then treats each task as
-its own group. Do not retrofit groups onto that convention unless you are
-writing a new plan.
-
 ## Bite-Sized Task Granularity
 
 **Each *step* (not task) is one action (2-5 minutes):** a task is ~5 such

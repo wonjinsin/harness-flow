@@ -317,7 +317,7 @@ and is re-read on every later turn. Hand artifacts over as files:
 - **Group brief:** before dispatching an implementer, run this skill's
   `scripts/task-brief PLAN_FILE N` with the GROUP number — it extracts the
   whole group's text (all its tasks) to a uniquely named file and prints the
-  path. (On a group-less plan it extracts a single task — same call.) Compose the dispatch so the
+  path. Compose the dispatch so the
   brief stays the single source of requirements. Your dispatch should
   contain: (1) one line on where this task fits in the project; (2) the
   brief path, introduced as "read this first — it is your requirements,
