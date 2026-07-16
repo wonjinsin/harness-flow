@@ -1,7 +1,8 @@
 # Example Workflow (subagent-driven-development)
 
-A full worked example of the per-group dispatch loop, review gating, the
-fix→re-review loop, and the final whole-branch review.
+A full worked example of the per-group dispatch loop, the final
+whole-branch review (with every group's brief and the severity floor),
+and the fix→verify-fix loop.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
@@ -26,8 +27,8 @@ Implementer: "Got it. Implementing now..."
   - Task 1.2: Added config validation for the hook manifest, 4/4 tests passing, committed
   - Group verification: ran the full suite once — 9/9 passing
 
-[Group 1 tier is cheap → review gated, no reviewer dispatch.
- Ledger line: "Group 1: review skipped (cheap)"]
+[Verify commits on feature branch. No group reviewer — ledger line:
+ "Group 1: complete (commits a1b2c3d..b2c3d4e, no group review — final nets)"]
 
 Group 2: Recovery modes (Tasks 2.1, 2.2, 2.3)
 
@@ -42,39 +43,34 @@ Implementer:
   - Task 2.3: Wired progress reporting into both modes, 3/3 tests passing, committed
   - Group verification: ran the full suite once — 12/12 passing
 
-[Group 2 is standard tier and not the last group → run review-package,
- dispatch group reviewer (model: sonnet — standard: mid-tier reviewer floor)
- with the printed path]
-Group reviewer: Spec ❌ (Task 2.3):
-  - Missing: Progress cadence (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
-  Issues (Important, class: impl-fix): Magic number (100)
-
-[Dispatch fix subagent
- (model: haiku — cheap: mechanical fix, named findings)
- with all findings]
-Fixer: Removed --json flag, fixed the progress interval, extracted
-  PROGRESS_INTERVAL constant. Re-ran the 3 tests covering Task 2.3 — 3/3 passing.
-
-[Re-review — verify-fix variant: open findings verbatim + fix-diff package
- (review-package FIX_BASE HEAD); ledger "Group 2: reviewCycles 1"]
-Group reviewer: All findings resolved, no new defects in the fix diff.
-  Task quality: Approved.
-
-[Mark Group 2 complete: ledger line
- "Group 2: complete (commits e4f5a6b..c7d8e9f, review clean)"]
+[Ledger: "Group 2: complete (commits e4f5a6b..c7d8e9f, no group review — final nets)"]
 
 ...
 
-Group 5 (last group): review gated regardless of tier —
- ledger line "Group 5: review skipped (last group)"
-
 [After all groups]
-[Dispatch final code-reviewer
+[Run review-package MERGE_BASE HEAD; dispatch final code-reviewer
  (model: opus — most capable; sonnet if every group was cheap-tier)
- listing skipped groups: "Groups 1 and 5 had no dedicated review — cover
- spec compliance and quality for them; briefs: <paths>"]
-Final reviewer: All requirements met, ready to merge
+ with the package path, every group's brief path + global constraints,
+ the severity-floor block, and the finding-class block
+ (see SKILL.md: Final Review Nets Every Group)]
+
+Final reviewer: Spec ⚠️ (Group 2): progress cadence "every 100 items" not
+  verifiable from diff alone.
+  Issues (Important, class: impl-fix): Task 2.3 passes the interval as the
+  string "100" from config into the reporter (type contract says number —
+  propagates into arithmetic downstream).
+
+[⚠️ item: you verify cadence yourself from the plan — confirmed implemented.
+ Record HEAD as FIX_BASE; dispatch ONE fix subagent
+ (model: haiku — mechanical, named finding) with the complete findings list]
+Fixer: Coerced interval at the config boundary, typed the reporter param.
+  Re-ran the 3 tests covering the reporter — 3/3 passing.
+
+[Run review-package FIX_BASE HEAD; dispatch verify-fix re-review
+ (./task-reviewer-prompt.md, model: sonnet);
+ ledger "final: reviewCycles 1"]
+Verify-fix: Open finding resolved (hunk cited), no new defects.
+  Fix quality: Approved.
 
 [Surface claude-md-revise candidates, then proceed to finishing]
 

@@ -5,11 +5,11 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan), a group review (spec compliance + code quality) after each group except gated groups — cheap-tier groups and the plan's last group, which the final review nets — and a broad whole-branch review at the end. The review loop routes findings by class — plan-escalate goes to the human, impl-fix runs a fix loop capped at 3 re-reviews.
+Execute a plan by dispatching one implementer per Task Group (or running inline for a ≤3-task plan) with no reviewer at group boundaries — one broad whole-branch review at the end nets every group, receiving each group's brief and a severity-floor instruction. The final review loop routes findings by class — plan-escalate goes to the human, impl-fix runs a fix loop capped at 3 re-reviews.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** One implementer per group (tiny plans inline) + group review (spec + quality) + broad final review = high quality, fewer cold-starts
+**Core principle:** One implementer per group (tiny plans inline) + implementer self-review + one severity-floored, brief-fed final review = high quality, minimal cold-starts
 
 **Narration:** between tool calls, narrate at most one short line — the
 ledger and the tool results carry the record.
@@ -48,8 +48,8 @@ cold-start of a fresh subagent costs more than the work. Instead:
 4. **Still dispatch the final whole-branch review** — a fresh-context reviewer
    is the one isolation worth keeping. Then proceed to the finishing steps.
 
-Skip the per-task/per-group reviewer dispatches on this path; the single
-whole-branch review covers a plan this small.
+No group-boundary reviewers exist on any path; the single whole-branch
+review covers the plan (see Final Review Nets Every Group).
 
 ## The Process
 
@@ -63,18 +63,17 @@ digraph process {
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [shape=box];
-        "Group review gated? (cheap tier OR last group)" [shape=diamond];
-        "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [shape=box];
-        "Group reviewer reports spec ✅ and quality approved?" [shape=diamond];
-        "plan-escalate finding or 3 re-reviews reached?" [shape=diamond];
-        "Escalate to human" [shape=box];
-        "Dispatch fix subagent for impl-fix findings" [shape=box];
-        "Mark group complete in todo list and progress ledger" [shape=box];
+        "Verify commits on feature branch, mark group complete in todo list and progress ledger" [shape=box];
     }
 
     "Read plan, note context and global constraints, create todos" [shape=box];
     "More groups remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" [shape=box];
+    "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md) with every group's brief + severity floor" [shape=box];
+    "Final review reports Critical/Important findings?" [shape=diamond];
+    "plan-escalate finding or 3 re-reviews reached?" [shape=diamond];
+    "Escalate to human" [shape=box];
+    "Dispatch ONE fix subagent with the complete findings list" [shape=box];
+    "Dispatch verify-fix re-review (./task-reviewer-prompt.md)" [shape=box];
     "Surface claude-md-revise candidates (if session had learnings)" [shape=box];
     "Use harness-flow:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
@@ -83,19 +82,17 @@ digraph process {
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch one implementer per group (./implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer implements each task in the group with TDD, one commit per task, self-reviews" [label="no"];
-    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Group review gated? (cheap tier OR last group)";
-    "Group review gated? (cheap tier OR last group)" -> "Mark group complete in todo list and progress ledger" [label="yes — skip reviewer, final review nets it"];
-    "Group review gated? (cheap tier OR last group)" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="no"];
-    "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" -> "Group reviewer reports spec ✅ and quality approved?";
-    "Group reviewer reports spec ✅ and quality approved?" -> "plan-escalate finding or 3 re-reviews reached?" [label="no"];
-    "plan-escalate finding or 3 re-reviews reached?" -> "Escalate to human" [label="yes"];
-    "plan-escalate finding or 3 re-reviews reached?" -> "Dispatch fix subagent for impl-fix findings" [label="no"];
-    "Dispatch fix subagent for impl-fix findings" -> "Write diff file, dispatch group reviewer subagent (./task-reviewer-prompt.md)" [label="re-review (++reviewCycles)"];
-    "Group reviewer reports spec ✅ and quality approved?" -> "Mark group complete in todo list and progress ledger" [label="yes"];
-    "Mark group complete in todo list and progress ledger" -> "More groups remain?";
+    "Implementer implements each task in the group with TDD, one commit per task, self-reviews" -> "Verify commits on feature branch, mark group complete in todo list and progress ledger";
+    "Verify commits on feature branch, mark group complete in todo list and progress ledger" -> "More groups remain?";
     "More groups remain?" -> "Dispatch one implementer per group (./implementer-prompt.md)" [label="yes"];
-    "More groups remain?" -> "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" [label="no"];
-    "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md)" -> "Surface claude-md-revise candidates (if session had learnings)";
+    "More groups remain?" -> "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md) with every group's brief + severity floor" [label="no"];
+    "Dispatch final code reviewer subagent (../requesting-code-review/code-reviewer.md) with every group's brief + severity floor" -> "Final review reports Critical/Important findings?";
+    "Final review reports Critical/Important findings?" -> "Surface claude-md-revise candidates (if session had learnings)" [label="no"];
+    "Final review reports Critical/Important findings?" -> "plan-escalate finding or 3 re-reviews reached?" [label="yes"];
+    "plan-escalate finding or 3 re-reviews reached?" -> "Escalate to human" [label="yes"];
+    "plan-escalate finding or 3 re-reviews reached?" -> "Dispatch ONE fix subagent with the complete findings list" [label="no"];
+    "Dispatch ONE fix subagent with the complete findings list" -> "Dispatch verify-fix re-review (./task-reviewer-prompt.md)" [label="++reviewCycles"];
+    "Dispatch verify-fix re-review (./task-reviewer-prompt.md)" -> "Final review reports Critical/Important findings?";
     "Surface claude-md-revise candidates (if session had learnings)" -> "Use harness-flow:finishing-a-development-branch";
 }
 ```
@@ -171,7 +168,7 @@ own dispatch model:
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** (per group) Generate the review package (`scripts/review-package BASE HEAD`, from this skill's directory — it prints the unique file path it wrote; BASE is the commit you recorded before dispatching the implementer — never `HEAD~1`, which silently drops all but the last commit of a multi-commit task), then dispatch the task reviewer with the printed path.
+**DONE:** (per group) Verify the commits landed on the feature branch (worktree gotcha — see CLAUDE.md), append `Group N: complete (commits <base7>..<head7>, no group review — final nets)` to the ledger, and dispatch the next group. No review package and no reviewer at group boundaries — the final whole-branch review nets every group.
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
 
@@ -187,17 +184,17 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 
 ## Handling Reviewer ⚠️ Items
 
-The task reviewer may report "⚠️ Cannot verify from diff" items — requirements
-that live in unchanged code or span tasks. These do not block the rest of the
-review, but you must resolve each one yourself before marking the task
-complete: you hold the plan and cross-task context the reviewer
-lacks. If you confirm an item is a real gap, treat it as a failed spec
-review — send it back to the implementer and re-review.
+The final review or a verify-fix re-review may report "⚠️ Cannot verify
+from diff" items — requirements that live in unchanged code or span groups.
+These do not block the rest of the review, but you must resolve each one
+yourself before finishing: you hold the plan and cross-group context the
+reviewer lacks. If you confirm an item is a real gap, treat it as an open
+`impl-fix` finding — add it to the fix subagent's findings list and
+re-review.
 
 ## Constructing Reviewer Prompts
 
-Per-task reviews are task-scoped gates. The broad review happens once, at the
-final whole-branch review. When you fill a reviewer template:
+The broad review happens once, at the final whole-branch review; verify-fix re-reviews are fix-scoped gates. When you fill a reviewer template:
 
 - Do not add open-ended directives like "check all uses" or "run race tests
   if useful" without a concrete, task-specific reason
@@ -222,17 +219,16 @@ final whole-branch review. When you fill a reviewer template:
   and `git diff -U10` for the range, redirected to one uniquely named
   file). The output never enters your own context, and the reviewer sees
   the commit list, stat summary, and full diff with context in one Read
-  call. Use the BASE you recorded before dispatching the implementer —
-  never `HEAD~1`, which silently truncates multi-commit tasks.
+  call. For a verify-fix re-review use FIX_BASE (the HEAD recorded before the fixer); for the final review use MERGE_BASE — never `HEAD~1`, which silently truncates multi-commit ranges.
 - A dispatch prompt describes one task, not the session's history. Do not
   paste accumulated prior-task summaries ("state after Tasks 1-3") into
   later dispatches — a real session's dispatch hit 42k chars of which 99%
   was pasted history. A fresh subagent needs its task, the interfaces it
   touches, and the global constraints. Nothing else.
-- Dispatch fix subagents for Critical and Important findings. Record Minor
-  findings in the progress ledger as you go, and point the final
-  whole-branch review at that list so it can triage which must be fixed
-  before merge. A roll-up nobody reads is a silent discard.
+- Dispatch a fix subagent for Critical and Important findings. Minor
+  findings from the final review: triage which must be fixed before merge
+  and record the rest in the progress ledger for the human to see at
+  finishing — a roll-up nobody reads is a silent discard.
 - A finding labeled plan-mandated — or any finding that conflicts with
   what the plan's text requires — is the human's decision, like any plan
   contradiction: present the finding and the plan text, ask which governs.
@@ -249,64 +245,77 @@ final whole-branch review. When you fill a reviewer template:
   whole suite. Before re-dispatching the reviewer, confirm the fix report
   contains the covering tests, the command run, and the output; dispatch
   the re-review once all three are present (use the verify-fix variant —
-  see "Review Loop" and task-reviewer-prompt.md).
+  see "Final Review Loop" and task-reviewer-prompt.md).
 - If the final whole-branch review returns findings, dispatch ONE fix
   subagent with the complete findings list — not one fixer per finding.
   Per-finding fixers each rebuild context and re-run suites; a real
   session's final-review fix wave cost more than all its tasks combined.
 
-## Review Gating: Which Groups Skip the Dedicated Reviewer
+## Final Review Nets Every Group
 
-Two mechanical signals — the group's tier and its position in the plan —
-decide whether a group earns a dedicated reviewer dispatch:
+No group earns a dedicated reviewer dispatch. The implementer's self-review
+is the only group-boundary check; the final whole-branch review IS the
+review. Its dispatch prompt carries three additions:
 
-- **Group tier is `cheap`** (every task touches 1-2 files with a complete
-  spec) → skip the group reviewer. Trust the implementer's self-review and
-  record `Group N: review skipped (cheap)` in the ledger. This is the same
-  risk signal that already routes the group to a cheap implementer model —
-  not a license to widen what counts as `cheap`; the tier definition is
-  unchanged.
-- **The group is the plan's last group** (any tier) → skip the group
-  reviewer and record `Group N: review skipped (last group)`. The final
-  whole-branch review starts immediately after this group, so a dedicated
-  reviewer buys no earlier catch, and no downstream groups exist for a
-  defect to propagate into.
-- **Neither applies** → dispatch the group reviewer and run the review loop
-  below.
+- **Every group's brief.** Hand the final reviewer each group's brief file
+  path plus the global constraints that bound it ("No group had a dedicated
+  review — cover spec compliance and quality for all of them; briefs:
+  <paths>"). The final reviewer inherits the group reviewer's
+  spec-compliance duty for the whole plan. Ask it to report requirements it
+  cannot verify from the diff as ⚠️ items.
+- **Severity floor.** Include this block verbatim — it counters the
+  measured failure mode where a real mid-group defect is found but demoted
+  to Minor (design/2026-07-16-review-gating-v2-retrospective.md §3):
 
-When you dispatch the final whole-branch review, list every skipped group in
-its prompt and hand it each skipped group's brief file path plus the global
-constraints that bound it ("Groups 3 and 5 had no dedicated review — cover
-spec compliance and quality for them; briefs: <paths>"). The one broad
-review deliberately covers the ungated code and inherits the group
-reviewer's spec-compliance duty for those groups.
+  ```
+  This branch was implemented without intermediate group reviews. Rate
+  severity by consequence, not by surface form: a finding that violates a
+  brief requirement, or propagates a wrong value/type/contract downstream,
+  is Important or Critical even when it reads as a type-contract or style
+  nit. A Minor rating on such a finding requires a one-line justification
+  of why the consequence is harmless.
+  ```
 
-## Review Loop: Escalation and Retry Cap
+- **Finding class.** Include this block verbatim so the loop below can
+  route findings:
 
-The reviewer tags each Critical/Important finding with a `class` (see
-`task-reviewer-prompt.md`). Route the review result by class, and cap the
-loop so a finding a fixer cannot resolve does not spin forever:
+  ```
+  Tag each Critical/Important finding with exactly one `class`:
+  - `impl-fix` — the implementation is wrong, incomplete, or low-quality
+    against a correct spec; a fix subagent can resolve it. Default when
+    unsure.
+  - `plan-escalate` — the plan/brief/spec text itself is wrong or
+    internally contradictory, so no implementation of it can be correct.
+    State the plan text at fault. Every plan-mandated finding is
+    `plan-escalate`.
+  ```
+
+These blocks are not pre-judging (see Constructing Reviewer Prompts): they
+name no finding, suppress no flag, and pre-rate no specific issue — they
+pin the severity scale and the routing vocabulary.
+
+## Final Review Loop: Escalation and Retry Cap
+
+Route the final review's result by finding class, and cap the loop so a
+finding a fixer cannot resolve does not spin forever:
 
 - **Any `plan-escalate` finding → stop, do not dispatch a fixer.** The plan
   or spec text itself is wrong, so no implementation fixes it. Present the
   finding beside the plan text it contradicts and ask the human which
-  governs — the same escalation any plan contradiction gets. Resume only
-  after the human resolves it.
-- **`impl-fix` findings only → run the fix → re-review loop, capped at 3
-  re-reviews per group.** Re-reviews use the verify-fix variant (see
-  task-reviewer-prompt.md): the open findings verbatim plus the fix-diff
+  governs. Resume only after the human resolves it.
+- **`impl-fix` findings only → dispatch ONE fix subagent with the complete
+  findings list** (never one fixer per finding — per-finding fixers each
+  rebuild context and re-run suites), then a verify-fix re-review
+  (./task-reviewer-prompt.md): the open findings verbatim plus the fix-diff
   package (`scripts/review-package FIX_BASE HEAD`, FIX_BASE = the HEAD
-  recorded before the fixer) — not the original group package. Track the
-  count in the progress ledger as `reviewCycles: <n>` for the group and
-  increment it on every re-review dispatch. A verify-fix result exits the
-  loop when every open finding is resolved, no new Critical/Important
-  findings appear, and task quality is Approved. When a group reaches 3
-  re-reviews with findings still open,
-  **stop and escalate to the human** — three fixer rounds that did not
-  converge signal the task, not the implementation, needs a decision.
+  recorded before the fixer) — never the original branch package. Track the
+  count in the progress ledger as `final: reviewCycles <n>`, incremented on
+  every re-review dispatch, **capped at 3 re-reviews**. A verify-fix result
+  exits the loop when every open finding is resolved, no new
+  Critical/Important findings appear, and quality is Approved. At 3
+  re-reviews with findings still open, stop and escalate to the human.
 - The ledger counter is authoritative: after a compaction or resume, read
-  `reviewCycles` from the ledger, not your recollection, so the cap cannot
-  be silently reset by re-entering the loop.
+  `final: reviewCycles` from the ledger, not your recollection.
 
 ## File Handoffs
 
@@ -330,9 +339,11 @@ and is re-read on every later turn. Hand artifacts over as files:
   (brief `…/task-N-brief.md` → report `…/task-N-report.md`) and put it in
   the dispatch prompt. The implementer writes the full report there and
   returns only status, commits, a one-line test summary, and concerns.
-- **Reviewer inputs:** the task reviewer gets three paths — the same brief
-  file, the report file, and the review package — plus the global
-  constraints that bind the task.
+- **Final reviewer inputs:** the branch review package
+  (`scripts/review-package MERGE_BASE HEAD`), every group's brief path,
+  and the global constraints (see Final Review Nets Every Group). A
+  verify-fix re-review gets the open findings verbatim, the fix-diff
+  package, and the brief paths for context.
 - Fix dispatches append their fix report (with test results) to the same
   report file and return a short summary; re-reviews read the updated file.
 
@@ -347,15 +358,12 @@ a ledger file, not only in todos.
   `cat "$(git rev-parse --show-toplevel)/.harness-flow/sdd/progress.md"`.
   Tasks listed there as complete are DONE — do not re-dispatch them; resume
   at the first task not marked complete.
-- When a task's review comes back clean, append one line to the ledger in
-  the same message as your other bookkeeping:
-  `Group N: complete (commits <base7>..<head7>, review clean)`.
-- While a group is still in the review loop, record its re-review count as
-  `Group N: reviewCycles <n>` and update it on each re-review dispatch. This
-  is the authoritative source for the 3-re-review cap (see "Review Loop:
+- When a group's implementer reports DONE and its commits are verified on the feature branch, append one line to the ledger in the same message as your other bookkeeping: `Group N: complete (commits <base7>..<head7>, no group review — final nets)`.
+- While the final review is in its fix loop, record the re-review count as
+  `final: reviewCycles <n>` and update it on each verify-fix dispatch. This
+  is the authoritative source for the 3-re-review cap (see "Final Review Loop:
   Escalation and Retry Cap") — after a resume, read it back instead of
-  restarting the count from zero. A group whose review was skipped (see
-  "Review Gating") needs no counter.
+  restarting the count from zero.
 - The ledger is your recovery map: the commits it names exist in git even
   when your context no longer remembers creating them. After compaction,
   trust the ledger and `git log` over your own recollection.
@@ -365,13 +373,13 @@ a ledger file, not only in todos.
 ## Prompt Templates
 
 - [implementer-prompt.md](implementer-prompt.md) - Dispatch implementer subagent
-- [task-reviewer-prompt.md](task-reviewer-prompt.md) - Dispatch task reviewer subagent (spec compliance + code quality)
+- [task-reviewer-prompt.md](task-reviewer-prompt.md) - Verify-fix re-review after a final-review fix wave
 - Final whole-branch review: use harness-flow:requesting-code-review's [code-reviewer.md](../requesting-code-review/code-reviewer.md)
 
 ## Example Workflow
 
 See [references/example-workflow.md](references/example-workflow.md) for a
-full worked example (dispatch, gating, fix→re-review, final review).
+full worked example (dispatch, final whole-branch review, fix→verify-fix loop).
 
 ## When All Tasks Complete
 
@@ -392,7 +400,7 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 
 **Never:**
 - Start implementation on main/master branch without explicit user consent
-- Skip task review, or accept a report missing either verdict (spec compliance AND task quality are both required)
+- Skip the final whole-branch review, or dispatch it without every group's brief and the severity-floor and class blocks
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make a subagent read the whole plan file (hand it its task brief —
@@ -400,15 +408,13 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (reviewer found spec issues = not done)
-- Skip review loops (reviewer found issues = implementer fixes = review again)
-- Let implementer self-review replace actual review (both are needed)
+- Skip verify-fix re-reviews (final review found issues = fix = re-review)
+- Let implementer self-review replace the final whole-branch review (both are needed)
 - Tell a reviewer what not to flag, or pre-rate a finding's severity in the
   dispatch prompt ("treat it as Minor at most") — the plan's example code is
   a starting point, not evidence that its weaknesses were chosen
-- Dispatch a task reviewer without a diff file — generate it first
-  (`scripts/review-package BASE HEAD`) and name the printed path in the
-  prompt
-- Move to next task while the review has open Critical/Important issues
+- Dispatch the final review or a verify-fix re-review without a package file — generate it first (`scripts/review-package`) and name the printed path in the prompt
+- Finish while the final review has open Critical/Important issues
 - Re-dispatch a task the progress ledger already marks complete — check
   the ledger (and `git log`) after any compaction or resume
 
@@ -417,10 +423,10 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - Provide additional context if needed
 - Don't rush them into implementation
 
-**If reviewer finds issues:**
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
-- Repeat until approved
+**If the final review finds issues:**
+- ONE fix subagent fixes the complete findings list
+- Verify-fix re-review confirms (cap: 3 re-reviews)
+- Repeat until approved or the cap escalates to the human
 - Don't skip the re-review
 
 **If subagent fails task:**
