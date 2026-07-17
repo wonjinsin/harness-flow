@@ -9,6 +9,12 @@ const {
   parseClaudeJson,
   parseFindings,
   routeFindings,
+  buildImplementerPrompt,
+  buildFinalReviewPrompt,
+  buildFixPrompt,
+  buildVerifyFixPrompt,
+  SEVERITY_FLOOR_BLOCK,
+  FINDING_CLASS_BLOCK,
 } = require("../../skills/subagent-driven-development/scripts/lib/loop-lib.js");
 
 test("parsePlanGroups finds numbered groups with names", () => {
@@ -167,4 +173,82 @@ test("routeFindings: only Critical/Important trigger a fix; Minor approves", () 
 test("routeFindings treats a missing class as impl-fix (reviewer default)", () => {
   const routed = routeFindings([{ severity: "Critical", summary: "no class" }]);
   assert.strictEqual(routed.action, "fix");
+});
+
+test("buildImplementerPrompt embeds paths, constraints, and headless contract", () => {
+  const p = buildImplementerPrompt({
+    groupN: 2,
+    groupName: "cli",
+    briefPath: "/w/.harness-flow/sdd/group-2-brief.md",
+    reportPath: "/w/.harness-flow/sdd/group-2-report.md",
+    workDir: "/w",
+    constraints: "- zero deps",
+    retryNote: null,
+  });
+  assert.ok(p.includes("Group 2: cli"));
+  assert.ok(p.includes("/w/.harness-flow/sdd/group-2-brief.md"));
+  assert.ok(p.includes("/w/.harness-flow/sdd/group-2-report.md"));
+  assert.ok(p.includes("- zero deps"));
+  assert.ok(p.includes("NEEDS_CONTEXT"));
+  assert.ok(!p.includes("[BRIEF_FILE]"));
+  assert.ok(!p.includes("retry"));
+});
+
+test("buildImplementerPrompt includes the previous error on retry", () => {
+  const p = buildImplementerPrompt({
+    groupN: 1,
+    groupName: "x",
+    briefPath: "/b",
+    reportPath: "/r",
+    workDir: "/w",
+    constraints: "",
+    retryNote: "no commits were created",
+  });
+  assert.ok(p.includes("previous attempt failed"));
+  assert.ok(p.includes("no commits were created"));
+});
+
+test("buildFinalReviewPrompt carries package, briefs, verbatim blocks, findings path", () => {
+  const p = buildFinalReviewPrompt({
+    packagePath: "/pkg.diff",
+    briefPaths: ["/b1.md", "/b2.md"],
+    constraints: "- rule",
+    templatePath: "/tmpl/code-reviewer.md",
+    findingsPath: "/out/findings.json",
+  });
+  assert.ok(p.includes("/pkg.diff"));
+  assert.ok(p.includes("/b1.md") && p.includes("/b2.md"));
+  assert.ok(p.includes(SEVERITY_FLOOR_BLOCK.trim()));
+  assert.ok(p.includes(FINDING_CLASS_BLOCK.trim()));
+  assert.ok(p.includes("/out/findings.json"));
+  assert.ok(p.includes("/tmpl/code-reviewer.md"));
+});
+
+test("buildFixPrompt lists every finding and demands test evidence", () => {
+  const p = buildFixPrompt({
+    findings: [
+      { severity: "Critical", class: "impl-fix", file: "a.js", summary: "boom" },
+      { severity: "Important", class: "impl-fix", file: "b.js", summary: "bad" },
+    ],
+    reportPath: "/r.md",
+    constraints: "- rule",
+  });
+  assert.ok(p.includes("boom") && p.includes("bad"));
+  assert.ok(p.includes("a.js") && p.includes("b.js"));
+  assert.ok(p.includes("/r.md"));
+  assert.ok(/covering tests/i.test(p));
+});
+
+test("buildVerifyFixPrompt carries open findings and the fix package", () => {
+  const p = buildVerifyFixPrompt({
+    openFindings: [{ severity: "Critical", class: "impl-fix", file: "a.js", summary: "boom" }],
+    fixPackagePath: "/fix.diff",
+    briefPaths: ["/b1.md"],
+    templatePath: "/tmpl/task-reviewer-prompt.md",
+    findingsPath: "/out/findings.json",
+  });
+  assert.ok(p.includes("boom"));
+  assert.ok(p.includes("/fix.diff"));
+  assert.ok(p.includes("/out/findings.json"));
+  assert.ok(p.includes("/tmpl/task-reviewer-prompt.md"));
 });
