@@ -63,7 +63,69 @@ function extractGlobalConstraints(planText) {
   return out.join("\n").trim();
 }
 
+const STATUS_RE =
+  /\*{0,2}Status:?\*{0,2}[ \t]*\*{0,2}(DONE_WITH_CONCERNS|DONE|BLOCKED|NEEDS_CONTEXT)\b/;
+
+function parseReportStatus(text) {
+  if (!text) return null;
+  const m = String(text).match(STATUS_RE);
+  return m ? m[1] : null;
+}
+
+function parseClaudeJson(stdout) {
+  try {
+    const data = JSON.parse(stdout);
+    return {
+      result: typeof data.result === "string" ? data.result : "",
+      usage:
+        data.usage && typeof data.usage === "object" ? data.usage : null,
+      costUsd:
+        typeof data.total_cost_usd === "number" ? data.total_cost_usd : null,
+      durationMs:
+        typeof data.duration_ms === "number" ? data.duration_ms : null,
+      isError: Boolean(data.is_error),
+    };
+  } catch {
+    return {
+      result: "",
+      usage: null,
+      costUsd: null,
+      durationMs: null,
+      isError: true,
+    };
+  }
+}
+
+function parseFindings(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.findings)) return data.findings;
+  return null;
+}
+
+function routeFindings(findings) {
+  const open = findings.filter(
+    (f) => f.severity === "Critical" || f.severity === "Important"
+  );
+  const escalations = open.filter((f) => f.class === "plan-escalate");
+  if (escalations.length) return { action: "escalate", escalations };
+  if (open.length) return { action: "fix", fixList: open };
+  return {
+    action: "approved",
+    minor: findings.filter((f) => f.severity === "Minor"),
+  };
+}
+
 module.exports = {
   parsePlanGroups,
   extractGlobalConstraints,
+  parseReportStatus,
+  parseClaudeJson,
+  parseFindings,
+  routeFindings,
 };
