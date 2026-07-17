@@ -65,12 +65,25 @@ if (prompt.includes("Machine-readable verdict")) {
   const rp = prompt.match(/Write your full report to (\\S+?):/)[1];
   const status = mode.startsWith("group" + g + "=")
     ? mode.split("=")[1] : "DONE";
-  if (status === "DONE") {
-    fs.writeFileSync(path.resolve("g" + g + ".txt"), "work");
-    execSync("git add -A && git commit -m 'feat: stub group " + g + "'",
-      { stdio: "ignore" });
+  if (status === "GARBLE_ONCE") {
+    const marker = path.resolve("garbled-" + g);
+    if (!fs.existsSync(marker)) {
+      fs.writeFileSync(path.resolve("g" + g + ".txt"), "work");
+      execSync("git add -A && git commit -m 'feat: stub group " + g + "'",
+        { stdio: "ignore" });
+      fs.writeFileSync(marker, "1");
+      fs.writeFileSync(rp, "working...\\n");
+    } else {
+      fs.writeFileSync(rp, "Status: DONE\\ndetails\\n");
+    }
+  } else {
+    if (status === "DONE") {
+      fs.writeFileSync(path.resolve("g" + g + ".txt"), "work");
+      execSync("git add -A && git commit -m 'feat: stub group " + g + "'",
+        { stdio: "ignore" });
+    }
+    fs.writeFileSync(rp, "Status: " + status + "\\ndetails\\n");
   }
-  fs.writeFileSync(rp, "Status: " + status + "\\ndetails\\n");
   out();
 }
 `;
@@ -164,6 +177,20 @@ test("plan-escalate exits 2 without dispatching a fixer", (t) => {
   assert.strictEqual(r.status, 2, r.stdout + r.stderr);
   assert.ok(r.stderr.includes("plan-escalate"));
   assert.ok(!fs.existsSync(path.join(dir, "fixed.txt")));
+});
+
+test("retry-then-succeed: garbled status on attempt 1 still counts the commit", (t) => {
+  const dir = makeRepo(t, { stubMode: "group1=GARBLE_ONCE" });
+  const r = runLoop(dir, []);
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  const state = JSON.parse(
+    fs.readFileSync(path.join(dir, ".harness-flow/sdd/loop-state.json"), "utf8")
+  );
+  assert.strictEqual(state.groups[0].status, "completed");
+  assert.strictEqual(state.groups[0].attempts, 2);
+  const log = execSync("git log --oneline", { cwd: dir, encoding: "utf8" });
+  const matches = log.match(/stub group 1/g) || [];
+  assert.strictEqual(matches.length, 1);
 });
 
 test("existing state without --resume refuses to run", (t) => {

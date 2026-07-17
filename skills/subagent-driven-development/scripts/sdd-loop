@@ -148,6 +148,7 @@ function runGroups(ctx) {
     const brief = briefPath(ctx, group.n);
     runScript(ctx, "task-brief", [ctx.opts.plan, String(group.n), brief]);
     let retryNote = null;
+    const preHead = git(ctx.root, "rev-parse", "HEAD");
 
     while (true) {
       group.attempts += 1;
@@ -158,7 +159,6 @@ function runGroups(ctx) {
           (group.attempts > 1 ? ` (attempt ${group.attempts})` : "")
       );
 
-      const preHead = git(ctx.root, "rev-parse", "HEAD");
       const prompt = lib.buildImplementerPrompt({
         groupN: group.n,
         groupName: group.name,
