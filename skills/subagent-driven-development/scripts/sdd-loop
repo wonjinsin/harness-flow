@@ -241,6 +241,135 @@ function runGroups(ctx) {
   }
 }
 
+function readVerdict(ctx, findingsPath) {
+  let text;
+  try {
+    text = fs.readFileSync(findingsPath, "utf8");
+  } catch {
+    return null;
+  }
+  return lib.parseFindings(text);
+}
+
+function runReviewSession(ctx, { phase, prompt, findingsPath }) {
+  fs.rmSync(findingsPath, { force: true });
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    runClaude(ctx, { phase, model: ctx.opts.reviewModel, prompt });
+    const findings = readVerdict(ctx, findingsPath);
+    if (findings !== null) return findings;
+    console.log(`↻ ${phase}: no parseable verdict JSON — retrying once`);
+  }
+  die(`${phase} produced no parseable verdict at ${findingsPath}`, 1);
+}
+
+function runFinalReview(ctx) {
+  const { state } = ctx;
+  if (state.final.status === "approved") return;
+  const findingsPath = path.join(ctx.workspace, "final-review-findings.json");
+  const briefPaths = state.groups.map((g) => briefPath(ctx, g.n));
+  const fixReportPath = path.join(ctx.workspace, "final-fix-report.md");
+
+  console.log(`▸ Final whole-branch review [${ctx.opts.reviewModel}]`);
+  const pkg = path.join(
+    ctx.workspace,
+    `review-final-${state.final.reviewCycles}.diff`
+  );
+  runScript(ctx, "review-package", [state.mergeBase, "HEAD", pkg]);
+  let findings = runReviewSession(ctx, {
+    phase: "final-review",
+    prompt: lib.buildFinalReviewPrompt({
+      packagePath: pkg,
+      briefPaths,
+      constraints: ctx.constraints,
+      templatePath: REVIEW_TEMPLATE,
+      findingsPath,
+    }),
+    findingsPath,
+  });
+
+  while (true) {
+    const routed = lib.routeFindings(findings);
+
+    if (routed.action === "approved") {
+      state.final.status = "approved";
+      saveState(ctx.statePath, state);
+      for (const m of routed.minor || []) {
+        appendLedger(
+          ctx,
+          `final: minor finding (not fixed): ${m.file || ""} — ${m.summary}`
+        );
+      }
+      appendLedger(
+        ctx,
+        `final: approved after ${state.final.reviewCycles} re-review(s)`
+      );
+      console.log("✓ Final review approved");
+      return;
+    }
+
+    if (routed.action === "escalate") {
+      state.final.status = "escalate";
+      saveState(ctx.statePath, state);
+      console.error("⏸ plan-escalate finding(s) — the plan/spec itself is at fault:");
+      for (const f of routed.escalations) {
+        console.error(`  [${f.severity}] ${f.file || ""} — ${f.summary}`);
+      }
+      console.error("  A human must resolve the plan text, then re-run with --resume.");
+      process.exit(2);
+    }
+
+    if (state.final.reviewCycles >= lib.MAX_REVIEW_CYCLES) {
+      state.final.status = "escalate";
+      saveState(ctx.statePath, state);
+      console.error(
+        `⏸ ${lib.MAX_REVIEW_CYCLES} re-reviews reached with findings still open — escalating to human:`
+      );
+      for (const f of routed.fixList) {
+        console.error(`  [${f.severity}] ${f.file || ""} — ${f.summary}`);
+      }
+      process.exit(2);
+    }
+
+    console.log(
+      `▸ Fix wave: ${routed.fixList.length} finding(s) [${ctx.opts.model}]`
+    );
+    const fixBase = git(ctx.root, "rev-parse", "HEAD");
+    runClaude(ctx, {
+      phase: `fix-wave-${state.final.reviewCycles + 1}`,
+      model: ctx.opts.model,
+      prompt: lib.buildFixPrompt({
+        findings: routed.fixList,
+        reportPath: fixReportPath,
+        constraints: ctx.constraints,
+      }),
+    });
+
+    state.final.reviewCycles += 1;
+    saveState(ctx.statePath, state);
+    appendLedger(ctx, `final: reviewCycles ${state.final.reviewCycles}`);
+
+    const fixPkg = path.join(
+      ctx.workspace,
+      `review-fix-${state.final.reviewCycles}.diff`
+    );
+    runScript(ctx, "review-package", [fixBase, "HEAD", fixPkg]);
+    console.log(
+      `▸ Verify-fix re-review ${state.final.reviewCycles}/${lib.MAX_REVIEW_CYCLES} [${ctx.opts.reviewModel}]`
+    );
+    findings = runReviewSession(ctx, {
+      phase: `verify-fix-${state.final.reviewCycles}`,
+      prompt: lib.buildVerifyFixPrompt({
+        openFindings: routed.fixList,
+        fixPackagePath: fixPkg,
+        briefPaths,
+        templatePath: VERIFY_FIX_TEMPLATE,
+        findingsPath,
+      }),
+      findingsPath,
+    });
+  }
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) return usage();
