@@ -267,6 +267,30 @@ defect was introduced by the fix, and that fix quality is acceptable.
 ${FINDINGS_JSON_CONTRACT(opts.findingsPath)}`;
 }
 
+const MAX_ATTEMPTS = 2;
+const MAX_REVIEW_CYCLES = 3;
+
+function initState(opts) {
+  return {
+    plan: opts.plan,
+    branch: opts.branch,
+    mergeBase: opts.mergeBase,
+    groups: opts.groups.map((g) => ({
+      n: g.n,
+      name: g.name,
+      model: g.model || opts.defaultModel,
+      status: "pending",
+      attempts: 0,
+      commits: [],
+    })),
+    final: { reviewCycles: 0, status: "pending" },
+  };
+}
+
+function nextPending(state) {
+  return state.groups.find((g) => g.status !== "completed") || null;
+}
+
 module.exports = {
   parsePlanGroups,
   extractGlobalConstraints,
@@ -280,4 +304,8 @@ module.exports = {
   buildVerifyFixPrompt,
   SEVERITY_FLOOR_BLOCK,
   FINDING_CLASS_BLOCK,
+  initState,
+  nextPending,
+  MAX_ATTEMPTS,
+  MAX_REVIEW_CYCLES,
 };

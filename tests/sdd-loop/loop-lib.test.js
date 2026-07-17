@@ -15,6 +15,10 @@ const {
   buildVerifyFixPrompt,
   SEVERITY_FLOOR_BLOCK,
   FINDING_CLASS_BLOCK,
+  initState,
+  nextPending,
+  MAX_ATTEMPTS,
+  MAX_REVIEW_CYCLES,
 } = require("../../skills/subagent-driven-development/scripts/lib/loop-lib.js");
 
 test("parsePlanGroups finds numbered groups with names", () => {
@@ -251,4 +255,46 @@ test("buildVerifyFixPrompt carries open findings and the fix package", () => {
   assert.ok(p.includes("/fix.diff"));
   assert.ok(p.includes("/out/findings.json"));
   assert.ok(p.includes("/tmpl/task-reviewer-prompt.md"));
+});
+
+test("initState maps groups with per-group model override and default", () => {
+  const s = initState({
+    plan: "/p.md",
+    branch: "feat",
+    mergeBase: "abc1234",
+    groups: [
+      { n: 1, name: "a", model: "haiku" },
+      { n: 2, name: "b", model: null },
+    ],
+    defaultModel: "sonnet",
+  });
+  assert.strictEqual(s.groups[0].model, "haiku");
+  assert.strictEqual(s.groups[1].model, "sonnet");
+  assert.strictEqual(s.groups[0].status, "pending");
+  assert.strictEqual(s.groups[0].attempts, 0);
+  assert.deepStrictEqual(s.final, { reviewCycles: 0, status: "pending" });
+  assert.strictEqual(s.mergeBase, "abc1234");
+});
+
+test("nextPending returns the first non-completed group, else null", () => {
+  const s = initState({
+    plan: "p",
+    branch: "b",
+    mergeBase: "m",
+    groups: [
+      { n: 1, name: "a", model: null },
+      { n: 2, name: "b", model: null },
+    ],
+    defaultModel: "sonnet",
+  });
+  assert.strictEqual(nextPending(s).n, 1);
+  s.groups[0].status = "completed";
+  assert.strictEqual(nextPending(s).n, 2);
+  s.groups[1].status = "completed";
+  assert.strictEqual(nextPending(s), null);
+});
+
+test("caps are exported as constants", () => {
+  assert.strictEqual(MAX_ATTEMPTS, 2);
+  assert.strictEqual(MAX_REVIEW_CYCLES, 3);
 });
