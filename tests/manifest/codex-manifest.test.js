@@ -24,5 +24,6 @@ test('codex marketplace lists the harness-flow plugin at repo root', () => {
   assert.ok(Array.isArray(mkt.plugins));
   const entry = mkt.plugins.find((p) => p.name === 'harness-flow');
   assert.ok(entry, 'harness-flow plugin entry present');
+  assert.equal(entry.source.source, 'local');
   assert.equal(entry.source.path, './');
 });
