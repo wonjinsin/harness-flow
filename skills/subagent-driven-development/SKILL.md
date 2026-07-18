@@ -282,6 +282,16 @@ The broad review happens once, at the final whole-branch review; verify-fix re-r
 
 ## Final Review Nets Every Group
 
+**Deterministic completeness gate first.** Before dispatching the final
+review, run this skill's `scripts/plan-audit PLAN_FILE` (add
+`--base MERGE_BASE` to also enforce one-commit-per-task). It verifies every
+task's declared Create/Modify/Test files exist — the measured worst-case
+failure is silently dropping tasks and reviewing what remains
+(design/2026-07-18-external-loop-retrospective.md). On MISSING output,
+dispatch implementers for those tasks before any review. A registered hook
+(`pre-plan-audit.js`) denies the final-review dispatch as a backstop, but
+running the audit yourself first is the normal path.
+
 No group earns a dedicated reviewer dispatch. The implementer's self-review
 is the only group-boundary check; the final whole-branch review IS the
 review. Its dispatch prompt carries three additions:
@@ -443,6 +453,8 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
   dispatch prompt ("treat it as Minor at most") — the plan's example code is
   a starting point, not evidence that its weaknesses were chosen
 - Dispatch the final review or a verify-fix re-review without a package file — generate it first (`scripts/review-package`) and name the printed path in the prompt
+- Dispatch the final review without a clean `scripts/plan-audit` run — missing
+  deliverables mean implementation is not done, whatever the reports said
 - Finish while the final review has open Critical/Important issues
 - Re-dispatch a task the progress ledger already marks complete — check
   the ledger (and `git log`) after any compaction or resume

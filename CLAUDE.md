@@ -132,6 +132,12 @@ Recent Claude Code versions renamed the dispatch tool `Task` → `Agent` (`Task`
 
 Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-agent-model.js`
 
+### `hooks/pre-plan-audit.js` — PreToolUse(Agent|Task)
+
+SDD final-review completeness gate. When a final whole-branch review dispatch (description `Review code changes`) fires, runs `skills/subagent-driven-development/scripts/plan-audit` against the newest plan in `docs/harness-flow/plans/` (override: `HARNESS_FLOW_PLAN`) and denies the dispatch while any plan task's declared Create/Modify/Test files are missing — the measured in-session failure mode of silently dropping tasks (design/2026-07-18-external-loop-retrospective.md). Fail-open everywhere except a genuine audit failure: no repo, no plan, task-less plan, or audit spawn error all pass. Same deny + exit-2 contract as `pre-agent-model.js`.
+
+Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-plan-audit.js`
+
 ### Hook registration env var conventions
 
 - Plugin install → `hooks/hooks.json` uses `${CLAUDE_PLUGIN_ROOT}`, auto-injected by Claude Code's plugin runtime.
