@@ -37,6 +37,20 @@ const PATTERNS = [
     regex: /(^|[;&|]\s*)(sudo\s+)?(?:[A-Z_][A-Z0-9_]*=\S+\s+)*aws(?=\s|$|[;&|])/,
     reason: 'aws CLI commands modify cloud state or read sensitive data. User authorization required.',
   },
+
+  // Token/credential printing — permissions deny cannot catch these inside
+  // command substitution ($(...)), so these match anywhere in the string
+  // (unlike gcloud/aws, which anchor to command position).
+  {
+    id: 'gh-auth-token',
+    regex: /\bgh\s+auth\s+token\b/,
+    reason: 'gh auth token prints the GitHub token in plaintext. Use gh api instead.',
+  },
+  {
+    id: 'keychain-password-read',
+    regex: /\bsecurity\s+find-(generic|internet)-password\b/,
+    reason: 'Reading macOS Keychain passwords exposes secrets. User authorization required.',
+  },
 ];
 
 const matchDangerous = makeMatcher(PATTERNS);

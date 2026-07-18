@@ -5,7 +5,7 @@ const { PATTERNS, matchDangerous } = require('../../hooks/pre-bash-commands.js')
 
 test('PATTERNS is a non-empty array of {id, regex, reason}', () => {
   assert.ok(Array.isArray(PATTERNS));
-  assert.equal(PATTERNS.length, 5);
+  assert.equal(PATTERNS.length, 7);
   for (const p of PATTERNS) {
     assert.equal(typeof p.id, 'string');
     assert.ok(p.regex instanceof RegExp);
@@ -119,6 +119,39 @@ test('aws-command: matches AWS_PROFILE=foo aws s3 ls', () => {
 });
 test('aws-command: matches sudo aws ...', () => {
   assert.equal(matchDangerous('sudo aws sts get-caller-identity').id, 'aws-command');
+});
+
+// Token/credential printing commands
+test('gh-auth-token: matches gh auth token', () => {
+  assert.equal(matchDangerous('gh auth token').id, 'gh-auth-token');
+});
+test('gh-auth-token: matches TOKEN=$(gh auth token) (command substitution)', () => {
+  assert.equal(
+    matchDangerous('TOKEN=$(gh auth token) curl -H "Authorization: $TOKEN" x').id,
+    'gh-auth-token',
+  );
+});
+test('gh-auth-token: does not match gh auth status', () => {
+  assert.equal(matchDangerous('gh auth status'), null);
+});
+test('gh-auth-token: does not match gh pr view', () => {
+  assert.equal(matchDangerous('gh pr view 42'), null);
+});
+
+test('keychain-password-read: matches security find-generic-password', () => {
+  assert.equal(
+    matchDangerous('security find-generic-password -s myservice -w').id,
+    'keychain-password-read',
+  );
+});
+test('keychain-password-read: matches $(security find-internet-password ...)', () => {
+  assert.equal(
+    matchDangerous('PW=$(security find-internet-password -s example.com -w)').id,
+    'keychain-password-read',
+  );
+});
+test('keychain-password-read: does not match security list-keychains', () => {
+  assert.equal(matchDangerous('security list-keychains'), null);
 });
 
 test('matchDangerous returns null on clean command', () => {

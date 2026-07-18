@@ -83,12 +83,14 @@ On block, emits Claude Code's `hookSpecificOutput.permissionDecision: 'deny'`
 JSON (also exits 2) with `systemMessage` instructing the LLM to stop and ask
 the user — do NOT retry with a workaround.
 
-Patterns (5 total, see `PATTERNS` in the file):
+Patterns (7 total, see `PATTERNS` in the file):
 
 - `--no-verify` (bypassing pre-commit hooks)
 - `rm -rf /|~|$HOME|.`
 - pipe-to-shell (`curl|wget|fetch … | sh|bash|...`)
 - `gcloud` / `aws` CLI calls (user authorization required)
+- `gh auth token` (prints GitHub token; matched anywhere in the string so `$(...)` substitution is caught)
+- `security find-generic/internet-password` (macOS Keychain password read; same anywhere-match)
 
 Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash-commands.js`
 
@@ -104,13 +106,15 @@ Posture: any reference to a secret-bearing path is blocked — read (`cat .env`)
 
 ALLOWLIST skips `.env.example`/`.sample`/`.template`/`.schema`/`.defaults` for both Bash and file tools.
 
-Same deny + exit-2 contract as `pre-bash-commands.js`. Families (5 total, see `PATTERNS` in the file):
+Same deny + exit-2 contract as `pre-bash-commands.js`. Families (7 total, see `PATTERNS` in the file):
 
 - `.env` (any variant)
 - SSH private keys (`id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa`; `.pub` excluded)
 - `~/.aws/credentials`
 - `~/.config/gcloud/*credentials|tokens|adc|application_default*`
 - GCP service-account JSON
+- `*.pem` / `*.key` key material (block-all; no public-cert allowlist — filenames don't prove a cert is public)
+- `~/.netrc`
 
 Both hooks share `hooks/lib/guard.js` (`emitDeny` + `runGuard` parameterized by `kind`/`getValue`).
 
