@@ -1,7 +1,7 @@
 {
   "name": "harness-flow",
   "description": "Personal skills library: TDD, worktree workflows, subagent-driven development, and battle-tested engineering patterns. Cross-harness (Claude Code + Codex).",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "author": {
     "name": "wonjinsin",
     "email": "slgktn92@gmail.com"
