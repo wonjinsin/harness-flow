@@ -47,3 +47,4 @@ harness_framework의 외부 결정론 루프 패턴을 harness-flow에 이식한
 - 게이트 판정: **속도·토큰 게이트 실패 → 기본 경로 승격 불가.** 단 opt-in 무인 실행 경로로서의 가치(정직한 실패, 재개성, compaction 무관)는 실증됨 — merge 여부는 사용자 판단.
 - 재도전 조건(negative-record 규칙): 보고-계약 fallback(원인 1)을 구현하고, 동일 3-plan eval에서 (a) 루프 완주율 3/3, (b) 비용 격차 ≤1.2×를 통과할 것.
 - wall-clock 기반 속도 비교는 무효(스로틀링) — 재실행 시 API duration만 채점하고 시간대 통제.
+- **후속(같은 날): 슬림화로 sdd-loop 코드 제거.** 게이트 실패 + 유지보수 부채(코드 ~500줄, 문서 상시 토큰) 때문에 사용자 결정으로 본체 삭제. 루프의 결정론 검증 개념은 `plan-audit` + `pre-plan-audit.js`로 in-session 체인에 이식되어 존속(2026-07-18-plan-audit-gate-retrospective.md). 이 회고와 재도전 조건은 negative-record로 유지 — 재도전 시 이 커밋 이력에서 코드 복구 가능.

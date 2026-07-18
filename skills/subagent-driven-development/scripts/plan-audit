@@ -14,7 +14,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { parsePlanFiles } = require("./lib/loop-lib.js");
+const { parsePlanFiles } = require("./lib/plan-lib.js");
 
 function die(msg) {
   console.error(`plan-audit: ${msg}`);

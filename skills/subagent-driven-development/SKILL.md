@@ -51,35 +51,6 @@ cold-start of a fresh subagent costs more than the work. Instead:
 No group-boundary reviewers exist on any path; the single whole-branch
 review covers the plan (see Final Review Nets Every Group).
 
-## Headless Loop Path (external orchestrator)
-
-For unattended runs, long plans, or when compaction risk is a concern, the
-plan can be executed by `scripts/sdd-loop` instead of this session:
-
-    skills/subagent-driven-development/scripts/sdd-loop PLAN_FILE \
-      [--model sonnet] [--review-model opus] [--resume] [--dry-run]
-
-What moves out of your hands: group ordering, fresh `claude -p` sessions
-per group (cwd pinned to the repo root — the worktree gotcha cannot
-occur), commit verification (DONE without a new commit is a failure),
-retry caps, the final whole-branch review with the severity-floor and
-finding-class blocks, the fix→verify-fix loop, and the 3-re-review cap —
-all enforced in code. State lives in `.harness-flow/sdd/loop-state.json`;
-per-session usage appends to `loop-metrics.jsonl`; the ledger still gets
-its `progress.md` lines.
-
-Exit codes: 0 complete (proceed to claude-md-revise and
-finishing-a-development-branch in an interactive session), 1 error,
-2 human intervention (blocked group, plan-escalate finding, or re-review
-cap) — resolve, then re-run with `--resume`.
-
-The loop reuses `task-brief`, `review-package`, and `sdd-workspace`
-verbatim and mirrors this skill's review blocks; it adds no second
-source of truth. In-session execution remains the default for
-interactive work — the loop is opt-in for headless runs. All-cheap
-plans: pass `--review-model sonnet` yourself (Model Selection's
-exception is not auto-detected).
-
 ## The Process
 
 ```dot
