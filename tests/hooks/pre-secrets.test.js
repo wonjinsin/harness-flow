@@ -12,7 +12,7 @@ const {
 
 test('PATTERNS is a non-empty array of {id, regex, reason}', () => {
   assert.ok(Array.isArray(PATTERNS));
-  assert.equal(PATTERNS.length, 5);
+  assert.equal(PATTERNS.length, 7);
   for (const p of PATTERNS) {
     assert.equal(typeof p.id, 'string');
     assert.ok(p.regex instanceof RegExp);
@@ -139,6 +139,30 @@ test('file read-gcp-service-account: does not match /tmp/account.json', () => {
   assert.equal(matchFilePath('/tmp/account.json'), null);
 });
 
+// ---------- matchFilePath: read-key-material ----------
+
+test('file read-key-material: matches /x/server.pem', () => {
+  assert.equal(matchFilePath('/x/server.pem').id, 'read-key-material');
+});
+test('file read-key-material: matches signing.KEY (case-insensitive)', () => {
+  assert.equal(matchFilePath('signing.KEY').id, 'read-key-material');
+});
+test('file read-key-material: does not match key.txt', () => {
+  assert.equal(matchFilePath('/proj/key.txt'), null);
+});
+test('file read-key-material: does not match pemfile.txt', () => {
+  assert.equal(matchFilePath('/proj/pemfile.txt'), null);
+});
+
+// ---------- matchFilePath: read-netrc ----------
+
+test('file read-netrc: matches /Users/u/.netrc', () => {
+  assert.equal(matchFilePath('/Users/u/.netrc').id, 'read-netrc');
+});
+test('file read-netrc: does not match netrc.md', () => {
+  assert.equal(matchFilePath('/proj/netrc.md'), null);
+});
+
 // ---------- matchFilePath: empty/null ----------
 
 test('matchFilePath returns null on empty string', () => {
@@ -255,6 +279,24 @@ test('bash: cat account.json does not match service-account', () => {
 });
 test('bash: ls -la returns null', () => {
   assert.equal(matchBashCommand('ls -la'), null);
+});
+
+// ---------- matchBashCommand: key material + netrc ----------
+
+test('bash: cat ~/.netrc hits read-netrc', () => {
+  assert.equal(matchBashCommand('cat ~/.netrc').id, 'read-netrc');
+});
+test('bash: openssl rsa -in server.key hits read-key-material', () => {
+  assert.equal(
+    matchBashCommand('openssl rsa -in server.key').id,
+    'read-key-material',
+  );
+});
+test('bash: curl --key=client.key hits read-key-material (suffix match)', () => {
+  assert.equal(
+    matchBashCommand('curl --key=client.key https://x').id,
+    'read-key-material',
+  );
 });
 
 // ---------- matchBashCommand: empty/null ----------

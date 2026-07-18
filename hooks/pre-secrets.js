@@ -56,6 +56,16 @@ const PATTERNS = [
     regex: /service[_-]?account[^/]*\.json$/i,
     reason: 'Accessing GCP service account JSON. Use workload identity or env-injected credentials instead.',
   },
+  {
+    id: 'read-key-material',
+    regex: /\.(pem|key)$/i,
+    reason: 'Accessing key material (.pem/.key). There is no safe LLM use case.',
+  },
+  {
+    id: 'read-netrc',
+    regex: /(?:^|\/)\.netrc$/,
+    reason: 'Accessing .netrc exposes stored credentials. Use a credential helper instead.',
+  },
 ];
 
 function matchFilePath(filePath) {
