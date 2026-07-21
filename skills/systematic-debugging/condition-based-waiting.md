@@ -1,113 +1,46 @@
 # Condition-Based Waiting
 
-## Overview
+Flaky tests guess at timing with arbitrary delays, creating races that pass on fast
+machines and fail under load. Wait for the condition you actually care about, not a
+guess about how long it takes.
 
-Flaky tests often guess at timing with arbitrary delays. This creates race conditions where tests pass on fast machines but fail under load or in CI.
+**Use when:** tests use `setTimeout`/`sleep`, are flaky, or time out in parallel.
+**Don't** when testing real timing behavior (debounce/throttle) — there, document why.
 
-**Core principle:** Wait for the actual condition you care about, not a guess about how long it takes.
-
-## When to Use
-
-```dot
-digraph when_to_use {
-    "Test uses setTimeout/sleep?" [shape=diamond];
-    "Testing timing behavior?" [shape=diamond];
-    "Document WHY timeout needed" [shape=box];
-    "Use condition-based waiting" [shape=box];
-
-    "Test uses setTimeout/sleep?" -> "Testing timing behavior?" [label="yes"];
-    "Testing timing behavior?" -> "Document WHY timeout needed" [label="yes"];
-    "Testing timing behavior?" -> "Use condition-based waiting" [label="no"];
-}
-```
-
-**Use when:**
-- Tests have arbitrary delays (`setTimeout`, `sleep`, `time.sleep()`)
-- Tests are flaky (pass sometimes, fail under load)
-- Tests timeout when run in parallel
-- Waiting for async operations to complete
-
-**Don't use when:**
-- Testing actual timing behavior (debounce, throttle intervals)
-- Always document WHY if using arbitrary timeout
-
-## Core Pattern
+## The pattern
 
 ```typescript
-// ❌ BEFORE: Guessing at timing
+// ❌ guessing at timing
 await new Promise(r => setTimeout(r, 50));
-const result = getResult();
-expect(result).toBeDefined();
-
-// ✅ AFTER: Waiting for condition
+// ✅ waiting for the condition
 await waitFor(() => getResult() !== undefined);
-const result = getResult();
-expect(result).toBeDefined();
 ```
 
-## Quick Patterns
-
-| Scenario | Pattern |
-|----------|---------|
-| Wait for event | `waitFor(() => events.find(e => e.type === 'DONE'))` |
-| Wait for state | `waitFor(() => machine.state === 'ready')` |
-| Wait for count | `waitFor(() => items.length >= 5)` |
-| Wait for file | `waitFor(() => fs.existsSync(path))` |
-| Complex condition | `waitFor(() => obj.ready && obj.value > 10)` |
-
-## Implementation
-
-Generic polling function:
 ```typescript
-async function waitFor<T>(
-  condition: () => T | undefined | null | false,
-  description: string,
-  timeoutMs = 5000
-): Promise<T> {
-  const startTime = Date.now();
-
+async function waitFor<T>(condition: () => T | undefined | false,
+                          description: string, timeoutMs = 5000): Promise<T> {
+  const start = Date.now();
   while (true) {
     const result = condition();
     if (result) return result;
-
-    if (Date.now() - startTime > timeoutMs) {
-      throw new Error(`Timeout waiting for ${description} after ${timeoutMs}ms`);
-    }
-
-    await new Promise(r => setTimeout(r, 10)); // Poll every 10ms
+    if (Date.now() - start > timeoutMs) throw new Error(`Timeout: ${description} after ${timeoutMs}ms`);
+    await new Promise(r => setTimeout(r, 10)); // poll every 10ms
   }
 }
 ```
 
-## Common Mistakes
+Common conditions: `waitFor(() => events.find(e => e.type === 'DONE'))`,
+`waitFor(() => machine.state === 'ready')`, `waitFor(() => fs.existsSync(path))`.
 
-**❌ Polling too fast:** `setTimeout(check, 1)` - wastes CPU
-**✅ Fix:** Poll every 10ms
+**Mistakes:** polling every 1ms (wastes CPU — use 10ms); no timeout (loops forever —
+always include one); caching state before the loop (call the getter *inside* it).
 
-**❌ No timeout:** Loop forever if condition never met
-**✅ Fix:** Always include timeout with clear error
-
-**❌ Stale data:** Cache state before loop
-**✅ Fix:** Call getter inside loop for fresh data
-
-## When Arbitrary Timeout IS Correct
+## When an arbitrary timeout is correct
 
 ```typescript
-// Tool ticks every 100ms - need 2 ticks to verify partial output
-await waitForEvent(manager, 'TOOL_STARTED'); // First: wait for condition
-await new Promise(r => setTimeout(r, 200));   // Then: wait for timed behavior
-// 200ms = 2 ticks at 100ms intervals - documented and justified
+await waitForEvent(manager, 'TOOL_STARTED'); // first: wait for the condition
+await new Promise(r => setTimeout(r, 200));   // then: 2 ticks at 100ms — known, documented
 ```
 
-**Requirements:**
-1. First wait for triggering condition
-2. Based on known timing (not guessing)
-3. Comment explaining WHY
-
-## Real-World Impact
-
-From debugging session (2025-10-03):
-- Fixed 15 flaky tests across 3 files
-- Pass rate: 60% → 100%
-- Execution time: 40% faster
-- No more race conditions
+Wait for the triggering condition first, base the delay on known timing (not a
+guess), and comment why.

@@ -1,7 +1,7 @@
-# Harness Comparison: Analysis of 6 Systems
+# Harness Comparison: Analysis of 7 Systems
 
-**Subjects**: Archon / everything-claude-code (ECC) / get-shit-done (GSD) / gstack / oh-my-claudecode (OMC) / superpowers
-**Date**: 2026-04-16
+**Subjects**: Archon / everything-claude-code (ECC) / get-shit-done (GSD) / gstack / oh-my-claudecode (OMC) / superpowers / matt-pocock-skills (MPS)
+**Date**: 2026-04-16 (MPS added 2026-07-22)
 **Basis**: Completed analysis documents for each harness (`reference/*.md`)
 
 ## TL;DR — Which one should you choose?
@@ -210,6 +210,7 @@ stream cancel       injection                           isolation  even 1%"
 - **GSD** enforces Phase order through file structure — to move to the Execute phase, a Plan must exist, and the LLM is aware of this.
 - **superpowers** relies entirely on the LLM's voluntary compliance. It persuades through `<HARD-GATE>`, a `Red Flags` table, and strong language like "this rule is non-negotiable." An experiment in changing LLM behavior through markdown alone, with no code.
 - **gstack** is in the middle — deterministic slash commands are reliable, and natural language rule matching is delegated to the LLM but with 25 rules explicitly stated in the prompt.
+- **MPS** sits at the far high-trust end, to the *right of superpowers*. Superpowers at least ships a `<HARD-GATE>` and a SessionStart-injected rulebook; MPS injects nothing and ships no hooks by explicit anti-process-ownership design — it leans entirely on host description-matching plus the human's own grilling/confirmation.
 
 **This spectrum is decisive for selection**. The more critical the automation, the more the left side is appropriate; the more flexibility and simplicity matter, the more the right side is appropriate.
 
@@ -219,26 +220,26 @@ stream cancel       injection                           isolation  even 1%"
 
 ## 2-1. 18-Dimension Summary Table
 
-| # | Dimension | Archon | ECC | GSD | gstack | OMC | superpowers |
-|---|-----------|--------|-----|-----|--------|-----|-------------|
-| 1 | Type | External wrapper | in-harness | in-harness | in-harness | Hybrid | in-harness |
-| 2 | Direct LLM call | Yes (SDK) | No | Yes (SDK) | No | Yes (SDK) + No (plugin) | No |
-| 3 | Entry point | 6 platform adapters | SessionStart + command | CLI + slash command | Root SKILL.md | Hook + SDK | SessionStart |
-| 4 | Routing | Determinism + AI token detection | Determinism only | Determinism only | Determinism + 25 rules | Keyword amplification + LLM | LLM Skill Priority |
-| 5 | Isolation | git worktree + port | None | None | Optional worktree | None | Recommended only |
-| 6 | Concurrency | Global 10 + FIFO | None | None | None | 5 background agents | 1 per task |
-| 7 | Session model | Immutable linked chain | File-based immutable | `.planning/` files | File touch TTL | File-based mutable | stateless |
-| 8 | State store | SQLite | `*-session.tmp` | `.planning/*.md` | JSONL append | `.omc/state/*.json` | git |
-| 9 | Context assembly | 6-step staircase | Summary + instinct auto-inject | Per-Phase file manifest | Preamble bash | skill-injector injects 5 | using-superpowers injection |
-| 10 | Workflow engine | DAG (YAML, 6 node types) | None | 5-Phase fixed | Markdown Step 1→N | Ralph/Autopilot mode | Skill chain |
-| 11 | Enforcement | emitRetract + whitelist | PreToolUse hook exit 2 | Phase order | Deterministic slash | Stop hook persistence | `<HARD-GATE>` markdown |
-| 12 | Platform support | 6 (Slack/TG/GH/DC/Web/CLI) | Claude Code only | Claude Code only | 8 hosts | Claude Code + SDK | 4 (CC/Cursor/Gemini/Copilot) |
-| 13 | Learning/memory | SQLite log | Instinct (confidence ≥ 0.7) | `.planning/SUMMARY.md` | project/learnings.jsonl | None | git commits |
-| 14 | Model selection | Claude/Codex swappable | Opus/Sonnet | Sonnet default | Host-dependent | 3-tier routing | Host-dependent |
-| 15 | Guardrails | Whitelist + port isolation | block-no-verify hooks | bypassPermissions (dangerous) | STATUS report | boulder detection | Markdown rules |
-| 16 | Extensibility | Add adapters/workflows/nodes | Add skill files | Modify Phase definitions | Add `.tmpl` | Add agents/keywords | Add skill `.md` |
-| 17 | Dependencies | TypeScript/Bun/SQLite | Node.js | TypeScript/Node.js | Bash/Bun | TypeScript/Node.js | zero |
-| 18 | Primary language | TypeScript 5k+ lines | Markdown + Node.js | TypeScript | Bash + TS | TypeScript + JS | Markdown only |
+| # | Dimension | Archon | ECC | GSD | gstack | OMC | superpowers | MPS |
+|---|-----------|--------|-----|-----|--------|-----|-------------|-----|
+| 1 | Type | External wrapper | in-harness | in-harness | in-harness | Hybrid | in-harness | in-harness |
+| 2 | Direct LLM call | Yes (SDK) | No | Yes (SDK) | No | Yes (SDK) + No (plugin) | No | No |
+| 3 | Entry point | 6 platform adapters | SessionStart + command | CLI + slash command | Root SKILL.md | Hook + SDK | SessionStart | `/skill` + description match (no SessionStart) |
+| 4 | Routing | Determinism + AI token detection | Determinism only | Determinism only | Determinism + 25 rules | Keyword amplification + LLM | LLM Skill Priority | Host description match + slash |
+| 5 | Isolation | git worktree + port | None | None | Optional worktree | None | Recommended only | None |
+| 6 | Concurrency | Global 10 + FIFO | None | None | None | 5 background agents | 1 per task | None (ticket DAG) |
+| 7 | Session model | Immutable linked chain | File-based immutable | `.planning/` files | File touch TTL | File-based mutable | stateless | stateless (tracker + `/handoff`) |
+| 8 | State store | SQLite | `*-session.tmp` | `.planning/*.md` | JSONL append | `.omc/state/*.json` | git | Issue tracker + `CONTEXT.md`/ADRs |
+| 9 | Context assembly | 6-step staircase | Summary + instinct auto-inject | Per-Phase file manifest | Preamble bash | skill-injector injects 5 | using-superpowers injection | None automatic |
+| 10 | Workflow engine | DAG (YAML, 6 node types) | None | 5-Phase fixed | Markdown Step 1→N | Ralph/Autopilot mode | Skill chain | None (markdown + `/skill`) |
+| 11 | Enforcement | emitRetract + whitelist | PreToolUse hook exit 2 | Phase order | Deterministic slash | Stop hook persistence | `<HARD-GATE>` markdown | None (soft `/grilling` gate) |
+| 12 | Platform support | 6 (Slack/TG/GH/DC/Web/CLI) | Claude Code only | Claude Code only | 8 hosts | Claude Code + SDK | 4 (CC/Cursor/Gemini/Copilot) | Claude Code + Codex (Agent-Skills) |
+| 13 | Learning/memory | SQLite log | Instinct (confidence ≥ 0.7) | `.planning/SUMMARY.md` | project/learnings.jsonl | None | git commits | `CONTEXT.md` glossary + ADRs |
+| 14 | Model selection | Claude/Codex swappable | Opus/Sonnet | Sonnet default | Host-dependent | 3-tier routing | Host-dependent | Host-dependent |
+| 15 | Guardrails | Whitelist + port isolation | block-no-verify hooks | bypassPermissions (dangerous) | STATUS report | boulder detection | Markdown rules | None (git-guardrails opt-in) |
+| 16 | Extensibility | Add adapters/workflows/nodes | Add skill files | Modify Phase definitions | Add `.tmpl` | Add agents/keywords | Add skill `.md` | Add `SKILL.md` (fork-and-own) |
+| 17 | Dependencies | TypeScript/Bun/SQLite | Node.js | TypeScript/Node.js | Bash/Bun | TypeScript/Node.js | zero | zero |
+| 18 | Primary language | TypeScript 5k+ lines | Markdown + Node.js | TypeScript | Bash + TS | TypeScript + JS | Markdown only | Markdown (+ Bash) |
 
 ## 2-2. Strengths and Weaknesses Summary (Per Harness)
 
@@ -338,6 +339,22 @@ stream cancel       injection                           isolation  even 1%"
 
 **Best for**: Teams who want to "enforce process through documents rather than code." Organizations that want TDD, brainstorming, and code review to be mandatory gates.
 
+### matt-pocock-skills (MPS) — Human-Alignment-First, Deliberately Un-opinionated
+
+**Strengths**
+- Human-alignment-first: a grilling/interview primitive + a facts-vs-decisions split + a confirmation gate attack "the agent didn't do what I wanted" *before* any code is written
+- Shared-language memory unique among all seven — a human-curated `CONTEXT.md` glossary + ADRs, actively sharpened (not a scored instinct like ECC, nor a JSONL log like gstack)
+- Pure markdown, composable, zero runtime deps; explicitly rejects "owning the process" (a direct reaction to GSD/BMAD/Spec-Kit)
+- Two install philosophies: `skills.sh` copy (fork-and-own, multi-harness) vs. a read-only versioned Claude plugin
+
+**Weaknesses**
+- No enforcement at all — no injected rulebook, no `<HARD-GATE>`, no blocking hook, no SessionStart injection; leans entirely on host description-matching + the human
+- No isolation and no concurrency control shipped (`/implement` commits to the current branch; the ticket dependency graph enables parallel work but nothing locks)
+- Per-repo setup burden + external coupling to a configured issue tracker (`gh`/`glab`/Linear) and a maintained `CONTEXT.md`/ADR set
+- Observed version drift (`package.json` vs `plugin.json`) despite a stated sync rule
+
+**Best for**: Individuals who want to align the agent with their intent through interviewing/grilling before coding, and to build a durable domain glossary for a codebase — while keeping discipline offered but never imposed.
+
 ---
 
 ## 2-3. Situation-Based Selection Guide
@@ -354,10 +371,13 @@ stream cancel       injection                           isolation  even 1%"
 | Split one large task into many pieces | **OMC** (autopilot) | Archon (DAG) |
 | Accumulate per-project learnings | **gstack** | ECC (instinct) |
 | Enforce process within a team | **superpowers** | GSD |
+| Align with the agent before coding (interview/grilling) | **MPS** | superpowers |
+| Build a durable domain glossary / shared language | **MPS** | gstack (learnings) |
+| Discipline offered but never imposed (max adaptability) | **MPS** | gstack |
 
 ## 2-4. Combination Possibilities
 
-It is important to note that the six harnesses **are not mutually exclusive**. Real-world combination examples:
+It is important to note that the seven harnesses **are not mutually exclusive**. Real-world combination examples:
 
 - **ECC + superpowers**: Both are in-harness skill systems, so they can coexist as long as skill namespaces do not overlap. Both ECC's instincts and superpowers' `<HARD-GATE>` can be utilized.
 - **gstack + GSD**: Use gstack's 25 rules to secure entry points; use GSD's 5-Phase for handling large tasks.

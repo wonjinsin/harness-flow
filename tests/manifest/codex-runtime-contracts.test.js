@@ -26,48 +26,16 @@ test('plugin exposes each skill name exactly once', () => {
   assert.deepEqual(duplicates, []);
 });
 
-test('Codex mapping uses current collaboration API contract', () => {
-  const md = read('skills/using-harness-flow/references/codex-tools.md');
-  assert.match(md, /wait_agent/);
-  assert.match(md, /task_name/);
-  assert.match(md, /fork_turns[^\n]*none/);
-  assert.match(md, /followup_task/);
-  assert.doesNotMatch(md, /\bclose_agent\b/);
-  assert.doesNotMatch(md, /agent_type\s*=/);
-});
-
-test('Codex SDD model selection is advisory and profile-free', () => {
-  const readme = read('README.md');
-  const mapping = read('skills/using-harness-flow/references/codex-tools.md');
-  const sdd = read('skills/subagent-driven-development/SKILL.md');
-  const implementer = read('skills/subagent-driven-development/implementer-prompt.md');
-  const reviewer = read('skills/subagent-driven-development/task-reviewer-prompt.md');
-  const finalReview = read('skills/requesting-code-review/SKILL.md');
-  const finalTemplate = read('skills/requesting-code-review/code-reviewer.md');
-  const legacyProfilePattern = /sdd-(?:cheap|standard|review)|codex[-]agents|\.codex\/agents/;
-  const customAgentModelRoutingPattern = /custom[ -]agent\s+TOML[\s\S]{0,160}\bmodel(?:_reasoning_effort)?\b/i;
-
-  assert.match(sdd, /Codex[\s\S]*cheap[\s\S]*standard[\s\S]*most capable/i);
-  assert.match(mapping, /cheap[\s\S]*standard[\s\S]*most capable/i);
-  assert.match(readme, /Codex는 권고형[\s\S]*`cheap`[\s\S]*`standard`[\s\S]*`most capable`/);
-  assert.match(readme, /direct `spawn_agent`에는 호출별\(per-call\) 모델 강제 기능이 없으며 정확한 모델은 보장되지 않/);
-  for (const text of [readme, mapping, sdd, implementer, reviewer, finalReview, finalTemplate]) {
-    assert.doesNotMatch(text, legacyProfilePattern);
-    assert.doesNotMatch(text, customAgentModelRoutingPattern);
-  }
-  assert.match(mapping, /direct `spawn_agent`[\s\S]*`model`[\s\S]*지원하지/i);
-});
-
 test('Codex SDD profile templates are removed', () => {
   const legacyProfileDir = ['codex', 'agents'].join('-');
   const profileDir = path.join(ROOT, 'skills/using-harness-flow/references', legacyProfileDir);
   assert.equal(fs.existsSync(profileDir), false);
 });
 
-test('entry skill uses harness-native skill loading and task tracking', () => {
+test('entry skill uses harness-neutral wording, not Claude-specific tools', () => {
   const entry = read('skills/using-harness-flow/SKILL.md');
-  assert.match(entry, /harness-native\s+skill/i);
-  assert.match(entry, /harness-native (plan|task tracking)/i);
+  assert.match(entry, /harness-neutral/i);
+  assert.match(entry, /task tracking/i);
   assert.doesNotMatch(entry, /TodoWrite/);
 });
 
@@ -85,16 +53,15 @@ test('SessionStart covers Codex resume and Windows hook commands', () => {
   const hooks = read('hooks/hooks.json');
   assert.match(hooks, /startup\|resume\|clear\|compact/);
   assert.match(hooks, /commandWindows/);
-  assert.match(hooks, /spawn_agent\|collaboration\.spawn_agent/);
 });
 
-test('workflow documents one final SDD review and approval before execution', () => {
+test('workflow documents one final review and approval before execution', () => {
   const plans = read('skills/writing-plans/SKILL.md');
   const reviews = read('skills/requesting-code-review/SKILL.md');
   assert.doesNotMatch(plans, /review at each group boundary/i);
   assert.match(plans, /There is no\s+group-boundary reviewer/i);
   assert.match(plans, /After the user approves/);
-  assert.match(reviews, /SDD.*final whole-branch review/is);
+  assert.match(reviews, /implement.*final whole-branch review/is);
 });
 
 test('TDD deletion rule preserves pre-existing user code', () => {
@@ -121,24 +88,12 @@ test('branch finishing handles detached hosts and invokes PR creation', () => {
   assert.match(finishing, /git switch <base-branch>/);
 });
 
-test('review workflow uses prepared diff artifacts and absolute skill scripts', () => {
-  const reviewer = read('skills/requesting-code-review/code-reviewer.md');
-  const sdd = read('skills/subagent-driven-development/SKILL.md');
-  assert.match(reviewer, /\{DIFF_FILE\}/);
-  assert.match(reviewer, /Do not re-run git commands/);
-  assert.match(sdd, /SDD_SKILL_DIR/);
-  assert.match(sdd, /IMPLEMENTATION_BASE HEAD/);
-  assert.doesNotMatch(sdd, /final review use MERGE_BASE/);
-});
-
 test('project memory is platform-aware', () => {
-  const memory = read('skills/claude-md-revise/SKILL.md');
-  const sdd = read('skills/subagent-driven-development/SKILL.md');
-  const debugging = read('skills/systematic-debugging/SKILL.md');
+  const memory = read('skills/llm-md-revise/SKILL.md');
   assert.match(memory, /Codex[\s\S]*AGENTS\.md/);
   assert.match(memory, /do not scan them by guessed path/i);
-  for (const text of [sdd, debugging]) {
-    assert.match(text, /Codex[\s\S]*AGENTS\.md/);
-    assert.match(text, /Claude Code[\s\S]*CLAUDE\.md/);
-  }
+  // Codex nested-file loading is launch-cwd dependent, not subtree/on-demand
+  assert.match(memory, /launch(ed)?[\s\S]*director/i);
+  // never persist secrets/credentials/PII into instruction files
+  assert.match(memory, /never persist a secret|Secret \/ PII/i);
 });

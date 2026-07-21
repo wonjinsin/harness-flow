@@ -41,34 +41,6 @@
             "async": false
           }
         ]
-      },
-      {
-        "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-agent-model.js\"",
-            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-agent-model.js\"",
-            "async": false
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-plan-audit.js\"",
-            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-plan-audit.js\"",
-            "async": false
-          }
-        ]
-      },
-      {
-        "matcher": "spawn_agent|collaboration.spawn_agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-plan-audit.js\"",
-            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-plan-audit.js\"",
-            "async": false
-          }
-        ]
       }
     ]
   }

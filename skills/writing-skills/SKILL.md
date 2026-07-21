@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, or verifying skills work before deployment. Based on superpowers(https://github.com/obra/superpowers).
+description: Use when creating new skills, editing existing skills, or verifying skills work before deployment.
 ---
 
 # Writing Skills

@@ -2,7 +2,7 @@
 
 **Subjects**: get-shit-done (GSD) / gstack / oh-my-claudecode (OMC) / everything-claude-code (ECC) vs. harness-flow (superpowers model)
 **Date**: 2026-07-08
-**Basis**: Direct source analysis of the sibling checkouts under `../` (parallel Explore agents), plus `design/comparison.md` and `design/reference/*.md`
+**Basis**: Direct source analysis of the sibling checkouts under `../` (parallel Explore agents), plus `design/2026-05-05-comparison.md` and `design/reference/*.md`
 **Lens**: How each harness chunks implementation work into LLM sessions/subagents, and what makes harness-flow pay the worst dispatch overhead on small tasks.
 
 ## TL;DR
@@ -164,6 +164,6 @@ Ranked by portability to a skill/hook harness-flow can adopt without an engine:
 
 ## See Also
 
-- `design/comparison.md` — 6-harness architecture-level comparison.
+- `design/2026-05-05-comparison.md` — 6-harness architecture-level comparison.
 - `design/reference/{get-shit-done,gstack,oh-my-claudecode,everything-claude-code}.md` — per-harness deep dives.
 - `CLAUDE.md` → "The Skill Chain" and "Worktree/subagent gotcha".

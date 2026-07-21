@@ -89,4 +89,4 @@ harness-flow의 small은 "≤5파일 + 남은 설계 모호성 없음"이라는 
 - 스펙: `docs/harness-flow/specs/2026-07-10-size-classifier-design.md` (워크트리 로컬, gitignored)
 - 플랜: `docs/harness-flow/plans/2026-07-10-size-classifier.md` (동일)
 - 평가 시나리오·정답 키: 세션 스크래치패드 `eval/scenarios.json` (본문 §3~4에 요약 보존)
-- 선행 분석: `design/execution-granularity-analysis.md` (Task Group 코어스닝의 근거와 한계)
+- 선행 분석: `design/2026-07-09-execution-granularity-analysis.md` (Task Group 코어스닝의 근거와 한계)

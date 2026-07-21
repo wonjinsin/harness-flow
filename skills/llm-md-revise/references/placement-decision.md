@@ -8,7 +8,7 @@ Verified against the official Claude Code docs (`code.claude.com/docs/en/claude-
 
 | Fact | Implication for placement |
 |---|---|
-| `@path` import = **eager**, auto-loaded at session start (nesting max 4 hops) | Costs context every session — reserve for core global rules that must always be live |
+| `@path` import = **eager**, auto-loaded at session start (nesting max 5 hops) | Costs context every session — reserve for core global rules that must always be live |
 | Plain path mention (no `@`) = **lazy**, read only when Claude judges it relevant | Default for situational / large reference material |
 | Parent-dir CLAUDE.md = **eager** (cwd traversed upward, every file loaded) | Root rules are always live — keep root small |
 | Subdir CLAUDE.md = **on-demand** (loads only when reading/editing files in that folder) | Scoping a rule to a subdir keeps it out of every session |
@@ -58,7 +58,7 @@ A plain-text pointer to the rules file from root is for human discoverability on
 
 | Style | Semantics | When |
 |---|---|---|
-| `@path` | eager — pulled into context every session (nesting capped at 4 hops) | A doc/checklist that must always be live but isn't a rules file |
+| `@path` | eager — pulled into context every session (nesting capped at 5 hops) | A doc/checklist that must always be live but isn't a rules file |
 | plain path | lazy — read only when Claude judges it relevant | Situational or large reference material |
 
 Decision: for an always-live project-wide rule, prefer a no-`paths:` file in `.claude/rules/` (clean, auto-loads). Reserve `@import` for must-always-be-live content that lives outside `.claude/rules/`. Use a plain path for situational material.

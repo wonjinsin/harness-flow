@@ -17,7 +17,7 @@
 //       you MUST load it with the platform-native skill mechanism" — cannot be
 //       left to LLM autonomy.
 //       The using-harness-flow skill is the meta-skill that teaches the LLM how to
-//       use the brainstorming → writing-plans → subagent-driven-development chain.
+//       use the brainstorming → writing-plans → implement chain.
 //       It must be present in context at every session boundary, so we inject it here.
 //
 // FAIL-OPEN: If SKILL.md cannot be read, we still emit a fallback string and exit 0.

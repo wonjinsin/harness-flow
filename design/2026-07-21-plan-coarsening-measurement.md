@@ -12,7 +12,7 @@
 이에 반해 비용:
 - Phase 2는 **필수 net-$ eval** 자체가 토큰을 쓴다.
 - 대형 플랜 인라인화는 컨트롤러 컨텍스트 누적 → **compaction이 오히려 비용을 올릴 수** 있다.
-- 실행 speedup은 이미 ①코어스닝·②리뷰게이팅·③인라인(≤3)·④티어링이 shipped(`execution-granularity-analysis.md`) — 남은 dispatch-avoidance 헤드룸이 구조적으로 작다.
+- 실행 speedup은 이미 ①코어스닝·②리뷰게이팅·③인라인(≤3)·④티어링이 shipped(`2026-07-09-execution-granularity-analysis.md`) — 남은 dispatch-avoidance 헤드룸이 구조적으로 작다.
 
 → **이득 cents-scale, 리스크·eval 비용이 그에 상당.** repo 게이트(속도/토큰이 1차, quality는 제약)를 넘길 값어치가 없다. 이 판단은 fragmentation이 실재하든 아니든 성립한다.
 

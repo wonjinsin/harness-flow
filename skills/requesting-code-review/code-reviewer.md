@@ -25,11 +25,8 @@ Claude Code Task/Agent (general-purpose):
     **Base:** {BASE_SHA}
     **Head:** {HEAD_SHA}
 
-    **Diff file:** {DIFF_FILE}
-
-    Read the diff file once. It contains the commit list, stat summary, and
-    full diff. Do not re-run git commands unless the file is missing; if it is
-    missing, report that as a blocking review-input error.
+    Run `git log {BASE_SHA}..{HEAD_SHA}` and `git diff {BASE_SHA}..{HEAD_SHA}`
+    to read the commits and full diff for this range. Review only this range.
 
     ## What to Check
 
@@ -69,6 +66,14 @@ Claude Code Task/Agent (general-purpose):
     Acknowledge what was done well before listing issues — accurate praise
     helps the implementer trust the rest of the feedback.
 
+    **Severity floor.** This branch was implemented with only a self-review and
+    this single final review — no intermediate reviewer. Rate severity by
+    consequence, not by surface form: a finding that violates a plan/brief
+    requirement, or propagates a wrong value/type/contract downstream, is
+    Important or Critical even when it reads as a type-contract or style nit. A
+    Minor rating on such a finding requires a one-line justification of why the
+    consequence is harmless.
+
     If you find significant deviations from the plan, flag them specifically
     so the implementer can confirm whether the deviation was intentional.
     If you find issues with the plan itself rather than the implementation,
@@ -95,6 +100,10 @@ Claude Code Task/Agent (general-purpose):
     - What's wrong
     - Why it matters
     - How to fix (if not obvious)
+    - Class (Critical/Important only): `impl-fix` — the implementation is wrong
+      against a correct plan/spec, so a fixer can resolve it (default when unsure);
+      or `plan-escalate` — the plan/spec text itself is wrong or contradictory, so
+      no implementation of it can be correct (state the plan text at fault).
 
     ### Recommendations
     [Improvements for code quality, architecture, or process]
@@ -122,12 +131,10 @@ Claude Code Task/Agent (general-purpose):
     - Avoid giving a clear verdict
 ````
 
-**Codex translation:** Select the advisory review tier from the supplied scope
-and SDD complexity rules, then ask Codex to use the least powerful model that
-fits without claiming an exact-model guarantee. For direct `spawn_agent`, omit
-unsupported `model`, `profile`, and `agent_type` fields, use
-`task_name: "final_review"`, pass the filled `prompt` as `message`, and set
-`fork_turns: "none"`.
+**Codex translation:** for direct `spawn_agent`, omit unsupported `model`,
+`profile`, and `agent_type` fields, use `task_name: "final_review"`, pass the
+filled `prompt` as `message`, and set `fork_turns: "none"`. Ask for the most
+capable model without claiming an exact-model guarantee.
 
 **Placeholders:**
 
@@ -135,7 +142,6 @@ unsupported `model`, `profile`, and `agent_type` fields, use
 - `{PLAN_OR_REQUIREMENTS}` — what it should do (plan file path, task text, or requirements)
 - `{BASE_SHA}` — starting commit
 - `{HEAD_SHA}` — ending commit
-- `{DIFF_FILE}` — absolute path to the prepared review package
 
 **Reviewer returns:** Strengths, Issues (Critical / Important / Minor), Recommendations, Assessment
 

@@ -1,17 +1,11 @@
 ---
 name: finishing-a-development-branch
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup. Based on superpowers(https://github.com/obra/superpowers).
+description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work.
 ---
 
 # Finishing a Development Branch
 
-## Overview
-
-Guide completion of development work by presenting clear options and handling chosen workflow.
-
-**Core principle:** Verify tests → Detect environment → Present options → Execute choice → Clean up.
-
-**Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
+Verify tests → detect environment → present options → execute choice → clean up.
 
 ## The Process
 
@@ -128,7 +122,8 @@ git commit -m "<message summarizing the branch>"
 # Only after merge succeeds: cleanup worktree (Step 6), then delete branch
 ```
 
-Then: Cleanup worktree (Step 6), then delete branch:
+Then: Cleanup worktree (Step 6), then delete branch (worktree first — `git branch -d`
+fails while a worktree still references the branch):
 
 ```bash
 git branch -d <feature-branch>   # regular merge
@@ -216,72 +211,3 @@ git worktree prune  # Self-healing: clean up any stale registrations
 ```
 
 **Otherwise:** The host environment (harness) owns this workspace. Do NOT remove it. If your platform provides a workspace-exit tool, use it. Otherwise, leave the workspace in place.
-
-## Quick Reference
-
-| Option           | Merge | Push | Keep Worktree | Cleanup Branch |
-| ---------------- | ----- | ---- | ------------- | -------------- |
-| 1. Merge locally | ✓     | -    | -             | ✓              |
-| 2. Create PR     | -     | ✓    | ✓             | -              |
-| 3. Keep as-is    | -     | -    | ✓             | -              |
-| 4. Discard       | -     | -    | -             | ✓ (force)      |
-
-## Common Mistakes
-
-**Skipping test verification**
-
-- **Problem:** Merge broken code, create failing PR
-- **Fix:** Always verify tests before offering options
-
-**Open-ended questions**
-
-- **Problem:** "What should I do next?" is ambiguous
-- **Fix:** Present exactly 4 structured options (or 2 for detached HEAD)
-
-**Cleaning up worktree for Option 2**
-
-- **Problem:** Remove worktree user needs for PR iteration
-- **Fix:** Only cleanup for Options 1 and 4
-
-**Deleting branch before removing worktree**
-
-- **Problem:** `git branch -d` fails because worktree still references the branch
-- **Fix:** Merge first, remove worktree, then delete branch
-
-**Running git worktree remove from inside the worktree**
-
-- **Problem:** Command fails silently when CWD is inside the worktree being removed
-- **Fix:** Always `cd` to main repo root before `git worktree remove`
-
-**Cleaning up harness-owned worktrees**
-
-- **Problem:** Removing a worktree the harness created causes phantom state
-- **Fix:** Only clean up worktrees with the harness-flow ownership marker or
-  paths under `.worktrees/` or `worktrees/`
-
-**No confirmation for discard**
-
-- **Problem:** Accidentally delete work
-- **Fix:** Require typed "discard" confirmation
-
-## Red Flags
-
-**Never:**
-
-- Proceed with failing tests
-- Merge without verifying tests on result
-- Delete work without confirmation
-- Force-push without explicit request
-- Remove a worktree before confirming merge success
-- Clean up worktrees you didn't create (provenance check)
-- Run `git worktree remove` from inside the worktree
-
-**Always:**
-
-- Verify tests before offering options
-- Detect environment before presenting menu
-- Present exactly 4 options for named branches or 2 host-safe options for detached HEAD
-- Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
-- `cd` to main repo root before worktree removal
-- Run `git worktree prune` after removal

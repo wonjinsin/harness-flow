@@ -54,4 +54,4 @@ P5(zero-finding streak 게이팅)는 **무방비 스킵**이었다: E5에서 최
 
 ## 6. 계보
 
-superpowers(task당 2 dispatch) → 46386f0 group 코어스닝 → 1.1.8 gating(cheap+last) → **1.3.0 전면 폐지 + severity floor**. 6-harness 조사(`design/execution-granularity-analysis.md`)에서 실행 중간 per-group AI 리뷰를 하는 harness는 superpowers 계열뿐이었다 — 본 변경으로 harness-flow도 "경계 리뷰 1회 + 게이팅/방어" 진영(GSD/gstack/OMC)에 합류하되, brief 승계와 severity floor라는 자기 것을 얹었다.
+superpowers(task당 2 dispatch) → 46386f0 group 코어스닝 → 1.1.8 gating(cheap+last) → **1.3.0 전면 폐지 + severity floor**. 6-harness 조사(`design/2026-07-09-execution-granularity-analysis.md`)에서 실행 중간 per-group AI 리뷰를 하는 harness는 superpowers 계열뿐이었다 — 본 변경으로 harness-flow도 "경계 리뷰 1회 + 게이팅/방어" 진영(GSD/gstack/OMC)에 합류하되, brief 승계와 severity floor라는 자기 것을 얹었다.
