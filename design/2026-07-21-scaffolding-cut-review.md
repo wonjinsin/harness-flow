@@ -1,172 +1,172 @@
-# 스캐폴딩 컷 브랜치 — 멀티에이전트 adversarial 리뷰 보고서
+# Scaffolding Cut Branch — Multi-Agent Adversarial Review Report
 
-작성일: 2026-07-21
-대상 브랜치: `simplify-skills` (base `a970afc`, 순변경 46파일 +498/−4,750)
-방법: 11개 adversarial 리뷰어(스킬 10 + 무결성 횡단 1) 병렬 fan-out. 각자 실제 파일·`git diff a970afc..HEAD`·`writing-skills` 룰·retrospective와 대조. `design/2026-07-21-cut-scaffolding.md` §7의 6질문 적용.
-산출 성격: **보고서만.** 코드 변경 없음. 리뷰어 성향 adversarial(substance 손실 적극 추궁).
+Date: 2026-07-21
+Target branch: `simplify-skills` (base `a970afc`, net change 46 files +498/−4,750)
+Method: Parallel fan-out of 11 adversarial reviewers (10 skills + 1 cross-cutting integrity). Each cross-checked against the actual files, `git diff a970afc..HEAD`, `writing-skills` rules, and retrospectives. Applied the 6 questions from `design/2026-07-21-cut-scaffolding.md` §7.
+Deliverable nature: **Report only.** No code changes. Reviewer stance is adversarial (aggressively probes for substance loss).
 
 ---
 
-## 0. 한 줄 판정
+## 0. One-Line Verdict
 
-> "**스캐폴딩만 컷, 실체 전부 보존**" 주장은 **파일 위생 관점에선 대체로 참**(dangling 없음, 체인 링크 해소, 테스트 168 green, 하드가드 훅 무변경)이나, 실체 보존 주장은 **검증된 2건 + reconciliation gap 1건 + CSO 위반 1건**에서 반증된다:
+> The claim "**cut scaffolding only, preserve all substance**" is **mostly true from a file-hygiene standpoint** (no dangling references, chain links resolved, tests 168 green, hard-guard hooks unchanged), but the substance-preservation claim is **disproven in 2 verified cases + 1 reconciliation gap + 1 CSO violation**:
 >
-> - **H2·H3 — 검증된 clean 위반**(실파일 대조 완료): plan-audit(결정론적 in-session 완결성 게이트)를 "SDD 머신"으로 **오분류해 삭제**, eval로 검증된 severity-floor 블록이 **재배치 없이 소멸**(현재 `skills/` grep 0건). 둘 다 CLAUDE.md negative-record 규약 위반, 리뷰어 다수 독립 지목.
-> - **H1 — 검증된 reconciliation gap**(clean 위반 아님): inline-first 기본화가 same-day retro의 tier-up trap(work가 세션모델=최고가 티어에서 실행)을 실제로 트리거하나(`implement:20` 확인), retro가 측정 안 한 "머신 삭제 절감"이 경제학을 재구성할 수 있어 **자동 부결이 아닌 재조정 필요.**
-> - **H4 — 검증된 CSO 위반**: implement description이 writing-skills가 **이 스킬 이전 description을 GOOD 예시로 든 바로 그 룰**을 위반.
+> - **H2·H3 — verified clean violations** (actual-file cross-check complete): plan-audit (a deterministic in-session completeness gate) was **misclassified as an "SDD machine" and deleted**, and the eval-verified severity-floor block **vanished without relocation** (currently 0 hits in `skills/` grep). Both violate the CLAUDE.md negative-record convention, independently flagged by multiple reviewers.
+> - **H1 — verified reconciliation gap** (not a clean violation): making inline-first the default does in fact trigger the same-day retro's tier-up trap (work runs on the session model = the most expensive tier) (confirmed at `implement:20`), but a "machine-deletion saving" the retro never measured could reshape the economics, so this **needs reconciliation, not automatic rejection.**
+> - **H4 — verified CSO violation**: the implement description violates **the very rule for which writing-skills cites this skill's previous description as the GOOD example.**
 >
-> **검증 방법:** find-only 리뷰의 HIGH 3건 + H4를 실파일·retrospective와 2차 대조(§부록 참조). H2/H3/H4 라인번호·인용 정확 확인, H1은 scope 대조 후 severity 하향.
+> **Verification method:** the 3 HIGH findings from the find-only review + H4 were cross-checked a second time against the actual files and retrospectives (see appendix). H2/H3/H4 line numbers and quotes confirmed accurate; H1 severity was lowered after a scope cross-check.
 
-verdict 분포:
-| verdict | 대상 |
+verdict distribution:
+| verdict | target |
 |---|---|
 | claims-hold | finishing-a-development-branch |
 | minor-issues | using-harness-flow, brainstorming, using-git-worktrees, writing-plans, test-driven-development, claude-md-revise, systematic-debugging |
-| **substance-loss** | **implement(신규), requesting-code-review, cross-cutting-integrity** |
+| **substance-loss** | **implement (new), requesting-code-review, cross-cutting-integrity** |
 
 ---
 
-## 1. HIGH — 반드시 결정할 것 (전부 실파일 대조 완료)
+## 1. HIGH — Must Decide (all cross-checked against actual files)
 
-### H2. plan-audit 삭제 = in-session 완결성 게이트 상실 (Q5) — ✅ CONFIRMED → 🔧 처리됨
-**지목:** 무결성 리뷰어 + implement 리뷰어 | **2차 검증:** retro 배경문단 직접 확인
-**처리(2026-07-21, 경량 체크 재도입):** `implement/SKILL.md`에 "Before the final review: completeness check" 스텝 추가(컨트롤러가 각 태스크 Touches/acceptance를 실제 diff와 대조 — 확률적 방어, 훅 deny 아님) + cut-scaffolding.md §4를 "plan-audit는 in-session 안전 게이트"로 정정.
+### H2. Deleting plan-audit = loss of the in-session completeness gate (Q5) — ✅ CONFIRMED → 🔧 handled
+**Flagged by:** integrity reviewer + implement reviewer | **2nd verification:** directly confirmed the retro's background paragraph
+**Handling (2026-07-21, lightweight check re-introduced):** added a "Before the final review: completeness check" step to `implement/SKILL.md` (the controller cross-checks each task's Touches/acceptance against the actual diff — probabilistic defense, not a hook deny) + corrected cut-scaffolding.md §4 to state "plan-audit is an in-session safety gate."
 
-- **주장(§4):** plan-audit / `pre-plan-audit.js`를 "삭제된 머신(subagent-driven-development 계열) ... implement로 대체되며 불필요"로 분류.
-- **검증된 반증:** `2026-07-18-plan-audit-gate-retrospective.md` 배경문단 원문 확인 — "**외부 루프 eval에서 in-session 실행이 3판 중 2판에서 plan 태스크의 30–50%를 조용히 누락하고 성공을 자칭했다 ... 루프 전체 도입은 속도·토큰 게이트를 통과하지 못했으므로, 루프의 결정론 검증 개념만 in-session 체인에 역이식했다.**" 즉 **측정된 in-session 실패에서 태어나 in-session 체인에 역이식된 결정론적 완결성 게이트**다. 브랜치는 스크립트+훅(265줄)을 삭제하면서 동시에 inline in-session 실행을 **기본**으로 만든다 — 완결성은 이제 LLM + 최종 리뷰 1회로만 검증. 측정된 실패 모드를 부활시키며 전용 방어를 제거, fresh eval도 결정론적 대체물도 없음.
-- **정직한 nuance:** 구현은 `hooks/pre-plan-audit.js`(SDD 최종리뷰 dispatch description에 gate)와 `skills/subagent-driven-development/scripts/`에 있었으므로 **기계적으로는** SDD dispatch에 결합돼 있었다. 그러나 그 **목적**은 in-session 완결성 방어였고, implement가 in-session을 기본화하면서 방어 대상은 남고 방어만 사라졌다.
-- **권고:** ① inline 기본 경로에서 최종 리뷰 전에 plan의 Touches/Files 대비 결정론적 완결성 체크 재도입, 또는 ② inline-default 완결성 fresh eval 기록. 최소한 §4를 "plan-audit는 in-session 안전 게이트(SDD dispatch 머신 아님)"로 정정. [[external-loop-eval-verdict]]
+- **Claim (§4):** classified plan-audit / `pre-plan-audit.js` as "part of the deleted machine (subagent-driven-development family) ... replaced by implement and unnecessary."
+- **Verified counter-evidence:** confirmed the original text of the `2026-07-18-plan-audit-gate-retrospective.md` background paragraph — "**In the external-loop eval, in-session execution silently dropped 30–50% of plan tasks in 2 of 3 runs while claiming success ... adopting the full loop failed the speed/token gate, so only the loop's deterministic-verification concept was back-ported into the in-session chain.**" In other words, it is a **deterministic completeness gate born from a measured in-session failure and back-ported into the in-session chain.** The branch deletes the script + hook (265 lines) while simultaneously making inline in-session execution the **default** — completeness is now verified only by the LLM + a single final review. This revives the measured failure mode and removes its dedicated defense, with neither a fresh eval nor a deterministic replacement.
+- **Honest nuance:** the implementation lived in `hooks/pre-plan-audit.js` (which gated the SDD final-review dispatch description) and `skills/subagent-driven-development/scripts/`, so **mechanically** it was coupled to the SDD dispatch. But its **purpose** was in-session completeness defense, and as implement makes in-session the default, the thing being defended remains while only the defense disappears.
+- **Recommendation:** ① re-introduce a deterministic completeness check on the inline default path against the plan's Touches/Files before the final review, or ② record a fresh eval of inline-default completeness. At minimum, correct §4 to "plan-audit is an in-session safety gate (not an SDD dispatch machine)." [[external-loop-eval-verdict]]
 
-### H3. severity-floor 블록 소멸 = 최종-단일-리뷰 정당성 상실 (Q2/Q5) — ✅ CONFIRMED → 🔧 처리됨
-**지목:** implement + requesting-code-review + 무결성 리뷰어 (**독립 3건**) | **2차 검증:** a970afc 원문 + grep 확인
-**처리(2026-07-21, code-reviewer.md 재배치):** `code-reviewer.md`의 Calibration 섹션에 severity-floor 블록 복원(inline 모델에 맞춰 첫 문장만 "self-review + single final review, no intermediate reviewer"로 조정, 실체 verbatim). over-rating 경고 옆에 anti-demotion 방어 병치. **design/ 인용은 제거**(신규 룰 [[no-design-refs-in-skills]] — 스킬 파일에 design 참조 금지, provenance는 CLAUDE.md로).
+### H3. Severity-floor block vanished = loss of the single-final-review justification (Q2/Q5) — ✅ CONFIRMED → 🔧 handled
+**Flagged by:** implement + requesting-code-review + integrity reviewer (**3 independent**) | **2nd verification:** confirmed against a970afc original + grep
+**Handling (2026-07-21, relocated into code-reviewer.md):** restored the severity-floor block in the Calibration section of `code-reviewer.md` (adjusted only the first sentence to fit the inline model — "self-review + single final review, no intermediate reviewer" — substance verbatim). Placed the anti-demotion defense alongside the over-rating warning. **The design/ citation was removed** (new rule [[no-design-refs-in-skills]] — no design references in skill files; provenance goes in CLAUDE.md).
 
-- **주장(§3.8/§4):** code-reviewer.md 템플릿 본문 전부 유지, 삭제된 건 SDD "머신".
-- **검증된 반증:** `git show a970afc:.../subagent-driven-development/SKILL.md:312-315` 원문 확인 — "**severity by consequence, not by surface form: a finding that violates a ... A Minor rating on such a finding requires a one-line justification.**" 현재 `grep -rn "by consequence|surface form|one-line justification" skills/` → **0건**(직접 실행 확인). review-removal retro는 P5 재도전 통과(6/6 catch, 0 demotion)가 **이 블록 덕분**, 블록 없는 구성은 **E5 6/8 게이트 미달**로 기록. `implement:52` "Fixing Critical/Important findings is required; Minor is optional"(fix-routing일 뿐)만 남고, `code-reviewer.md:116` calibration은 **반대 방향**("DON'T mark nitpicks as Critical").
-- **미측정 리스크:** 통과했던 측정은 **sonnet+블록**, 새 프로덕션 경로는 **opus−블록**(미측정). "most capable로 상쇄"는 검증 안 됨. 168 unit test는 severity-demotion(eval 행동)을 못 잡음.
-- **권고:** severity-floor 블록을 `code-reviewer.md`(dispatch 프롬프트 필수 섹션) 또는 implement 최종리뷰 지시로 verbatim 재배치. opus 상쇄에 의존하려면 opus−블록 E5 재측정 후 기록. [[external-loop-eval-verdict]]
+- **Claim (§3.8/§4):** the entire code-reviewer.md template body is retained; what was deleted is the SDD "machine."
+- **Verified counter-evidence:** confirmed the original text of `git show a970afc:.../subagent-driven-development/SKILL.md:312-315` — "**severity by consequence, not by surface form: a finding that violates a ... A Minor rating on such a finding requires a one-line justification.**" Currently `grep -rn "by consequence|surface form|one-line justification" skills/` → **0 hits** (confirmed by direct execution). The review-removal retro records that the P5 re-challenge passed (6/6 catch, 0 demotion) **thanks to this block**, while the configuration without the block was recorded as **E5 6/8, below gate**. Only `implement:52` "Fixing Critical/Important findings is required; Minor is optional" (which is just fix-routing) remains, while the `code-reviewer.md:116` calibration points the **opposite direction** ("DON'T mark nitpicks as Critical").
+- **Unmeasured risk:** the passing measurement was **sonnet + block**, while the new production path is **opus − block** (unmeasured). "Offset by using the most capable model" is unverified. The 168 unit tests cannot catch severity-demotion (an eval behavior).
+- **Recommendation:** relocate the severity-floor block verbatim into `code-reviewer.md` (a required section of the dispatch prompt) or into the implement final-review instructions. If relying on opus to offset it, re-measure and record E5 with opus − block. [[external-loop-eval-verdict]]
 
-### H1. inline-first 기본화 = tier-up trap 트리거 (Q5) — ⚠️ RECONCILIATION GAP → 🔧 부분 처리
-**지목:** implement + 무결성 리뷰어 | **2차 검증:** measurement doc scope 대조 → severity 하향
-**처리(2026-07-21, subagent 모델 가이드 복원):** superpowers/구-SDD의 Model Selection 실체를 `implement/SKILL.md` subagent 격리 경로에 복원(tier 정의 mechanical→cheap / 통합·판단→standard / 설계→most-capable + "명시 안 하면 세션 기본=최고가 상속, 최저가는 멀티스텝서 2-3× 턴이라 non-trivial엔 standard floor"). harness-neutral, design 참조 없음. **잔존:** 기본 inline 경로(`implement:20`, 세션모델 실행)의 tier-up은 그대로 — 사용자가 subagent 경로 tier 규율 복원을 택했고 inline-default 강제/eval은 미채택. 이 잔존 tension은 여전히 disclosed(§2.2 논증 또는 향후 eval 대상).
+### H1. Making inline-first the default = triggers the tier-up trap (Q5) — ⚠️ RECONCILIATION GAP → 🔧 partially handled
+**Flagged by:** implement + integrity reviewer | **2nd verification:** cross-checked measurement-doc scope → lowered severity
+**Handling (2026-07-21, subagent model guidance restored):** restored the substance of the superpowers / old-SDD Model Selection into the `implement/SKILL.md` subagent-isolation path (tier definitions mechanical→cheap / integration·judgment→standard / design→most-capable + "if unspecified, the session default = most-expensive is inherited; the cheapest is 2-3× turns in multi-step work, so use a standard floor for non-trivial"). Harness-neutral, no design references. **Remaining:** the tier-up on the default inline path (`implement:20`, runs on the session model) is unchanged — the user chose to restore tier discipline on the subagent path, and forcing inline-default / an eval was not adopted. This remaining tension is still disclosed (§2.2 argument or a future eval target).
 
-- **주장(§2.2):** 실행 모델 A″ = 현재 세션·세션 모델에서 inline 실행 기본. 근거는 "LLM 역량 향상" + 필드 증거 + superpowers 선례.
-- **검증된 사실:** `2026-07-21-plan-coarsening-measurement.md`(같은 날짜) line 142/151이 inline-K 부결을 **tier-up 경제학**으로 규정 — "**인라인은 dispatch를 아예 제거하지만, work가 컨트롤러 티어(세션 모델=보통 Opus/Sonnet, 가장 비쌈)에서 돈다 → inline-K도 net-negative.**" `implement:20` "Work the plan in the current session, on the session's model" 확인 → **기본 inline 경로가 실제로 이 tier-up을 트리거**한다(cheap-tier 선택지는 line 38의 optional subagent 경로에만 존재, 기본경로엔 없음). 재도전 조건(line 191) (a) "인라인을 컨트롤러 티어가 아닌 cheap로 강제" **미충족**, (c) fresh net-$ eval **없음.**
-- **왜 clean 위반이 아닌가(advisor 반영):** retro는 inline-K를 **머신을 유지한 채** 얹는 cost 레버로 측정했다. 이 브랜치는 **머신 자체(SKILL 500줄+스크립트+훅 2)를 제거**한다 — 표준 유지비용·세션당 문서 토큰 절감은 retro의 손익계산에 **없는 항목**이다. 즉 tier-up 페널티는 실재하나, 그것을 상쇄할 수도 있는 절감이 미측정이라 retro가 이 케이스를 **완전히 부결하지도 못한다.** → **자동 revert가 아니라 재조정 필요.**
-- **가중(별개, 확인됨):** measurement line 191/§5가 "다음 $ 레버는 여전히 **Opus 최종 리뷰 티어**"라 지목했는데, 브랜치는 최종 리뷰를 most-capable(Opus)로 **고정**(`implement:44-46` 확인) — 줄이라던 비용을 명시적으로 유지.
-- **권고:** ① inline 기본경로 work를 cheap 티어로 강제(조건 a 충족), **또는** ② inline-default vs dispatch net-$ eval(머신 삭제 절감 포함)을 돌려 기록. 그리고 tier-up trap·Opus-최종을 설계문서에서 정면 논증(현재 cut-scaffolding.md에 coarsen/inline-k/net-negative 검색 0건 — 은폐). [[coarsening-inline-k-rejected]] [[changes-optimize-speed-and-tokens]]
+- **Claim (§2.2):** execution model A″ = inline execution in the current session on the session model is the default. Rationale is "improved LLM capability" + field evidence + the superpowers precedent.
+- **Verified facts:** `2026-07-21-plan-coarsening-measurement.md` (same date) lines 142/151 frame the inline-K rejection in terms of **tier-up economics** — "**Inline removes dispatch entirely, but work runs at the controller tier (session model = usually Opus/Sonnet, the most expensive) → inline-K is also net-negative.**" Confirmed `implement:20` "Work the plan in the current session, on the session's model" → **the default inline path does in fact trigger this tier-up** (the cheap-tier option exists only on the optional subagent path at line 38, not on the default path). Re-challenge condition (line 191) (a) "force inline to cheap rather than the controller tier" is **not met**, and (c) a fresh net-$ eval is **absent.**
+- **Why this is not a clean violation (reflecting advisor input):** the retro measured inline-K as a cost lever added **while keeping the machine.** This branch **removes the machine itself** (the SKILL 500 lines + scripts + 2 hooks) — the standard maintenance cost and per-session document-token savings are **items absent from the retro's cost accounting.** So the tier-up penalty is real, but the savings that could offset it are unmeasured, so the retro **cannot fully reject this case either.** → **needs reconciliation, not an automatic revert.**
+- **Aggravating (separate, confirmed):** measurement line 191/§5 identified that "the next $ lever is still the **Opus final-review tier**," yet the branch **pins** the final review to most-capable (Opus) (confirmed at `implement:44-46`) — explicitly retaining the cost it claimed to reduce.
+- **Recommendation:** ① force default inline-path work to the cheap tier (satisfies condition a), **or** ② run and record an inline-default vs dispatch net-$ eval (including machine-deletion savings). And argue the tier-up trap · Opus-final head-on in the design document (currently 0 hits for coarsen/inline-k/net-negative in cut-scaffolding.md — concealed). [[coarsening-inline-k-rejected]] [[changes-optimize-speed-and-tokens]]
 
-### H4. implement description = CSO 위반 (Q1) — ✅ CONFIRMED → 🔧 처리됨
-**처리(2026-07-21):** `implement/SKILL.md:3` description에서 em-dash 뒤 workflow 요약("— implements inline with TDD, then one final review") 제거, trigger-only로 복원.
+### H4. implement description = CSO violation (Q1) — ✅ CONFIRMED → 🔧 handled
+**Handling (2026-07-21):** removed the post-em-dash workflow summary ("— implements inline with TDD, then one final review") from the `implement/SKILL.md:3` description, restoring it to trigger-only.
 
-**지목:** implement 리뷰어
+**Flagged by:** implement reviewer
 
-- **반증:** `implement/SKILL.md:3` description이 em-dash 뒤에 workflow 요약을 붙임("... — implements inline with TDD, then one final review"). `writing-skills:166-174`가 정확히 금지("Description = When to Use, NOT What the Skill Does"). **아이러니:** `writing-skills:183-184`가 **이 스킬의 이전 description**("Use when executing implementation plans with independent tasks in the current session")을 **GOOD 예시**로 인용 — 개명이 그걸 BAD 패턴으로 회귀시킴. 위험 시나리오: 주입된 description이 "one final review"라 말해 controller가 본문의 plan-escalate/impl-fix 라우팅·3-re-review cap을 로드하지 않고 단순 실행 — 룰이 경고한 바로 그 shortcut.
-- **권고:** em-dash 뒤 절 삭제, trigger-only로 복원("Use when executing an approved implementation plan or spec in the current session").
-
----
-
-## 2. MEDIUM — 체인 정합성 · dangling · substance
-
-### M1. brainstorming 소형 경로가 implement 최종 리뷰를 우회 (Q4) — 🔧 처리됨
-**처리(2026-07-21, 소형 exit self-review 1줄):** `brainstorming/SKILL.md` 소형 exit에 "이 경로는 plan·최종 whole-branch 리뷰를 건너뛰므로 마지막 커밋 후 전체 diff를 스스로 검토(정확성+scope creep)" 백스톱 추가. 소형의 가벼움 유지.
-**지목:** 무결성 리뷰어
-
-`brainstorming/SKILL.md:27`이 "Small/clear → test-driven-development"로 **직결**해 implement를 건너뜀 → 소형 작업은 최종 whole-branch 리뷰 **없음.** 이전엔 제거된 trivial tier가 self-review + exit diff-cap 백스톱을 가졌고 size-classifier retro가 measured-safe로 채택(decoy 3/3→5/5, quality loss 0). §2.3이 tier 시스템을 통째 삭제하며 그 백스톱도 제거 — 소형 작업은 최종리뷰도, plan도, trivial self-review/diff-cap도 없는 **리뷰 공백.** §2.2의 "항상 최종 리뷰 1회" 보장이 이 경로에서 깨짐. **권고:** 소형 경로를 implement로 라우팅하거나 경량 self-review/diff-cap 백스톱 추가, 그리고 "trivial tier 제거 = measured-safe 백스톱 제거"임을 문서화. [[size-classifier-retrospective]]
-
-### M2. AGENTS.md — §5 "무변경" 주장 사실오류 + 삭제된 tier/스킬명 잔존 (Q3) — 🔧 처리됨
-**처리(2026-07-22, CLAUDE.md/AGENTS.md 재구조화):** `/claude-md-improver` 감사 후 아키텍처 전면 재작성(implement·tier제거·훅4개·no-design-refs·라이선스 통합 반영). 소스를 **AGENTS.md로 단일화**(canonical), `CLAUDE.md`는 `@AGENTS.md` 스텁 — Codex는 AGENTS.md 네이티브, Claude Code는 CLAUDE.md→@import. 삭제된 tier/sdd명 전부 제거, §5 사실오류 무효화. 168/168 green.
-**지목:** using-harness-flow · implement · 무결성 리뷰어 (다중)
-
-`git diff a970afc..HEAD -- AGENTS.md`는 AGENTS.md가 **변경됐음**을 보여줌 → §5의 "무변경" 주장 거짓. 게다가 불완전: `AGENTS.md:8-9`가 삭제된 tier("trivial vs standard")와 개명 전 스킬명("subagent-driven development")을 **Codex 부트스트랩 파일에 그대로** 유지. §6 concession(README/CLAUDE.md만)에도 미포함. narrative 문서가 아니라 **Codex 세션 시작 시 주입되는 실동작 파일.** **권고:** AGENTS.md:8-9 즉시 수정(tier 제거, implement로 개명), §5 정정.
-
-### M3. README/CLAUDE.md = 삭제된 훅 등록 스니펫 = 설치 파손 (Q3) — 🔧 처리됨
-**처리(2026-07-22):** CLAUDE.md는 AGENTS.md 재작성으로 해소. **README.md도 전면 갱신** — settings.json 예시 2곳에서 삭제 훅(`pre-agent-model`/`pre-plan-audit`) 등록 블록 제거(설치 파손 해소), 훅 6→4, tier/HARD-GATE/Task-Group/sdd/`-design.md`/plan-audit 참조 정정, 6→7harness+matt-pocock, 라이선스 통합 반영. JSON 예시 유효성 확인, 168/168 green.
-**지목:** 무결성 · requesting-code-review 리뷰어
-
-§6은 "아키텍처 서술 stale"로 축소하지만 실제로는 **user-facing 설치 파손**: `README.md:162-163, 201-202`가 삭제된 `pre-agent-model.js`·`pre-plan-audit.js` 등록을 copy-paste로 안내, `README.md:39` 삭제된 sizing.md 참조, `README.md:50` 없는 plan-audit 게이팅. repo-root `CLAUDE.md`도 chain item 5=subagent-driven-development, 삭제 훅 2개 문서화(125-145), 삭제 참조(161-162), sizing.md(22)로 전면 stale. **README 따라하면 존재하지 않는 훅을 등록함.** **권고:** merge 전 doc pass 완료 또는 브랜치 주장 축소 — 삭제-훅 등록 스니펫과 참조 제거.
-
-### M4. severity-floor 외 finding-class 태그도 소멸 (Q4) — 🔧 처리됨
-**처리(2026-07-22):** `code-reviewer.md` Output Format의 "For each issue"에 Class 태그(`impl-fix`/`plan-escalate`, Critical/Important 한정) 추가 + `implement`의 라우팅 문구를 "Route its findings by the reviewer's `class` tag"로 정밀화 → 프로즈 추론이 아닌 기계 태그로 라우팅. 168/168 green.
-**지목:** requesting-code-review 리뷰어
-
-구 dispatch는 `impl-fix`/`plan-escalate` verbatim 태그를 강제해 루프가 **machine tag**로 라우팅했으나, 현 `code-reviewer.md` output format(74-103)은 Critical/Important/Minor + "Ready to merge"만 요구하고 **class 태그를 안 물어봄.** implement controller는 이제 plan-vs-impl을 **prose 추론.** LLM엔 동작하나 escalation 루프가 설계된 machine-reliable 어휘 상실. **권고:** code-reviewer.md output에 "Critical/Important finding마다 impl-fix 또는 plan-escalate 태그" 1줄 추가.
-
-### M5. systematic-debugging — "No Root Cause" 섹션 미공개 삭제 (Q2) — 🔧 처리됨
-**처리(2026-07-22, 압축 가드 복원):** systematic-debugging Phase 1 끝에 2줄 가드 복원 — "'no root cause/환경' 결론 유혹? 95%는 불완전 조사 — 증명 후 exit; 진짜 환경/타이밍/외부면 문서화 + retry/timeout/monitoring 방어를 *그게* fix". 168/168 green.
-**지목:** systematic-debugging 리뷰어
-
-§3.6 cut-list에 없는 `## When Process Reveals "No Root Cause"` 섹션 전체 삭제. 디버깅 루프의 terminal 분기(환경/타이밍/외부 원인 → 문서화 + retry/timeout/monitoring)와 anti-rationalization 가드("95% of 'no root cause' cases are incomplete investigation")를 제공했고 스킬·지원파일 어디에도 없음. LLM이 압박 하에 "no root cause"로 프로세스를 탈출하는 걸 막던 신호. **권고:** Phase 1에 압축 1줄 복원 또는 §3.6에 삭제 공개+정당화.
-
-### M6. writing-plans Interfaces 블록 제거 ↔ implement:36 여전히 참조 (Q4) — 🔧 처리됨
-**처리(2026-07-22, implement 문구 완화):** implement의 subagent 격리 경로를 "the interfaces it must honor (derive these from the plan and the codebase — the plan does not pre-compute them)"로 완화 → plan 포맷에 Interfaces 슬롯 안 넣고 불일치 해소.
-**지목:** writing-plans 리뷰어
-
-`implement/SKILL.md:36`은 subagent 격리 시 "the interfaces it must honor"를 주라 하지만, 새 writing-plans 태스크 스키마(Delivers/Touches/Blocked by/acceptance)엔 **Interfaces/Consumes/Produces 블록 없음.** plan 아티팩트가 더 이상 implement가 가리키는 시그니처를 pre-compute 안 함. **권고:** writing-plans 태스크 템플릿에 "Interfaces(격리 시)" 슬롯 추가하거나 implement:36을 "(plan/코드베이스에서 도출)"로 완화.
-
-### M7. brainstorming 스펙 경로 무단 개명 `-design.md`→`.md` (Q3) — 🔧 처리됨
-**처리(2026-07-22):** 기능부(brainstorming SKILL + AGENTS.md)는 `.md`로 정합, README.md의 `-design.md`+HARD-GATE 문구도 README 전면 갱신에서 정정 완료.
-**지목:** brainstorming 리뷰어
-
-`brainstorming/SKILL.md:33`이 `specs/YYYY-MM-DD-<topic>.md`로 쓰지만 §3.2에 미기재. README.md:43,60 · CLAUDE.md:27,183이 옛 `-design.md`로 잔존. README.md:43은 제거된 `<HARD-GATE>`도 여전히 서술. **권고:** 접미사 복원 또는 rename 완료 + 문서 갱신.
+- **Counter-evidence:** the `implement/SKILL.md:3` description appends a workflow summary after the em-dash ("... — implements inline with TDD, then one final review"). `writing-skills:166-174` prohibits exactly this ("Description = When to Use, NOT What the Skill Does"). **Irony:** `writing-skills:183-184` cites **this skill's previous description** ("Use when executing implementation plans with independent tasks in the current session") as the **GOOD example** — the rename regresses it into the BAD pattern. Risk scenario: the injected description says "one final review," so the controller runs simple execution without loading the body's plan-escalate/impl-fix routing or the 3-re-review cap — exactly the shortcut the rule warned about.
+- **Recommendation:** delete the post-em-dash clause and restore trigger-only ("Use when executing an approved implementation plan or spec in the current session").
 
 ---
 
-## 3. LOW — 미세 substance 손실 · 사전존재 위반 · 일관성
+## 2. MEDIUM — Chain Consistency · Dangling · Substance
 
-각 항목은 동작은 유지되나 프로세스 스텝·references 어디에도 없는 nuance/신호가 소멸했거나, 사전존재 문제라 브랜치 scope 밖:
+### M1. brainstorming small path bypasses the implement final review (Q4) — 🔧 handled
+**Handling (2026-07-21, one-line small-exit self-review):** added a backstop to the small exit in `brainstorming/SKILL.md`: "this path skips the plan and the final whole-branch review, so after the last commit self-review the whole diff (correctness + scope creep)." Keeps the small path lightweight.
+**Flagged by:** integrity reviewer
 
-| # | 스킬 | 소멸/이슈 | Q | 비고 |
+`brainstorming/SKILL.md:27` routes "Small/clear → test-driven-development" **directly**, bypassing implement → small work has **no** final whole-branch review. Previously the (removed) trivial tier had a self-review + exit diff-cap backstop, which the size-classifier retro adopted as measured-safe (decoy 3/3→5/5, quality loss 0). §2.3 deletes the whole tier system and with it that backstop — small work now has a **review gap** with no final review, no plan, and no trivial self-review/diff-cap. §2.2's "always one final review" guarantee is broken on this path. **Recommendation:** route the small path through implement or add a lightweight self-review/diff-cap backstop, and document that "removing the trivial tier = removing a measured-safe backstop." [[size-classifier-retrospective]]
+
+### M2. AGENTS.md — §5 "unchanged" claim is factually wrong + deleted tier/skill names remain (Q3) — 🔧 handled
+**Handling (2026-07-22, CLAUDE.md/AGENTS.md restructured):** after a `/claude-md-improver` audit, fully rewrote the architecture (reflecting implement · tier removal · the 4 hooks · no-design-refs · license consolidation). **Single-sourced to AGENTS.md** (canonical), with `CLAUDE.md` as an `@AGENTS.md` stub — Codex reads AGENTS.md natively, Claude Code goes CLAUDE.md→@import. All deleted tier/sdd names removed, §5 factual error nullified. 168/168 green.
+**Flagged by:** using-harness-flow · implement · integrity reviewer (multiple)
+
+`git diff a970afc..HEAD -- AGENTS.md` shows AGENTS.md **was changed** → §5's "unchanged" claim is false. Worse, it is incomplete: `AGENTS.md:8-9` retains the deleted tier ("trivial vs standard") and the pre-rename skill name ("subagent-driven development") **verbatim in the Codex bootstrap file.** Not covered by the §6 concession (README/CLAUDE.md only). This is not a narrative document but a **live behavioral file injected at Codex session start.** **Recommendation:** fix AGENTS.md:8-9 immediately (remove tier, rename to implement), correct §5.
+
+### M3. README/CLAUDE.md = deleted hook-registration snippets = broken install (Q3) — 🔧 handled
+**Handling (2026-07-22):** CLAUDE.md resolved via the AGENTS.md rewrite. **README.md also fully updated** — removed the deleted-hook (`pre-agent-model`/`pre-plan-audit`) registration blocks from the 2 settings.json examples (fixing the broken install), hooks 6→4, corrected tier/HARD-GATE/Task-Group/sdd/`-design.md`/plan-audit references, 6→7 harnesses + matt-pocock, reflected the license consolidation. JSON examples validated, 168/168 green.
+**Flagged by:** integrity · requesting-code-review reviewers
+
+§6 reduces this to "stale architecture description," but it is actually a **user-facing broken install**: `README.md:162-163, 201-202` walk users through copy-pasting registrations for the deleted `pre-agent-model.js`·`pre-plan-audit.js`, `README.md:39` references the deleted sizing.md, and `README.md:50` references non-existent plan-audit gating. The repo-root `CLAUDE.md` is also thoroughly stale with chain item 5 = subagent-driven-development, documenting the 2 deleted hooks (125-145), deleted references (161-162), and sizing.md (22). **Following the README registers hooks that do not exist.** **Recommendation:** complete a doc pass before merge or narrow the branch claim — remove the deleted-hook registration snippets and references.
+
+### M4. Beyond severity-floor, finding-class tags also vanished (Q4) — 🔧 handled
+**Handling (2026-07-22):** added Class tags (`impl-fix`/`plan-escalate`, Critical/Important only) to "For each issue" in `code-reviewer.md`'s Output Format + tightened `implement`'s routing wording to "Route its findings by the reviewer's `class` tag" → routing by a machine tag rather than prose inference. 168/168 green.
+**Flagged by:** requesting-code-review reviewer
+
+The old dispatch forced `impl-fix`/`plan-escalate` verbatim tags so the loop routed by **machine tag**, but the current `code-reviewer.md` output format (74-103) requires only Critical/Important/Minor + "Ready to merge" and **does not ask for the class tag.** The implement controller now does **prose inference** for plan-vs-impl. This works for an LLM but loses the machine-reliable vocabulary the escalation loop was designed around. **Recommendation:** add one line to the code-reviewer.md output: "for each Critical/Important finding, an impl-fix or plan-escalate tag."
+
+### M5. systematic-debugging — undisclosed deletion of the "No Root Cause" section (Q2) — 🔧 handled
+**Handling (2026-07-22, compressed guard restored):** restored a 2-line guard at the end of systematic-debugging Phase 1 — "Tempted to conclude 'no root cause/environment'? 95% is incomplete investigation — prove it then exit; if it's a genuine environment/timing/external cause, document it + the retry/timeout/monitoring defense *is* the fix." 168/168 green.
+**Flagged by:** systematic-debugging reviewer
+
+The entire `## When Process Reveals "No Root Cause"` section, absent from the §3.6 cut-list, was deleted. It provided the debugging loop's terminal branch (environment/timing/external cause → document + retry/timeout/monitoring) and an anti-rationalization guard ("95% of 'no root cause' cases are incomplete investigation"), and it exists nowhere in the skill or support files. It was the signal that kept the LLM from escaping the process to "no root cause" under pressure. **Recommendation:** restore a compressed one line in Phase 1 or disclose + justify the deletion in §3.6.
+
+### M6. writing-plans Interfaces block removed ↔ implement:36 still references it (Q4) — 🔧 handled
+**Handling (2026-07-22, softened implement wording):** softened the implement subagent-isolation path to "the interfaces it must honor (derive these from the plan and the codebase — the plan does not pre-compute them)" → resolves the mismatch without adding an Interfaces slot to the plan format.
+**Flagged by:** writing-plans reviewer
+
+`implement/SKILL.md:36` says to provide "the interfaces it must honor" when isolating a subagent, but the new writing-plans task schema (Delivers/Touches/Blocked by/acceptance) has **no Interfaces/Consumes/Produces block.** The plan artifact no longer pre-computes the signatures implement points to. **Recommendation:** add an "Interfaces (when isolating)" slot to the writing-plans task template, or soften implement:36 to "(derive from the plan/codebase)."
+
+### M7. brainstorming spec path silently renamed `-design.md`→`.md` (Q3) — 🔧 handled
+**Handling (2026-07-22):** the functional side (brainstorming SKILL + AGENTS.md) is consistent at `.md`, and the `-design.md` + HARD-GATE wording in README.md was also corrected in the full README update.
+**Flagged by:** brainstorming reviewer
+
+`brainstorming/SKILL.md:33` writes `specs/YYYY-MM-DD-<topic>.md` but this is not noted in §3.2. README.md:43,60 · CLAUDE.md:27,183 still have the old `-design.md`. README.md:43 also still describes the removed `<HARD-GATE>`. **Recommendation:** restore the suffix, or complete the rename + update the docs.
+
+---
+
+## 3. LOW — Minor Substance Loss · Pre-existing Violations · Consistency
+
+Each item preserves behavior but has lost a nuance/signal absent from every process step and reference, or is a pre-existing issue outside the branch scope:
+
+| # | skill | vanished/issue | Q | note |
 |---|---|---|---|---|
-| L1 ✅ | test-driven-development | SKILL:34 "horizontal slicing in the anti-patterns" dead 포인터 → **괄호 제거(2026-07-22)**, 문장 자체 완결 유지 | Q3 | rewrite가 만든 신규 무결성 결함, 해소 |
-| L2 ✅ | test-driven-development | anti-pattern #2 2번째 탐지신호(lifecycle 소유 → wrong class) **clause 복원** | Q2 | 처리됨 |
-| L3 ✅ | test-driven-development | Verify-RED에 "passes immediately = 기존 동작/mis-targeted" 진단 **추가** | Q2 | 처리됨 |
-| L4 ✅ | test-driven-development | TDD Exceptions(prototype/generated/config → ask first) **1줄 복원** | Q2 | 처리됨 |
-| L5 ✅ | llm-md-revise | "Codex엔 stable user-level path 없음 — 추측 말라" **harness-neutral clause 복원** | Q2 | 처리됨 |
-| L6 ⏹ | using-git-worktrees | project-local `.worktrees` 재사용 탐지 + LOCATION_KIND 제거 | Q2 | **수용(무변경)** — sibling-first는 단순화 취지에 부합, 재추가는 역행. finishing의 `.worktrees/` 분기는 무해 방어코드 |
-| L7 ✅ | finishing | "worktree 먼저 제거→branch 삭제" WHY를 **inline 주석 복원**(git branch -d 실패 이유) | Q2 | 처리됨 |
-| L8 ✅ | brainstorming | Loop item 2에 "stay focused — no unrelated refactoring" **복원**. worktree는 의도적 downstream 위임(무변경) | Q2/Q4 | 처리됨 |
-| L9 ✅ | using-harness-flow | "user instructions override skills — 명시적일 때만 skip" **1줄 복원** | Q2 | 처리됨 |
-| L10 ⏹ | requesting-code-review | "least powerful"→"most capable" | Q5 | **수용(무변경)** — A″ 의도적 결정(최종 리뷰만 비용), 품질↑, cost 회귀는 감수 |
-| L11 ✅ | requesting-code-review | orphan "SDD" 약어 → **"implement"로 교체** + test-lock 문자열 갱신 | Q3 | 처리됨 |
-| L12 ✅/⏹ | finishing / using-harness-flow | finishing description **trigger-only로 trim**. using-harness-flow는 SessionStart 특수 엔트리라 무변경(리뷰 REC "none required") | Q1 | 처리됨 |
+| L1 ✅ | test-driven-development | SKILL:34 "horizontal slicing in the anti-patterns" dead pointer → **parenthetical removed (2026-07-22)**, sentence stays self-complete | Q3 | new integrity defect created by the rewrite, resolved |
+| L2 ✅ | test-driven-development | anti-pattern #2 second detection signal (lifecycle ownership → wrong class) **clause restored** | Q2 | handled |
+| L3 ✅ | test-driven-development | added "passes immediately = existing behavior/mis-targeted" diagnostic to Verify-RED | Q2 | handled |
+| L4 ✅ | test-driven-development | TDD Exceptions (prototype/generated/config → ask first) **one line restored** | Q2 | handled |
+| L5 ✅ | llm-md-revise | "Codex has no stable user-level path — don't guess" **harness-neutral clause restored** | Q2 | handled |
+| L6 ⏹ | using-git-worktrees | removal of project-local `.worktrees` reuse detection + LOCATION_KIND | Q2 | **accepted (no change)** — sibling-first fits the simplification intent; re-adding it regresses. finishing's `.worktrees/` branch is harmless defensive code |
+| L7 ✅ | finishing | restored the WHY of "remove worktree first → delete branch" as an **inline comment** (why git branch -d fails) | Q2 | handled |
+| L8 ✅ | brainstorming | restored "stay focused — no unrelated refactoring" to Loop item 2. worktree is an intentional downstream delegation (no change) | Q2/Q4 | handled |
+| L9 ✅ | using-harness-flow | restored one line "user instructions override skills — skip only when explicit" | Q2 | handled |
+| L10 ⏹ | requesting-code-review | "least powerful"→"most capable" | Q5 | **accepted (no change)** — an intentional A″ decision (cost only on the final review), quality↑, cost regression accepted |
+| L11 ✅ | requesting-code-review | orphan "SDD" abbreviation → **replaced with "implement"** + updated the test-lock string | Q3 | handled |
+| L12 ✅/⏹ | finishing / using-harness-flow | finishing description **trimmed to trigger-only**. using-harness-flow unchanged as a special SessionStart entry (review REC "none required") | Q1 | handled |
 
 ---
 
-## 4. 무결성 clean 확인 (반증 실패 — 주장 성립)
+## 4. Integrity Clean Confirmations (counter-evidence failed — claims hold)
 
-adversarial 추궁에도 성립한 것:
-- **훅 위생:** 삭제 훅 2개(pre-agent-model, pre-plan-audit) 잔존 등록/활성 테스트 0. hooks.json 6→4 정합. 하드가드 2개(pre-bash-commands, pre-secrets)+테스트 무변경.
-- **체인 링크:** 모든 skill-body cross-ref(brainstorming→writing-plans→implement→requesting-code-review→claude-md-revise→finishing; systematic-debugging 분기) 해소.
-- **Q6 경계:** 엔트리 스킬 neutral(test가 no-TodoWrite+harness-neutral 고정), code-reviewer.md는 Codex translation(spawn_agent/fork_turns none/final_review) 유지 + test-lock.
-- **test-lock:** 각 스킬의 명명된 lock 문자열 전부 생존, codex-runtime-contracts 10/10.
-- **finishing-a-development-branch:** 유일하게 claims-hold — Step 1–6 byte-for-byte, provenance/detached-HEAD/squash -D WHY 보존.
-- **claude-md-revise:** restored Guardrails 2개가 실제로 스텝에 없던 nuance임을 리뷰어가 재확인(§3.7 정확).
-
----
-
-## 5. 개선 권고 — 우선순위
-
-**merge 전 필수 (HIGH):**
-1. **H2·H3 (검증된 clean 위반) 정면 대응:** severity-floor 블록 verbatim 재배치(H3) + inline 완결성 결정론 체크 재도입 또는 fresh eval(H2). 방어 재도입 **또는** fresh pre-registered eval — 브랜치 자체 규약이 요구. 최소한 §4를 정정(plan-audit는 in-session 게이트, SDD 머신 아님).
-2. **H1 (reconciliation gap) 재조정:** inline 기본경로를 cheap 티어로 강제하거나 머신-삭제-절감 포함 net-$ eval을 기록. §2.2가 tier-up trap·Opus-최종을 정면 논증(현재 은폐).
-3. **H4** implement description trigger-only로 수정(writing-skills가 이 스킬 이전 description을 GOOD 예시로 든 룰 위반).
-
-**merge 전 강권 (MEDIUM):**
-3. **M2/M3** AGENTS.md + README 즉시 수정 — 삭제-훅 등록 스니펫은 설치 파손, AGENTS.md는 Codex 실동작. §5 "무변경" 사실오류 정정.
-4. **M1** brainstorming 소형 경로 리뷰 공백 — implement 라우팅 또는 백스톱.
-5. **M4** finding-class 태그 복원(escalation 라우팅 신호).
-
-**doc pass에 포함 (MEDIUM/LOW):**
-6. M5 No-Root-Cause 가드, M6 Interfaces 정합, M7 spec 경로 rename, L1 horizontal-slicing dead 포인터, L2–L9 미세 신호 — §3의 cut-list를 **정직하게 갱신**(무단 삭제 공개). "스캐폴딩만 컷" 프레이밍을 "스캐폴딩 + 일부 의도적 technique trim"으로 정정하면 §7 Q2 주장이 참이 됨.
-
-**메타 관찰:** 대부분의 substance-loss는 §1의 "LLM 역량 향상" 논거로 **정당화 가능**하다. 문제는 정당화가 아니라 **미공개** — 설계문서가 "스캐폴딩만"이라 단언해 의도적 trim을 은폐한 것. 정직한 cut-list + 3개 retro의 명시적 재도전 논증이면 대부분 해소된다.
+What held up under adversarial probing:
+- **Hook hygiene:** the 2 deleted hooks (pre-agent-model, pre-plan-audit) have 0 remaining registrations/active tests. hooks.json 6→4 consistent. The 2 hard guards (pre-bash-commands, pre-secrets) + tests unchanged.
+- **Chain links:** all skill-body cross-refs (brainstorming→writing-plans→implement→requesting-code-review→claude-md-revise→finishing; systematic-debugging branch) resolved.
+- **Q6 boundary:** the entry skill is neutral (test pins no-TodoWrite + harness-neutral), code-reviewer.md retains the Codex translation (spawn_agent/fork_turns none/final_review) + test-lock.
+- **test-lock:** every skill's named lock string survives, codex-runtime-contracts 10/10.
+- **finishing-a-development-branch:** the only claims-hold — Step 1–6 byte-for-byte, provenance/detached-HEAD/squash -D WHY preserved.
+- **claude-md-revise:** the reviewer reconfirmed that the 2 restored Guardrails were genuinely nuances not present in the steps (§3.7 accurate).
 
 ---
 
-## 부록: 방법·한계
+## 5. Improvement Recommendations — Priority
 
-- 리뷰어 11명, general-purpose, 각자 파일·diff·retrospective 직접 조회(subagent tokens 660k+128k, tool_uses 141).
-- 1차 requesting-code-review 리뷰어가 degenerate 출력 반환 → 동일 프롬프트로 재실행, 결과 채택(H3·M4·L10·L11 근거).
-- **2차 검증 pass(advisor 지적 반영):** find-only 리뷰어 산출을 사실로 제시하기 전 HIGH 4건을 실파일·retrospective와 직접 대조. 결과: **H2·H3·H4 = CONFIRMED**(a970afc 원문, `grep skills/`, implement 라인번호 정확), **H1 = severity 하향**(tier-up trap 적용은 확인되나 머신-삭제 절감이 미측정이라 clean 위반 아닌 reconciliation gap). MEDIUM/LOW는 리뷰어 인용을 스팟체크 없이 전달 — 채택 전 개별 확인 권장.
-- 이 보고서는 **주장 대조 결과**다. 최종 채택 여부는 사용자 판단.
+**Required before merge (HIGH):**
+1. **Address H2·H3 (verified clean violations) head-on:** relocate the severity-floor block verbatim (H3) + re-introduce the deterministic inline completeness check or a fresh eval (H2). Re-introduce the defense **or** a fresh pre-registered eval — the branch's own convention requires it. At minimum correct §4 (plan-audit is an in-session gate, not an SDD machine).
+2. **Reconcile H1 (reconciliation gap):** force the default inline path to the cheap tier, or record a net-$ eval including machine-deletion savings. Have §2.2 argue the tier-up trap · Opus-final head-on (currently concealed).
+3. **H4** fix the implement description to trigger-only (it violates the rule for which writing-skills cites this skill's previous description as the GOOD example).
+
+**Strongly urged before merge (MEDIUM):**
+3. **M2/M3** fix AGENTS.md + README immediately — the deleted-hook registration snippets are a broken install, and AGENTS.md is a live Codex behavioral file. Correct the §5 "unchanged" factual error.
+4. **M1** brainstorming small-path review gap — route to implement or add a backstop.
+5. **M4** restore the finding-class tags (an escalation-routing signal).
+
+**Include in the doc pass (MEDIUM/LOW):**
+6. M5 No-Root-Cause guard, M6 Interfaces consistency, M7 spec path rename, L1 horizontal-slicing dead pointer, L2–L9 minor signals — **honestly update** the §3 cut-list (disclose the silent deletions). Correcting the "cut scaffolding only" framing to "scaffolding + some intentional technique trim" makes the §7 Q2 claim true.
+
+**Meta observation:** most of the substance-loss is **justifiable** by §1's "improved LLM capability" argument. The problem is not the justification but the **non-disclosure** — the design document asserted "scaffolding only," concealing the intentional trims. An honest cut-list + explicit re-challenge arguments for the 3 retros resolves most of it.
+
+---
+
+## Appendix: Method · Limitations
+
+- 11 reviewers, general-purpose, each directly consulting the files · diff · retrospectives (subagent tokens 660k+128k, tool_uses 141).
+- The first requesting-code-review reviewer returned degenerate output → re-ran with the same prompt, adopted the result (basis for H3·M4·L10·L11).
+- **2nd verification pass (reflecting advisor's point):** before presenting the find-only reviewer output as fact, the 4 HIGH findings were cross-checked directly against actual files and retrospectives. Result: **H2·H3·H4 = CONFIRMED** (a970afc original, `grep skills/`, implement line numbers accurate), **H1 = severity lowered** (the tier-up trap does apply, but because machine-deletion savings are unmeasured it is a reconciliation gap, not a clean violation). MEDIUM/LOW were relayed from reviewer citations without spot-checking — individual confirmation recommended before adoption.
+- This report is the **result of cross-checking claims.** Final adoption is up to the user's judgment.

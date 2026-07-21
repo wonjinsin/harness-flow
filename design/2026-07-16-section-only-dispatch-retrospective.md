@@ -1,74 +1,74 @@
-# Section-Only Dispatch 회고 — 음성 결과 (release 보류)
+# Section-Only Dispatch Retrospective — Negative Result (release held)
 
-**날짜**: 2026-07-16
-**브랜치**: `worktree-section-only-dispatch` (미머지 보존)
-**결론 요약**: SDD dispatch payload를 저작 brief에서 결정론 추출(`scripts/group-entry`)로 바꾸는 실험. 구현·리뷰는 전부 통과(211/211, 최종 리뷰 "Ready to merge")했으나 **release 게이트에서 탈락**: 기능 프로브는 8/8 (2/2 reps)인데 블라인드 품질 판정에서 두 rep 모두 brief arm 대비 열세 — **사전 작성 step 코드가 cheap 티어(haiku) 코드 품질의 실제 원천**이라는 음성 결과. 1.2.1 유지. size-classifier 회고와 같은 지위의 기록.
+**Date**: 2026-07-16
+**Branch**: `worktree-section-only-dispatch` (preserved, unmerged)
+**Conclusion summary**: An experiment to change the SDD dispatch payload from an authored brief to deterministic extraction (`scripts/group-entry`). Implementation and review both passed fully (211/211, final review "Ready to merge"), but it **failed at the release gate**: functional probes were 8/8 (2/2 reps), yet in blind quality judgment both reps came out inferior to the brief arm — a negative result showing that **the pre-authored step code is the actual source of cheap-tier (haiku) code quality**. 1.2.1 retained. A record of the same standing as the size-classifier retrospective.
 
-## 1. 가설과 동기
+## 1. Hypothesis and Motivation
 
-plan-demotion 회고 §7 이후 사용자 기준(속도·토큰이 1차 게이트) 하에서:
-저작 brief의 비용 클래스(실경로 ~2–3k, fresh 컨트롤러 ~60–78k + 과잉 수행
-표면)를 아예 제거하고, spec 섹션에서 그룹 엔트리+전역 제약을 스크립트로
-추출(0 토큰)해 dispatch하면 implementer가 직접 TDD로 메꿀 것이다.
+Under the user's criteria (speed and tokens are the primary gate) following plan-demotion retrospective §7:
+Eliminate the cost class of the authored brief entirely (real path ~2–3k, fresh controller ~60–78k + over-execution
+surface), and instead extract the group entry + global constraints from the spec section via a script (0 tokens)
+to dispatch, so the implementer fills it in directly via TDD.
 
-## 2. 구현 (브랜치에 보존, 미머지)
+## 2. Implementation (preserved on branch, unmerged)
 
-- `scripts/group-entry` + 8 유닛 테스트 (펜스 인지 2-pass awk, 한/영 제약
-  헤딩, exit 0/2/3) — 이 부분은 자체 결함 없음, 재사용 가치 있음.
-- SDD SKILL.md "Dispatch Payload" 재구성 (기본=추출 / 폴백=저작+brief-check
-  / 레거시=task-brief), 리뷰어 `brief-fix` class를 폴백 경로 조건부화,
-  writing-plans·CLAUDE.md·README 정합화. 최종 리뷰 승인까지 완료.
-- 부수 실증 2건: ① 리뷰어가 신규 `brief-fix` 라우팅을 실전 발동 (컨트롤러
-  저작 brief의 spec 누락 2건을 정확히 brief-fix로 분류, 사람 개입 없이
-  brief 재작성으로 수렴 — 1.2.0 설계의 첫 실전 검증), ② worktree gotcha
-  실발동 (fixer가 main 체크아웃 master에 커밋 → CLAUDE.md 절차대로
-  cherry-pick + reset 복구).
+- `scripts/group-entry` + 8 unit tests (fence-aware 2-pass awk, KR/EN constraint
+  headings, exit 0/2/3) — this part has no defects of its own, and has reuse value.
+- Restructured SDD SKILL.md "Dispatch Payload" (default = extraction / fallback = author + brief-check
+  / legacy = task-brief), made the reviewer's `brief-fix` class conditional on the fallback path,
+  aligned writing-plans, CLAUDE.md, and README. Completed through final review approval.
+- 2 incidental empirical findings: (1) the reviewer triggered the new `brief-fix` routing in practice (correctly
+  classifying 2 spec omissions in the controller-authored brief as brief-fix, converging via brief rewrite
+  without human intervention — the first real validation of the 1.2.0 design), (2) the worktree gotcha
+  actually triggered (the fixer committed to the main-checkout master → recovered via
+  cherry-pick + reset per the CLAUDE.md procedure).
 
-## 3. 평가 (tokmark fixture, 1.2.0 eval 자산 재사용)
+## 3. Evaluation (tokmark fixture, reusing 1.2.0 eval assets)
 
-동일 spec 섹션·동일 시드(D1 `>` 미이스케이프, D2 "empty tokens")·동일
-프로브. 비교 대상 K = brief arm (sonnet 저작 brief + haiku 구현, 1.2.0
-eval). 신규 Z1·Z2 = 추출 payload + haiku, 2 reps.
+Same spec section, same seeds (D1 `>` unescaped, D2 "empty tokens"), same
+probes. Comparison target K = brief arm (sonnet-authored brief + haiku implementation, 1.2.0
+eval). New Z1 and Z2 = extraction payload + haiku, 2 reps.
 
-| 지표 | K (brief) | Z1 | Z2 |
+| Metric | K (brief) | Z1 | Z2 |
 |---|---|---|---|
-| 프로브 (8종, decoy 포함) | 8/8 | 8/8 | 8/8 |
+| Probes (8 types, incl. decoy) | 8/8 | 8/8 | 8/8 |
 | implementer tokens / s | 37.0k / 80s | 45.7k / 142s | 45.8k / 190s |
-| 블라인드 테스트 품질 | 4 | 3 (동어반복·프로세스 누수 이름) | 4 |
-| 블라인드 코드 품질 | 5 | 2 (이스케이프 로직 중복) | 2 (~40줄 데드 중첩 코드) |
-| 블라인드 spec 충실도 | 5 | 3 (`* *` 의미 일탈) | 2 (과잉 구축) |
-| 판정 | — | **K보다 열세** | **K보다 열세** |
+| Blind test quality | 4 | 3 (tautology, process-leak names) | 4 |
+| Blind code quality | 5 | 2 (duplicated escape logic) | 2 (~40 lines dead nested code) |
+| Blind spec fidelity | 5 | 3 (`* *` semantic deviation) | 2 (over-construction) |
+| Verdict | — | **inferior to K** | **inferior to K** |
 
-- 분산 소견: Z1·Z2는 "같은 프로세스의 노이즈" — 장황함·과잉 star 로직·
-  부풀린 스위트라는 공통 시그니처. 구조적 결과지 불운 아님.
-- 토큰조차 열세: 코드 없이 탐색 턴이 늘어 implementer 비용 +23% (45.7k vs
-  37.0k), 시간 +78~137%. **속도·토큰 축에서도 실패** — brief 저작의 실경로
-  비용(~2–3k)을 implementer 초과분(+8.7k)이 상회.
-- 유일한 성공 사례: 본 브랜치 Group 3(문서 스윕)은 section-only로 문제
-  없이 완료 — 코드 없는 문서 태스크에는 유효하나, 그것만으로 기본값을
-  바꿀 근거가 못 됨 (태스크 유형 분기는 size-classifier 함정).
+- Variance observation: Z1 and Z2 are "noise from the same process" — a shared signature of verbosity, excessive star logic,
+  and inflated suites. A structural result, not bad luck.
+- Even tokens were inferior: without the code, exploration turns increased, raising implementer cost +23% (45.7k vs
+  37.0k) and time +78–137%. **A failure on the speed and token axes too** — the implementer's excess (+8.7k)
+  exceeds the real-path cost of authoring the brief (~2–3k).
+- Sole success case: this branch's Group 3 (documentation sweep) completed with section-only without
+  problems — valid for code-free documentation tasks, but that alone is not grounds to change the default
+  (branching by task type is the size-classifier trap).
 
-## 4. 게이트 판정
+## 4. Gate Verdict
 
-| 게이트 | 결과 | 판정 |
+| Gate | Result | Verdict |
 |---|---|---|
-| 1. 품질: 프로브 8/8 + 블라인드 동등 이상 | 프로브 통과, 블라인드 2/2 열세 | **탈락** |
-| 2. cheap(haiku) 유지 | 기능은 유지, 품질 미달 | **탈락** |
-| 3. 토큰/속도 총합 ≤ brief arm | implementer +23% tok / +78% s | **탈락** |
-| 4. 회귀 없음 | 211/211 | 충족 |
+| 1. Quality: probes 8/8 + blind at least equal | probes passed, blind 2/2 inferior | **Fail** |
+| 2. Keep cheap (haiku) | functionally kept, quality below bar | **Fail** |
+| 3. Token/speed total ≤ brief arm | implementer +23% tok / +78% s | **Fail** |
+| 4. No regression | 211/211 | Met |
 
-**3/4 탈락 → release 보류, 1.2.1 유지.**
+**3/4 fail → release held, 1.2.1 retained.**
 
-## 5. 교훈
+## 5. Lessons
 
-1. **step 코드는 세리머니가 아니라 품질 전달 매체다.** brief의 사전 작성
-   코드는 받아쓰기 비용이 아니라 sonnet 품질을 haiku 실행에 주입하는
-   통로였다. 제거하면 품질이 implementer 티어로 회귀한다.
-2. **"토큰 절감" 가설도 토큰 축에서 patched됨**: 코드 없는 payload는
-   implementer의 탐색 턴을 늘려 절감분을 상회했다 (턴 수 > 토큰 단가
-   원칙의 재확인).
-3. **구현 품질 ≠ 설계 타당성.** 이 브랜치는 모든 리뷰를 통과했다 —
-   결함은 코드가 아니라 가설에 있었고, 그것은 release 게이트(A/B)만
-   잡을 수 있었다. 게이트를 스킬 체인 통과로 대체하면 안 되는 이유.
-4. `group-entry` 스크립트와 brief-fix 실전 검증은 회수 가능한 자산 —
-   브랜치를 미머지 보존.
+1. **Step code is not ceremony — it is the delivery medium for quality.** The brief's pre-authored
+   code was not a transcription cost but the conduit for injecting sonnet quality into haiku
+   execution. Remove it and quality regresses to the implementer tier.
+2. **The "token savings" hypothesis was patched on the token axis too**: a code-free payload
+   increased the implementer's exploration turns and outweighed the savings (a reconfirmation of the
+   turn-count > token-unit-price principle).
+3. **Implementation quality ≠ design validity.** This branch passed every review —
+   the defect was not in the code but in the hypothesis, and only the release gate (A/B)
+   could catch it. The reason the gate must not be replaced by passing the skill chain.
+4. The `group-entry` script and the brief-fix real-world validation are recoverable assets —
+   the branch is preserved, unmerged.

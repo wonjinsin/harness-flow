@@ -1,223 +1,221 @@
-# 스킬 라이브러리 간소화 — enforcement scaffolding 제거
+# Skill library simplification — removing enforcement scaffolding
 
-작성일: 2026-07-21
-브랜치: `simplify-skills` (base `a970afc`)
-현재 순 변경: **46 파일, +498 / −4,750 (net −4,252줄)**
+Written: 2026-07-21
+Branch: `simplify-skills` (base `a970afc`)
+Current net change: **46 files, +498 / −4,750 (net −4,252 lines)**
 
-이 문서는 멀티에이전트 리뷰의 근거 자료다. "무엇을, 왜 바꿨는가"와 "각 스킬에서
-정확히 무엇을 잘랐고 무엇을 남겼는가"를 리뷰어가 실제 파일과 대조할 수 있을 만큼
-상세히 기록한다. 리뷰 질문은 문서 맨 끝 §7에 있다.
+This document is the reference material for the multi-agent review. It records "what was changed and why" and "exactly what was cut from each skill and what was kept" in enough detail that a reviewer can cross-check against the actual files. The review questions are at the very end in §7.
 
 ---
 
-## 1. 배경과 동기
+## 1. Background and motivation
 
-harness-flow는 obra/superpowers(v6.1.1)의 포크이며, 마크다운 스킬 체인
-(brainstorming → writing-plans → 실행 → 최종 리뷰 → finishing)으로 구성된다.
-포크 과정에서 superpowers의 가벼운 `executing-plans`(70줄 인라인 경로)를 버리고
-무거운 `subagent-driven-development`(dispatch/ledger/scripts 머신)만 남겨,
-**원본보다 오히려 무거워졌다.**
+harness-flow is a fork of obra/superpowers (v6.1.1), and consists of a markdown skill chain
+(brainstorming → writing-plans → execution → final review → finishing).
+During the fork, superpowers' lightweight `executing-plans` (70-line inline path) was dropped and
+only the heavy `subagent-driven-development` (dispatch/ledger/scripts machinery) was kept,
+so it **actually became heavier than the original.**
 
-세 가지 동인:
+Three drivers:
 
-1. **LLM 역량 향상.** 스킬에 박힌 enforcement scaffolding(반복되는 iron law,
-   rationalization 표, Red Flags STOP 목록)은 약한 모델이 절차를 이탈하지 않게
-   붙잡아두는 장치였다. 현재 모델에는 과잉이다.
-2. **필드 합의.** 비교한 7개 프로젝트 중 5개가 spec/plan을 optional로 둔다
-   (GSD/superpowers만 강제). harness-flow가 상속한 강제 게이트는 과중하다.
-3. **실제 작업 성격.** 사용자의 작업은 one-shot 대형 프로젝트가 아니라
-   점진적/incremental이다. 무거운 사전 설계 게이트가 마찰만 만든다.
+1. **Improved LLM capability.** The enforcement scaffolding baked into the skills (repeated iron laws,
+   rationalization tables, Red Flags STOP lists) was a device to keep weaker models from
+   deviating from the procedure. For current models it is overkill.
+2. **Field consensus.** Of the 7 projects compared, 5 keep spec/plan optional
+   (only GSD/superpowers enforce them). The forced gate harness-flow inherited is excessive.
+3. **Nature of the actual work.** The user's work is not one-shot large projects but
+   gradual/incremental. A heavy up-front design gate only creates friction.
 
-목표: **스킬/훅을 50% 이상 감축.** 품질은 제약(constraint)이지 목표가 아니며,
-속도·토큰 개선이 1차 게이트다([[changes-optimize-speed-and-tokens]] 메모 원칙).
+Goal: **cut skills/hooks by 50%+.** Quality is a constraint, not a goal, and
+speed/token improvements are the primary gate (the [[changes-optimize-speed-and-tokens]] memo principle).
 
-## 2. 핵심 설계 판단 (사용자와 인터뷰로 확정)
+## 2. Key design decisions (confirmed via interview with the user)
 
-### 2.1 "실체 vs 스캐폴딩" 구분선
+### 2.1 The "substance vs scaffolding" dividing line
 
-이 브랜치 전체를 관통하는 단일 기준:
+The single criterion running through this entire branch:
 
-- **실체(유지):** 기법 자체 — mocking anti-pattern, 진단 휴리스틱, git 명령 블록,
-  placement 로딩 시맨틱, 역추적 절차, 탐지 신호. "어떻게 하는가"의 내용.
-- **스캐폴딩(컷):** 절차 규칙을 format만 바꿔 반복하는 것 — Red Flags STOP 목록,
-  Common Mistakes 표, Quick Reference 표, rationalization 표, "Announce at start"
-  줄, Overview 슬로건, 상위 표를 1:1 복제한 graphviz digraph.
+- **Substance (keep):** the technique itself — mocking anti-pattern, diagnostic heuristics, git command blocks,
+  placement loading semantics, back-tracing procedures, detection signals. The "how to do it" content.
+- **Scaffolding (cut):** repeating a process rule with only the format changed — Red Flags STOP lists,
+  Common Mistakes tables, Quick Reference tables, rationalization tables, "Announce at start"
+  lines, Overview slogans, a graphviz digraph that 1:1 duplicates a table above.
 
-판정 규칙: 삭제 후보가 **프로세스 스텝에 이미 있는 규칙의 재진술**이면 컷,
-**다른 곳에 없는 내용/탐지신호/WHY**면 유지. 비자명한 WHY는 inline 주석으로 보존.
+Decision rule: if a deletion candidate is a **restatement of a rule already present in a process step**, cut it;
+if it is **content/a detection signal/a WHY not found elsewhere**, keep it. Non-obvious WHYs are preserved as inline comments.
 
-### 2.2 실행 모델 = A″ (inline-first)
+### 2.2 Execution model = A″ (inline-first)
 
-`subagent-driven-development`(500줄) → `implement`(57줄)로 재작성·개명.
+`subagent-driven-development` (500 lines) → rewritten and renamed to `implement` (57 lines).
 
-- 기본: 현재 세션·세션 모델에서 **inline 실행**(TDD, 태스크당 1커밋).
-- 옵션: 깨끗한 컨텍스트가 명백히 이득일 때만 **단일·순차** 서브에이전트 격리
-  (병렬 없음, brief 파일/ledger 없음).
-- 항상: 끝에 **fresh-context 최종 리뷰 1회**, most-capable 모델.
+- Default: **inline execution** in the current session on the session model (TDD, one commit per task).
+- Option: **single/sequential** subagent isolation only when a clean context is clearly beneficial
+  (no parallelism, no brief files/ledger).
+- Always: **one fresh-context final review** at the end, on the most-capable model.
 
-근거: 필드 증거상 병렬성은 **빌드가 아니라 리뷰에 속한다**(Archon/gstack/Matt은
-빌드를 inline). superpowers `executing-plans`(70줄 inline) 선례. dispatch/ledger/
-model-tier 머신 전부 제거.
+Rationale: field evidence shows parallelism **belongs to review, not to the build** (Archon/gstack/Matt build
+inline). Precedent: superpowers `executing-plans` (70-line inline). The dispatch/ledger/
+model-tier machinery is all removed.
 
-### 2.3 Spec 게이팅 = Model B (optional)
+### 2.3 Spec gating = Model B (optional)
 
-brainstorming이 종료 지점을 **추천**하고 사용자가 선택(작은 작업→바로 TDD,
-큰 작업→spec 작성→plan). HARD-GATE·강제 spec 파일·별도 승인 루프 없음.
-tier 시스템(trivial/standard + `sizing.md`) 전면 제거 — 라우팅은 타입별로만.
+brainstorming **recommends** an exit point and the user chooses (small work → straight to TDD,
+large work → write spec → plan). No HARD-GATE, no forced spec file, no separate approval loop.
+The tier system (trivial/standard + `sizing.md`) is removed entirely — routing is by type only.
 
-### 2.4 Cross-harness = neutral 문구, 플러그인은 유지
+### 2.4 Cross-harness = neutral wording, plugin kept
 
-스킬 본문은 harness-neutral 문구 사용, tool-translation 참조 파일
-(`codex-tools.md`, `copilot-tools.md`)은 삭제. **단, 플러그인 인프라
-(`.codex-plugin/`, `.agents/`, `AGENTS.md`)는 유지** — Codex는 계속 지원 대상.
+Skill bodies use harness-neutral wording, and the tool-translation reference files
+(`codex-tools.md`, `copilot-tools.md`) are deleted. **However, the plugin infrastructure
+(`.codex-plugin/`, `.agents/`, `AGENTS.md`) is kept** — Codex remains a supported target.
 
-예외: dispatch **템플릿**(`code-reviewer.md`)은 harness-neutral 대상 아님.
-`Claude Code Task/Agent`를 명시하고 별도 **Codex translation** 블록을 유지한다
-(`spawn_agent`/`fork_turns: none`/`task_name: final_review`). test lock으로 고정됨.
+Exception: the dispatch **template** (`code-reviewer.md`) is not a harness-neutral target.
+It names `Claude Code Task/Agent` explicitly and keeps a separate **Codex translation** block
+(`spawn_agent`/`fork_turns: none`/`task_name: final_review`). Pinned by a test lock.
 
-## 3. 변경된 스킬 — 상세
+## 3. Changed skills — detail
 
-수치는 base `a970afc` 대비 (줄 수).
+Figures are relative to base `a970afc` (line counts).
 
 ### 3.1 using-harness-flow (80 → 21)
 
-- tier 시스템(Size the Work First 표, trivial/standard 라우팅) + `references/sizing.md`
-  삭제. 라우팅을 타입별로만 축소(Build→brainstorming, Bug→systematic-debugging).
-- Platform Adaptation의 Codex/Copilot 참조 삭제, harness-neutral 문구로.
-- test lock: 엔트리 스킬은 "harness-neutral" 포함, "TodoWrite" 미포함으로 고정.
+- Removed the tier system (Size the Work First table, trivial/standard routing) + `references/sizing.md`.
+  Reduced routing to type-only (Build→brainstorming, Bug→systematic-debugging).
+- Removed the Codex/Copilot references in Platform Adaptation, switched to harness-neutral wording.
+- test lock: the entry skill is pinned to contain "harness-neutral" and not contain "TodoWrite".
 
 ### 3.2 brainstorming (148 → 42)
 
-- Model B로 재작성. Loop(explore, 하나씩 grill + 추천, 2–3 접근, YAGNI),
-  "Exit — recommend, let the user pick", 규칙 기반 Spec 섹션(사용자 관점으로 작성,
-  결정을 기록하되 코드는 아님, placeholder 금지, tight·opinionated).
-- HARD-GATE·강제 spec·승인 루프 제거. orphan `spec-document-reviewer-prompt.md` 삭제.
+- Rewritten as Model B. Loop (explore, grill one at a time + recommend, 2–3 approaches, YAGNI),
+  "Exit — recommend, let the user pick", a rule-based Spec section (written from the user's perspective,
+  records decisions but not code, no placeholders, tight/opinionated).
+- Removed HARD-GATE/forced spec/approval loop. Deleted the orphan `spec-document-reviewer-prompt.md`.
 
 ### 3.3 using-git-worktrees (244 → 63)
 
-- Step 0(격리 감지 + submodule 가드), Step 1a(네이티브 tool), Step 1b(수동 git)로 압축.
-- test lock 문자열 보존: `git check-ref-format --branch`,
+- Compressed into Step 0 (isolation detection + submodule guard), Step 1a (native tool), Step 1b (manual git).
+- Preserved test lock strings: `git check-ref-format --branch`,
   `git check-ignore -q -- "$LOCATION"`, "sibling directory", `manual-git-worktree`,
-  그리고 "Add to .gitignore, commit" 미포함.
+  and not containing "Add to .gitignore, commit".
 
 ### 3.4 writing-plans (244 → 70)
 
-- Matt Pocock to-tickets 스타일. Spec 포인터 헤더 + Goal + Constraints.
-  태스크는 Delivers/Touches(파일, 라인번호 없음)/Blocked by/acceptance 체크박스.
-  "좋은 태스크"(tracer-bullet, vertical slice), 규칙(prefactor, 코드블록·라인번호 금지).
-- Group/Interfaces dispatch 머신 제거(inline 실행이라 불필요).
-- test lock: "There is no group-boundary reviewer", "After the user approves" 보존.
+- Matt Pocock to-tickets style. Spec pointer header + Goal + Constraints.
+  Tasks have Delivers/Touches (files, no line numbers)/Blocked by/acceptance checkboxes.
+  "Good tasks" (tracer-bullet, vertical slice), rules (prefactor, no code blocks/line numbers).
+- Removed the Group/Interfaces dispatch machinery (unnecessary since execution is inline).
+- test lock: preserved "There is no group-boundary reviewer", "After the user approves".
 
 ### 3.5 test-driven-development (399 → 62) + testing-anti-patterns (317 → 82)
 
-- SKILL: Iron Law + ownership 가드("pre-existing user code"/"current TDD cycle" 보존),
-  The Loop(RED/verify/GREEN/verify/REFACTOR), Good Tests 표, "When stuck" 표
-  (테스트 고통→설계 신호), mocking anti-pattern 포인터.
-- anti-patterns: 5개 mocking anti-pattern(위반/수정), "mocks 복잡해질 때",
-  "Red flags"(6개 탐지 신호 — 복원됨) 유지. Gate Function 의사코드, Quick Reference
-  표, Bottom Line 제거.
-- 참고: 사용자가 Red Flags 탐지신호를 실체로 보고 복원 요청함(프로즈에 없는 신호).
+- SKILL: Iron Law + ownership guard (preserved "pre-existing user code"/"current TDD cycle"),
+  The Loop (RED/verify/GREEN/verify/REFACTOR), Good Tests table, "When stuck" table
+  (test pain → design signal), mocking anti-pattern pointer.
+- anti-patterns: kept the 5 mocking anti-patterns (violation/fix), "when mocks get complex",
+  "Red flags" (6 detection signals — restored). Removed the Gate Function pseudocode, Quick Reference
+  table, Bottom Line.
+- Note: the user views the Red Flags detection signals as substance and requested their restoration (signals not present in the prose).
 
-### 3.6 systematic-debugging (SKILL 311 → 70, 지원파일 3개 394 → 133; 계 705 → 203)
+### 3.6 systematic-debugging (SKILL 311 → 70, 3 supporting files 394 → 133; total 705 → 203)
 
-- SKILL: Iron Law, 4 phase(에러 읽기/재현/최근변경/**계층 계측 예제**/역추적 포인터),
-  Phase 2–3 압축, **3-fix→아키텍처 질문** 룰, claude-md-revise+finishing(harness-neutral),
-  Supporting techniques 포인터.
-- 컷: Overview, "When to Use ESPECIALLY", Red Flags 목록, "human partner Signals",
-  Common Rationalizations 표, Quick Reference 표, Real-World Impact 통계, graphviz digraph들.
-- 지원파일: `root-cause-tracing.md`(159→41), `defense-in-depth.md`(122→46),
-  `condition-based-waiting.md`(113→46) — 각 핵심 기법 + 예제 1개로 압축.
-- **cascade:** claude-md-revise 참조를 harness-neutral화(CLAUDE.md/AGENTS.md 명시 제거)
-  → `codex-runtime-contracts.test.js`의 debugging platform 검증 삭제.
+- SKILL: Iron Law, 4 phases (read error/reproduce/recent changes/**layered instrumentation example**/back-tracing pointer),
+  Phase 2–3 compressed, the **3-fix → architecture question** rule, claude-md-revise+finishing (harness-neutral),
+  Supporting techniques pointer.
+- Cut: Overview, "When to Use ESPECIALLY", Red Flags list, "human partner Signals",
+  Common Rationalizations table, Quick Reference table, Real-World Impact statistics, the graphviz digraphs.
+- Supporting files: `root-cause-tracing.md` (159→41), `defense-in-depth.md` (122→46),
+  `condition-based-waiting.md` (113→46) — each compressed to the core technique + 1 example.
+- **cascade:** made the claude-md-revise reference harness-neutral (removed the explicit CLAUDE.md/AGENTS.md mentions)
+  → deleted the debugging platform assertion in `codex-runtime-contracts.test.js`.
 
 ### 3.7 claude-md-revise (209 → 130)
 
-- 컷(스캐폴딩): Step 4 밑 graphviz digraph(위 표 1:1 복제), Quick Reference 표,
-  Common Mistakes 표(9행), Red Flags STOP(9항목), "Announce at start", Overview 장황함.
-- 유지(실체 전부): Platform Detection, Process 6스텝, Step 4 placement 표 + 200줄
-  reactive 룰, references 2개(`placement-decision.md`, `examples.md`) 그대로.
-- **복원:** 항목별 대조 후, 스텝에 없던 nuance 2개만 담은 "Guardrails" 6줄 복원
-  (① one-time 제안→defer, ② project-wide 룰을 subdir에 묻으면 touched시에만 로드).
-- test lock 보존: `Codex...AGENTS.md`, "do not scan them by guessed path".
+- Cut (scaffolding): the graphviz digraph under Step 4 (1:1 duplicate of the table above), Quick Reference table,
+  Common Mistakes table (9 rows), Red Flags STOP (9 items), "Announce at start", the Overview verbosity.
+- Kept (all substance): Platform Detection, the 6-step Process, the Step 4 placement table + the 200-line
+  reactive rule, the 2 references (`placement-decision.md`, `examples.md`) as-is.
+- **Restored:** after an item-by-item comparison, restored a 6-line "Guardrails" holding only the 2 nuances not in the steps
+  (① one-time proposal → defer, ② if a project-wide rule is buried in a subdir it loads only when touched).
+- Preserved test lock: `Codex...AGENTS.md`, "do not scan them by guessed path".
 
 ### 3.8 requesting-code-review (SKILL 128 → 49, code-reviewer.md 178 → 172)
 
-- **dangling 해소:** 삭제된 `../subagent-driven-development/scripts/review-package`
-  호출과 `{DIFF_FILE}` placeholder 제거 → 리뷰어가 `git diff BASE..HEAD` 직접 실행.
-  `plan-audit` 참조 제거.
-- 동작 변경: "least powerful model that fits"(SDD tier) → **"most capable"**
-  (A″ 결정: 최종 리뷰는 cost 쓸 가치 있는 유일한 곳).
-- 컷: "Review early review often" 슬로건, 장황한 When 목록, 24줄 Example,
-  "Integration with Workflows" 3하위섹션, Red Flags.
-- 유지: code-reviewer.md 템플릿 본문 전부(체크리스트/output format/calibration/
-  Example Output), **Codex translation**(dispatch-template 예외).
-- test lock 보존: `spawn_agent`, `fork_turns...none`, `final_review`,
+- **dangling resolved:** removed the deleted `../subagent-driven-development/scripts/review-package`
+  call and the `{DIFF_FILE}` placeholder → the reviewer runs `git diff BASE..HEAD` directly.
+  Removed the `plan-audit` reference.
+- Behavior change: "least powerful model that fits" (SDD tier) → **"most capable"**
+  (the A″ decision: the final review is the one place worth spending cost).
+- Cut: the "Review early review often" slogan, the verbose When list, the 24-line Example,
+  the "Integration with Workflows" 3 subsections, Red Flags.
+- Kept: the entire code-reviewer.md template body (checklist/output format/calibration/
+  Example Output), the **Codex translation** (dispatch-template exception).
+- Preserved test lock: `spawn_agent`, `fork_turns...none`, `final_review`,
   `SDD...final whole-branch review`.
 
 ### 3.9 finishing-a-development-branch (287 → 212)
 
-- 컷(스캐폴딩만): Overview + "Announce at start", Quick Reference 표,
-  Common Mistakes(7항목), Red Flags Never/Always.
-- 유지: 프로세스 Step 1–6 전부(git 명령 블록, provenance/detached-HEAD 로직).
-  다른 스킬보다 컷 폭이 작음 — 실체가 git 메커니즘이라.
-- 비자명 WHY 점검: squash `-D` 이유는 Step 5에 inline 주석으로 이미 존재.
-- test lock 보존: `detached HEAD...exactly these 2 options`, `Create branch`,
+- Cut (scaffolding only): Overview + "Announce at start", Quick Reference table,
+  Common Mistakes (7 items), Red Flags Never/Always.
+- Kept: all of process Step 1–6 (git command blocks, provenance/detached-HEAD logic).
+  Smaller cut than the other skills — because the substance is the git mechanism.
+- Non-obvious WHY check: the reason for the squash `-D` already exists as an inline comment in Step 5.
+- Preserved test lock: `detached HEAD...exactly these 2 options`, `Create branch`,
   `Hand off to local`, `harness-flow:pr-creator`, `git switch <base-branch>`.
 
-## 4. 삭제된 머신 (subagent-driven-development 계열)
+## 4. Removed machinery (subagent-driven-development family)
 
-`implement`로 대체되며 불필요해진 것들:
+Things that became unnecessary once replaced by `implement`:
 
-- `skills/subagent-driven-development/` 전체: SKILL(500), `implementer-prompt.md`(165),
-  `task-reviewer-prompt.md`(127), `references/example-workflow.md`,
+- All of `skills/subagent-driven-development/`: SKILL (500), `implementer-prompt.md` (165),
+  `task-reviewer-prompt.md` (127), `references/example-workflow.md`,
   `scripts/{task-brief, review-package, sdd-workspace, plan-audit, lib/plan-lib.js}`.
-- 훅 2개: `hooks/pre-agent-model.js`(SDD 모델 누락 가드),
-  `hooks/pre-plan-audit.js`(최종 리뷰 완결성 게이트). → 훅 6개에서 4개로.
-  **주의: plan-audit는 SDD dispatch 전용 스캐폴딩이 아니라 in-session 완결성
-  안전 게이트였다**(외부 루프 eval에서 in-session 실행이 태스크 30–50%를 조용히
-  누락한 실패를 막으려 in-session 체인에 역이식된 것 — `2026-07-18-plan-audit-gate-retrospective.md`).
-  결정론적 훅(deny)은 제거하되, 그 방어 개념은 `implement`의 "Before the final
-  review: completeness check" 스텝으로 옮겨 확률적(컨트롤러 자체 확인) 형태로 보존한다.
-- 참조: `using-harness-flow/references/{codex-tools.md, copilot-tools.md, sizing.md}`.
-- reviewer prompt: `writing-plans/plan-document-reviewer-prompt.md`,
+- 2 hooks: `hooks/pre-agent-model.js` (SDD model-missing guard),
+  `hooks/pre-plan-audit.js` (final-review completeness gate). → from 6 hooks down to 4.
+  **Caution: plan-audit was not SDD-dispatch-only scaffolding but an in-session completeness
+  safety gate** (back-ported into the in-session chain to prevent the failure — observed in the external-loop eval —
+  where in-session execution silently dropped 30–50% of tasks — `2026-07-18-plan-audit-gate-retrospective.md`).
+  The deterministic hook (deny) is removed, but its defensive concept is moved into `implement`'s "Before the final
+  review: completeness check" step, preserved in a probabilistic (controller self-check) form.
+- References: `using-harness-flow/references/{codex-tools.md, copilot-tools.md, sizing.md}`.
+- reviewer prompts: `writing-plans/plan-document-reviewer-prompt.md`,
   `brainstorming/spec-document-reviewer-prompt.md`.
-- 테스트: `tests/scripts/task-brief.test.js`, `tests/plan-audit/*`,
+- Tests: `tests/scripts/task-brief.test.js`, `tests/plan-audit/*`,
   `tests/hooks/{pre-agent-model, pre-plan-audit, smoke/pre-agent-model.smoke}.test.js`,
   `tests/manifest/codex-tools-doc.test.js`.
 
-`hooks.json`은 4개만 유지(session-start ×2, pre-bash-commands, pre-secrets).
-가드 2개(파괴적 명령, 시크릿 파일 접근)는 안전 계층이라 손대지 않음.
+`hooks.json` keeps only 4 (session-start ×2, pre-bash-commands, pre-secrets).
+The 2 guards (destructive commands, secret-file access) are a safety layer and are left untouched.
 
-## 5. 보존된 것 / 안전망
+## 5. What was preserved / safety net
 
-- **테스트 스위트 168개 green** (매 스킬 변경 후 확인).
-- 모든 test lock 문자열을 스킬별로 대조·보존(§3 각 항목 명시).
-- 하드 가드 훅(pre-bash-commands, pre-secrets)과 그 테스트 무변경.
-- 플러그인 인프라(`.codex-plugin/`, `.agents/`, `AGENTS.md`, 두 marketplace) 무변경.
-- MIT NOTICE 파일 각 스킬 유지(개명된 implement는 NOTICE 함께 이동).
+- **168 tests green** (verified after every skill change).
+- Every test lock string cross-checked and preserved per skill (specified in each §3 item).
+- The hard-guard hooks (pre-bash-commands, pre-secrets) and their tests are unchanged.
+- The plugin infrastructure (`.codex-plugin/`, `.agents/`, `AGENTS.md`, the two marketplaces) is unchanged.
+- The MIT NOTICE file is kept in each skill (the renamed implement moves with its NOTICE).
 
-## 6. 아직 안 한 것
+## 6. Not yet done
 
-- `writing-skills`(메타 스킬, 726줄) — **미변경**. 이 문서의 리뷰 대상 아님.
-  오히려 이 변경들이 writing-skills 룰을 위반했는지 검증하는 기준.
-- `pr-creator`, `caveman` — 미변경(caveman 유지 유력).
-- README, repo-root `CLAUDE.md` — 아키텍처 서술이 stale(아직 sdd/tier 언급).
-  최종 doc 패스 예정.
+- `writing-skills` (meta skill, 726 lines) — **unchanged.** Not a review target of this document.
+  Rather, it is the benchmark for verifying whether these changes violated the writing-skills rules.
+- `pr-creator`, `caveman` — unchanged (keeping caveman is likely).
+- README, repo-root `CLAUDE.md` — the architecture narrative is stale (still mentions sdd/tier).
+  A final doc pass is planned.
 
-## 7. 리뷰 질문 (멀티에이전트 판정용)
+## 7. Review questions (for the multi-agent verdict)
 
-각 리뷰어는 문서의 주장을 **실제 파일과 대조**해 판정할 것:
+Each reviewer should render a verdict by **cross-checking the document's claims against the actual files**:
 
-1. **writing-skills 룰 위반?** 변경된 각 스킬이 `skills/writing-skills`의 규칙
-   (frontmatter 형식, description = 활성화 조건, 구조/톤, 자기참조 무결성)을 위반하나?
-2. **과잉 삭제(substance 손실)?** "스캐폴딩만 컷" 주장이 참인가, 아니면 프로세스
-   스텝·references 어디에도 없는 실체/탐지신호/WHY가 사라졌나? (특히 3.6/3.9)
-3. **dangling/무결성?** 삭제된 스크립트·훅·참조·개명(sdd→implement)에 대한 끊긴
-   참조가 스킬·테스트·README·CLAUDE.md·AGENTS.md에 남아있나?
-4. **체인 정합성?** brainstorming→writing-plans→implement→requesting-code-review→
-   claude-md-revise→finishing 링크가 서로 일관되나? (예: implement가 기대하는
-   리뷰 계약과 requesting-code-review 실제 동작 일치?)
-5. **negative-record 재도전?** `design/*retrospective*.md`에 rejected로 기록된
-   메커니즘을 이 변경이 방어책 없이 되살렸나?
-6. **harness-neutral 일관성?** 엔트리 스킬·본문은 neutral인데 dispatch 템플릿은
-   Codex translation 유지 — 이 경계가 일관되게 지켜졌나?
+1. **writing-skills rule violation?** Does each changed skill violate the rules of `skills/writing-skills`
+   (frontmatter format, description = activation condition, structure/tone, self-reference integrity)?
+2. **Over-deletion (substance loss)?** Is the "scaffolding only cut" claim true, or did substance/detection signals/WHY
+   that exist nowhere in the process steps/references disappear? (especially 3.6/3.9)
+3. **dangling/integrity?** Are there broken references — to deleted scripts/hooks/references/renames (sdd→implement) —
+   remaining in skills/tests/README/CLAUDE.md/AGENTS.md?
+4. **Chain coherence?** Are the brainstorming→writing-plans→implement→requesting-code-review→
+   claude-md-revise→finishing links consistent with one another? (e.g. does the review contract implement expects
+   match requesting-code-review's actual behavior?)
+5. **negative-record re-challenge?** Did this change revive, without a defense, a mechanism recorded as rejected
+   in `design/*retrospective*.md`?
+6. **harness-neutral consistency?** The entry skill/bodies are neutral while the dispatch template keeps
+   the Codex translation — is this boundary held consistently?

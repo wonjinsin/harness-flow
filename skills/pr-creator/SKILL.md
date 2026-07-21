@@ -1,6 +1,6 @@
 ---
 name: pr-creator
-description: Use when creating a pull request - the user asks to "create a PR", "open a pull request", "PR 만들어줘/올려줘", or finished branch work needs publishing to GitHub for review or merge (including Option 2 of finishing-a-development-branch).
+description: Use when creating a pull request - the user asks to "create a PR", "open a pull request", "make/put up a PR", or finished branch work needs publishing to GitHub for review or merge (including Option 2 of finishing-a-development-branch).
 ---
 
 # PR Creator

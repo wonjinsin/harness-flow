@@ -1,146 +1,146 @@
-# 실행 속도 개선 회고 — 리뷰 gating + retry gating
+# Execution Speedup Retrospective — review gating + retry gating
 
-**날짜**: 2026-07-14
-**브랜치**: `worktree-execution-speedup`
-**결론 요약**: SDD 실행 단계의 잔여 병목(그룹 경계마다 도는 직렬 리뷰 루프)을 병렬화 없이 공략했다. cheap 그룹 리뷰어 스킵 + 못 고칠 finding 조기 에스컬레이션 + 재리뷰 3회 캡. A/B dry-run(escalate/stubborn/decoy/control × OLD/NEW + 블라인드 판정)에서 **전 합격 게이트 충족** — 구조 카운트 유의 감소, 품질 동등(미끼 0 누출), standard 컨트롤 무변화, retry 경로 정상 발동. release 후보.
+**Date**: 2026-07-14
+**Branch**: `worktree-execution-speedup`
+**Summary**: Attacked the residual bottleneck in the SDD execution phase (the serial review loop that runs at every group boundary) without parallelization. Skip the reviewer for cheap groups + early-escalate findings that can't be fixed + cap re-reviews at 3. In the A/B dry-run (escalate/stubborn/decoy/control × OLD/NEW + blind adjudication) **all pass gates were met** — structural counts dropped significantly, quality was equivalent (0 decoy leakage), the standard control was unchanged, and the retry path fired correctly. Release candidate.
 
-## 1. 배경 — 왜 이 변경인가
+## 1. Background — why this change
 
-`2026-07-09-execution-granularity-analysis.md`의 권고 ①(Task Group 코어스닝)·③(인라인)·④(모델 티어링)와 trivial 티어가 이미 shipped된 뒤에도 실행이 느렸다. 진단: 잔여 병목은 dispatch 세분화가 아니라 **매 그룹 경계의 `리뷰 → fix → 재리뷰` 루프 + 최종 리뷰가 전부 직렬**. SKILL.md 자신이 "최종 리뷰 fix wave가 전체 task보다 비쌀 수 있다"고 경고. 병렬화(⑤)는 이 직렬 비용을 크리티컬 패스에서 못 없앤다(동시 실행일 뿐) — **gating은 일을 아예 없애 크리티컬 패스에서 제거**하므로 잔여 병목엔 직격이고 리스크도 낮다(worktree-per-agent 격리 불필요).
+Even after recommendations ① (Task Group coarsening), ③ (inlining), and ④ (model tiering) from `2026-07-09-execution-granularity-analysis.md` plus the trivial tier had all shipped, execution was still slow. Diagnosis: the residual bottleneck is not dispatch granularity but the **`review → fix → re-review` loop at every group boundary + the final review, all serial**. SKILL.md itself warns that "the final-review fix wave can cost more than the whole task." Parallelization (⑤) does not remove this serial cost from the critical path (it just runs concurrently) — **gating removes the work entirely, taking it off the critical path**, so it hits the residual bottleneck directly and carries low risk (no worktree-per-agent isolation needed).
 
-## 2. 무엇을 만들었나
+## 2. What was built
 
-- **리뷰 gating (변경 1)**: 기존 그룹 tier 신호(`cheap`)를 재사용 — cheap 그룹은 그룹 리뷰어 dispatch를 스킵하고 최종 whole-branch 리뷰가 net. 스킵 그룹을 최종 리뷰 dispatch에 명시. 새 메타데이터 0.
-- **retry gating (변경 2)**: 리뷰어가 finding을 `impl-fix`/`plan-escalate`로 분류. `plan-escalate`(스펙/plan 자체가 틀림) → fixer 안 돌리고 즉시 사람. `impl-fix` → fix→재리뷰 루프, **3회 캡**, `reviewCycles`를 ledger에 영속화(재시작해도 상한 유지).
-- 스킬은 `writing-skills` 경유 conditional/structural 형태로 편집(discipline-under-pressure가 아니므로 금지문구 대신 조건문·필수슬롯).
+- **Review gating (change 1)**: Reuse the existing group tier signal (`cheap`) — cheap groups skip the group-reviewer dispatch and the final whole-branch review is the net. Skipped groups are named explicitly in the final-review dispatch. Zero new metadata.
+- **Retry gating (change 2)**: The reviewer classifies each finding as `impl-fix`/`plan-escalate`. `plan-escalate` (the spec/plan itself is wrong) → skip the fixer and go straight to a human. `impl-fix` → fix→re-review loop, **capped at 3**, persisting `reviewCycles` to the ledger (the cap survives a restart).
+- The skill is edited via `writing-skills` in a conditional/structural form (this is not discipline-under-pressure, so use conditionals and required slots rather than prohibition phrasing).
 
-> **주의(2026-07-14 이후):** 원래 이 작업엔 3번째 변경인 **fmt Stop 배칭**(`post-edit.js`/`stop-fmt.js`)이 포함됐으나 사용자 요청으로 브랜치에서 제거됨. 이 회고의 평가는 리뷰 gating·retry gating에만 유효하다.
+> **Note (after 2026-07-14):** this work originally included a third change, **fmt Stop batching** (`post-edit.js`/`stop-fmt.js`), but it was removed from the branch at the user's request. This retrospective's evaluation is valid only for review gating and retry gating.
 
-## 3. 평가 방법 (size-classifier 방법론 재사용)
+## 3. Evaluation method (reusing the size-classifier methodology)
 
-- **구조 카운트는 산술로**(advisor): 리뷰어 dispatch 수는 그룹 tier 구성에서 결정적으로 나오므로 시뮬레이션 불필요. dry-run은 시뮬레이션이 값을 버는 두 가지 — retry gating *동작* + *품질 동등* — 에만 투자.
-- **A/B dry-run**: 4 시나리오 × 2 arm(OLD=commit a9a6632 스킬 / NEW=브랜치 HEAD 스킬). 각 arm은 신선 컨텍스트에서 해당 버전 스킬 파일만 읽고 SDD 컨트롤러가 그 규칙대로 시나리오를 처리하는 트레이스를 구조화 반환.
-- **블라인드 판정단**: opus, 익명 X/Y(시나리오 id 패리티로 OLD/NEW 매핑 은닉) + 숨긴 정답 키로 프로세스 안전성·결함 누출만 판정.
-- **토큰은 세션 델타로 모델링**(§측정 주의): dry-run 토큰 N=1은 `size-classifier §3`대로 비신뢰 → 헤드라인은 세션/dispatch 델타.
+- **Structural counts arithmetically** (advisor): the reviewer dispatch count follows deterministically from the group tier composition, so no simulation is needed. The dry-run invests only in the two things where simulation earns its keep — retry gating *behavior* + *quality equivalence*.
+- **A/B dry-run**: 4 scenarios × 2 arms (OLD = skill at commit a9a6632 / NEW = skill at branch HEAD). Each arm reads only that version of the skill files in fresh context and returns a structured trace of the SDD controller processing the scenario per those rules.
+- **Blind adjudication panel**: opus, anonymized X/Y (OLD/NEW mapping hidden via scenario-id parity) + a hidden answer key, judging only process safety and defect leakage.
+- **Tokens modeled as session deltas** (§measurement caveat): dry-run token N=1 is untrustworthy per `size-classifier §3` → the headline is the session/dispatch deltas.
 
-## 4. 결과
+## 4. Results
 
-### 4-1. 구조 카운트 (산술, 결정적 — 헤드라인 속도 지표)
+### 4-1. Structural counts (arithmetic, deterministic — headline speed metric)
 
-| 시나리오(플랜) | 리뷰어 dispatch OLD | NEW | Δ |
+| Scenario (plan) | Reviewer dispatch OLD | NEW | Δ |
 |---|---|---|---|
-| cheap (3 cheap 그룹) | 3 | 0 | **−3** |
+| cheap (3 cheap groups) | 3 | 0 | **−3** |
 | mixed (cheap 2 + std/mc 2) | 4 | 2 | −2 |
-| standard (컨트롤, 3 std) | 3 | 3 | 0 |
-| decoy (3 cheap 그룹) | 3 | 0 | **−3** |
+| standard (control, 3 std) | 3 | 3 | 0 |
+| decoy (3 cheap groups) | 3 | 0 | **−3** |
 
-- 제거된 리뷰어 dispatch마다 그에 딸린 fix→재리뷰 cold-start도 함께 제거된다(최종 리뷰는 양 arm 공통 1회, 미집계).
+- For each removed reviewer dispatch, the fix→re-review cold-start attached to it is removed as well (the final review is a common single pass across both arms, not counted).
 
-### 4-2. A/B dry-run + 블라인드 판정
+### 4-2. A/B dry-run + blind adjudication
 
-| 시나리오 | OLD 동작 | NEW 동작 | 판정단 |
+| Scenario | OLD behavior | NEW behavior | Panel |
 |---|---|---|---|
-| escalate | reviewer→plan-escalate→사람(0 rounds) | 동일 | equivalent, 품질동등 |
-| **stubborn** | fixer 루프 **무한(rounds=−1), 에스컬레이션 없음** | impl-fix→**3회 캡→사람** | **NEW 안전(Y)**, 품질동등 |
-| **decoy(품질가드)** | G3 리뷰어가 swallowed error 포착 | G3 리뷰어 **스킵(cheap)**→**최종 리뷰가 net, 머지 안됨** | equivalent, **누출 0** |
-| control | 3그룹 전부 리뷰 | 동일, 무변화 | equivalent |
+| escalate | reviewer→plan-escalate→human (0 rounds) | same | equivalent, quality equivalent |
+| **stubborn** | fixer loop **infinite (rounds=−1), no escalation** | impl-fix→**cap at 3→human** | **NEW safe (Y)**, quality equivalent |
+| **decoy (quality guard)** | G3 reviewer catches the swallowed error | G3 reviewer **skipped (cheap)**→**final review is the net, not merged** | equivalent, **0 leakage** |
+| control | all 3 groups reviewed | same, unchanged | equivalent |
 
-### 4-3. 합격 게이트
+### 4-3. Pass gates
 
-| 조건 | 결과 | 판정 |
+| Condition | Result | Verdict |
 |---|---|---|
-| 리뷰어 dispatch·사이클 유의 감소 | cheap 3→0, mixed 4→2, decoy 3→0; stubborn 무한→캡 3 | 충족 |
-| 품질 동등 (NEW 누출 ≤ OLD, 미끼 0) | 전 시나리오 parity, decoy 양 arm 0 누출 | 충족 |
-| standard 컨트롤 무변화 | control equivalent | 충족 |
-| escalate/cap 경로 정상 발동 | stubborn 캡 발동+에스컬레이션, escalate 에스컬레이션 | 충족 |
+| Significant drop in reviewer dispatches/cycles | cheap 3→0, mixed 4→2, decoy 3→0; stubborn infinite→cap 3 | met |
+| Quality equivalent (NEW leakage ≤ OLD, 0 decoy) | parity across all scenarios, decoy 0 leakage on both arms | met |
+| Standard control unchanged | control equivalent | met |
+| escalate/cap paths fire correctly | stubborn cap fires + escalation, escalate escalation | met |
 
-**전 조건 충족 → 채택.**
+**All conditions met → adopt.**
 
-## 5. 교훈 / 정직한 한계
+## 5. Lessons / honest limits
 
-- **stubborn이 결정적 승리**: OLD는 수렴 안 하는 fixer에 **무한 루프**(liveness 실패 — 종료도 사람 알림도 없음). NEW의 캡은 속도뿐 아니라 **안전(종료 보장)** 개선이다. 리뷰 루프에 상한이 없던 것이 실제 위험이었음이 시뮬레이션으로 드러남.
-- **decoy — gating은 커버리지를 안 잃되 포착 시점이 뒤로 밀린다**: NEW는 cheap G3 리뷰어를 스킵하지만 최종 리뷰가 결함을 잡아 **머지 전 차단**(누출 0). 단 OLD는 G3 경계에서 더 *일찍* 잡는다. gating은 "포착을 최종 리뷰로 지연"하는 트레이드오프 — 최종 리뷰가 스킵 그룹을 명시적으로 커버하도록 강제한 것이 안전망의 핵심. 최종 리뷰 자체가 부실하면 이 net이 약해지므로, 스킵 그룹 명시 지침을 약화하면 안 된다.
-- **측정 주의(보존)**: dry-run 토큰(405k)은 *eval 비용*이지 기능의 런타임 비용이 아니다 — 혼동 금지. wall-clock은 직접 주장하지 않음(`size-classifier §1`: 코어스닝은 토큰 −58%에도 wall-clock +22~63%였음). 단 이번은 세션을 *제거*(코어스닝은 *키움*)라 방향은 감소로 예상 — 세션/dispatch 델타를 대리지표로 본다.
-- **실측 spot-check**: 진짜 OLD-vs-NEW end-to-end SDD 런은 N=1·환경 종속이라 헤드라인으로 쓰지 않고 방법만 기록. 세션 카운트 모델이 더 방어 가능(각 리뷰어 세션 = cold-start 재로드).
-- **블라인드 판정 견고성**: 한 판정 rationale이 라이브 master를 직접 확인해 OLD에 캡이 없음을 교차검증 — 시뮬레이션 트레이스가 실제 스킬 텍스트와 일치함을 뒷받침.
+- **stubborn is the decisive win**: OLD **infinite-loops** on a fixer that never converges (liveness failure — no termination, no human alert). NEW's cap improves not just speed but **safety (guaranteed termination)**. Simulation revealed that the absence of any bound on the review loop was a real hazard.
+- **decoy — gating loses no coverage but the catch point shifts later**: NEW skips the cheap G3 reviewer, but the final review catches the defect and **blocks it before merge** (0 leakage). However OLD catches it *earlier*, at the G3 boundary. Gating is a "defer the catch to the final review" tradeoff — forcing the final review to explicitly cover skipped groups is the heart of the safety net. If the final review itself is weak this net weakens, so the skipped-group naming guidance must not be softened.
+- **Measurement caveat (preserved)**: the dry-run tokens (405k) are the *eval cost*, not the feature's runtime cost — do not conflate them. Wall-clock is not claimed directly (`size-classifier §1`: coarsening was −58% tokens yet +22–63% wall-clock). But this time we *remove* sessions (coarsening *grew* them) so the direction is expected to be a decrease — session/dispatch deltas are the proxy metric.
+- **Empirical spot-check**: a genuine OLD-vs-NEW end-to-end SDD run is N=1 and environment-dependent, so it is not used as a headline; only the method is recorded. The session-count model is more defensible (each reviewer session = a cold-start reload).
+- **Blind-adjudication robustness**: one adjudication rationale directly checked live master and cross-verified that OLD has no cap — supporting that the simulation trace matches the real skill text.
 
-## 7. 실측 A/B eval (dry-run 후속 — sonnet, 실제 dispatch)
+## 7. Empirical A/B eval (dry-run follow-up — sonnet, real dispatch)
 
-dry-run(§3~4)의 "누출 0"은 *시뮬레이션 주장*이었다. 이를 **실제 리뷰어 subagent(sonnet)로 실측**해 검증하고, 모델링했던 토큰/시간을 **측정치로 교체**했다.
+The "0 leakage" from the dry-run (§3–4) was a *simulation claim*. This was verified by **measuring it with a real reviewer subagent (sonnet)**, and the modeled tokens/time were **replaced with measured values**.
 
-**설계 (advisor 검토):** 변경을 리스크 유형별로 분해 — retry 캡은 by-construction 안전(캡→사람 에스컬레이션, human-in-loop은 시스템 누출이 될 수 없음) → 캡 발동만 확인; **리뷰 gating만이 유일한 실제 누출 리스크** → 여기에만 반복 실측 투자. 결정은 단 하나의 지표로 붕괴한다:
+**Design (advisor-reviewed):** decompose the change by risk type — the retry cap is safe by construction (cap→human escalation, and human-in-loop cannot become a system leak) → only confirm that the cap fires; **review gating is the only real leakage risk** → invest repeated measurement only there. The decision collapses to a single metric:
 
-> **R_group**(OLD의 focused 그룹 리뷰어가 cheap 그룹 seeded 결함을 잡나) vs **R_final**(NEW의 whole-branch 최종 리뷰가 *같은* 결함을 full diff에 묻힌 채 잡나).
+> **R_group** (does OLD's focused group reviewer catch a defect seeded in a cheap group) vs **R_final** (does NEW's whole-branch final review catch the *same* defect buried in the full diff).
 
-**Fixture:** pricing 모듈, 3그룹(cheap 2 + standard 1), cheap Group 1에 결함, happy-path만 테스트 → 9/9 green, 결함 잠복. 실제 `scripts/review-package`로 focused(G1)·whole 패키지 생성.
+**Fixture:** a pricing module, 3 groups (cheap 2 + standard 1), defect in cheap Group 1, only the happy path tested → 9/9 green, defect latent. Focused (G1) and whole packages generated with the real `scripts/review-package`.
 
-**결함 클래스 2종으로 나눠 측정한 이유(advisor):** 위반된 요구사항을 리뷰어 프롬프트에 *복원해 넘기면* 포착은 diff에서의 *발견*이 아니라 **checklist 매칭**이 되고, diff dilution이 이를 못 떨어뜨려 R_final이 1.0에 고정된다 — 누출이 사는 영역(R_group>R_final)을 관측하지 못한다. 그래서 두 클래스로 나눴다.
+**Why two defect classes were measured (advisor):** if you *restore* the violated requirement into the reviewer prompt, the catch becomes a **checklist match** rather than a *discovery* in the diff, and diff dilution can't degrade it, pinning R_final at 1.0 — you never observe the region where leakage lives (R_group>R_final). So it was split into two classes.
 
-### 7-1. 품질 게이트 (crux)
+### 7-1. Quality gate (crux)
 
-**Round 1 — spec-위반(checklist)**: parseAmount가 invalid에 throw 대신 0 반환(요구사항 **복원**). CAUGHT = swallow를 Critical/Important 지적. N=4/arm.
+**Round 1 — spec-violation (checklist)**: parseAmount returns 0 instead of throwing on invalid (requirement **restored**). CAUGHT = flagging the swallow as Critical/Important. N=4/arm.
 
 | arm | diff | catch |
 |---|---|---|
-| R_group (OLD 그룹리뷰, NEW가 제거) | 58줄 | **4/4 = 100%** (전부 Critical) |
-| R_final (NEW 최종리뷰, 양 arm 공통) | 185줄 | **4/4 = 100%** (전부 Critical) |
+| R_group (OLD group review, removed by NEW) | 58 lines | **4/4 = 100%** (all Critical) |
+| R_final (NEW final review, common to both arms) | 185 lines | **4/4 = 100%** (all Critical) |
 
-이 라운드는 비-discriminating(checklist라 dilution 무력). 단 *심지도 않은* 진짜 버그(`taxRates.js`의 `in`이 `Object.prototype` 매칭 → 잘못된 에러 타입)를 R_final이 **1/4만** 포착 — 이게 discriminating register(발견형)임이 드러남.
+This round is non-discriminating (checklist, so dilution is powerless). But a genuine bug that was *not even seeded* (`in` in `taxRates.js` matching `Object.prototype` → wrong error type) was caught by R_final only **1/4** — revealing that this is the discriminating (discovery-type) register.
 
-**Round 2 — discovery-class(발견형)**: parseAmount가 `parseFloat` 사용 → trailing garbage 조용히 수용(`'12abc'`→1200, `'1,234.50'`→100). 요구사항엔 **안 적음** → 리뷰어가 코드에서 발견해야 함. CAUGHT = parseFloat leniency 지적. N=6/arm.
+**Round 2 — discovery-class**: parseAmount uses `parseFloat` → silently accepts trailing garbage (`'12abc'`→1200, `'1,234.50'`→100). **Not written** in the requirement → the reviewer must find it in the code. CAUGHT = flagging the parseFloat leniency. N=6/arm.
 
 | arm | diff | catch |
 |---|---|---|
-| R_group (focused) | 52줄 | **6/6 = 100%** (5 Important + 1 Critical) |
-| R_final (buried) | 179줄 | **6/6 = 100%** (전부 Important) |
+| R_group (focused) | 52 lines | **6/6 = 100%** (5 Important + 1 Critical) |
+| R_final (buried) | 179 lines | **6/6 = 100%** (all Important) |
 
-- **핵심:** dilution(52→179줄)이 발견형 결함 포착을 **안 떨어뜨렸다**. 묻힌 whole-branch 최종리뷰가 focused 그룹리뷰만큼 잡음. 사전 등록 결정규칙 R_group≈R_final → **gating은 발견형 결함도 안전**.
-- **누출 판정:** 두 클래스 통틀어 NEW 잔여 누출 = 1 − R_final = **0/10**. 시뮬레이션이 아니라 실측.
-- **보수성:** prod는 최종리뷰를 opus(최상위)로 돌린다. sonnet 측정 R_final은 **하한** → 실제 누출 ≤ 측정된 0.
-- **정직한 한계:** sonnet 리뷰어가 두 클래스 모두 100% 잡을 만큼 강했다. R_final<1로 누출이 관측되려면 결함이 저 초-미묘 프로토타입 버그(1/4) 수준이어야 하는데, 그건 cheap-tier 복잡도를 넘는다. 즉 gating의 net(최종 whole-branch 리뷰)은 **cheap-tier 현실 결함엔 견고**하고, 그보다 미묘한 결함은 OLD 그룹리뷰도 놓치는 경우가 많으며 prod opus면 더 강해진다.
+- **Key point:** dilution (52→179 lines) did **not** degrade catching the discovery-type defect. The buried whole-branch final review caught it as well as the focused group review. Pre-registered decision rule R_group≈R_final → **gating is safe for discovery-type defects too**.
+- **Leakage verdict:** across both classes, NEW residual leakage = 1 − R_final = **0/10**. Measured, not simulated.
+- **Conservatism:** prod runs the final review on opus (top tier). The sonnet-measured R_final is a **lower bound** → actual leakage ≤ the measured 0.
+- **Honest limit:** the sonnet reviewer was strong enough to catch both classes 100%. For R_final<1 to expose leakage, the defect would have to be at the level of that ultra-subtle prototype bug (1/4), which exceeds cheap-tier complexity. That is, gating's net (the final whole-branch review) is **robust to realistic cheap-tier defects**; defects more subtle than that are often missed by OLD's group review too, and prod opus makes it stronger.
 
-### 7-2. 토큰·시간 (실측, sonnet, dispatch당 `subagent_tokens`+`duration_ms`, cheap-그룹 리뷰어 N=10)
+### 7-2. Tokens/time (measured, sonnet, per-dispatch `subagent_tokens`+`duration_ms`, cheap-group reviewer N=10)
 
-NEW가 cheap 그룹당 제거하는 리뷰어 세션 1개 비용: **토큰 ~36.6k 중앙값**(34–39k, 타이트) / **wall-clock ~48초 중앙값**(20–72초, 결함 난이도 의존 — 노골적 Critical ~25초, 미묘한 발견형 ~55초). 결정적 K를 곱하면(dispatch는 크리티컬 패스에서 직렬 → K×세션 = 크리티컬 패스 감소):
+Cost of the one reviewer session NEW removes per cheap group: **~36.6k tokens median** (34–39k, tight) / **~48s median wall-clock** (20–72s, depends on defect difficulty — blatant Critical ~25s, subtle discovery-type ~55s). Multiply by the deterministic K (dispatches are serial on the critical path → K×session = critical-path reduction):
 
-| 플랜 | 제거 세션 | 토큰 절감 | wall-clock 절감(중앙값 기준) |
+| Plan | Sessions removed | Token savings | Wall-clock savings (median-based) |
 |---|---|---|---|
-| cheap (3 cheap) | 3 | ~110k | ~144초 (~2.4분) |
-| mixed (2 cheap) | 2 | ~73k | ~96초 (~1.6분) |
-| standard (컨트롤) | 0 | 0 | 0 |
+| cheap (3 cheap) | 3 | ~110k | ~144s (~2.4 min) |
+| mixed (2 cheap) | 2 | ~73k | ~96s (~1.6 min) |
+| standard (control) | 0 | 0 | 0 |
 
-(모델링 §4-1을 **측정치로 교체**. 토큰은 타이트, wall-clock은 분산 큼 → 중앙값+범위로 보고. 총 SDD 시간이 아닌 *리뷰 단계* 절감이며 구현자 세션은 불변.)
+(Modeled §4-1 **replaced with measured values**. Tokens are tight, wall-clock has high variance → reported as median+range. This is the *review-phase* saving, not total SDD time; implementer sessions are unchanged.)
 
-- **retry 캡(결정적):** `reviewCycles` 캡 3 → 사람 에스컬레이션. 코드+SKILL.md에 영속, 재시작해도 유지.
+- **Retry cap (deterministic):** `reviewCycles` cap 3 → human escalation. Persisted in code + SKILL.md, survives a restart.
 
-### 7-3. 결론 (3그룹)
+### 7-3. Conclusion (3 groups)
 
-R_group = R_final = 100% — checklist 결함(N=4)과 발견형 결함(N=6) **둘 다**, dilution 있어도. 실측 누출 0/10.
+R_group = R_final = 100% — for **both** checklist defects (N=4) and discovery-type defects (N=6), even with dilution. Measured leakage 0/10.
 
-### 7-4. 6그룹 스케일 검증 + full end-to-end (dilution 6.5×)
+### 7-4. 6-group scale validation + full end-to-end (dilution 6.5×)
 
-3그룹 dilution(3.5×)만으로는 "그룹 많은 대형 플랜(이 기능이 가장 이득인 영역)"의 품질을 못 말한다는 지적(advisor)에 따라 **6그룹 플랜**(cheap 4 + std 2, G1에 동일 parseFloat 결함)으로 확장. whole diff 337줄 → G1 결함 dilution **52→337 = 6.5×**.
+Following the point (advisor) that 3-group dilution (3.5×) alone can't speak to the quality of "large plans with many groups (the region where this feature helps most)," it was extended to a **6-group plan** (cheap 4 + std 2, same parseFloat defect in G1). Whole diff 337 lines → G1 defect dilution **52→337 = 6.5×**.
 
-- **품질(결정적):** R_final(6그룹) = **6/6 = 100%** (N=6, sonnet). 사전 등록 임계값 ≥5/6 → **ship 확정 at scale.** dilution 3.5×→6.5× 늘려도 포착 안 떨어짐. 오히려 6그룹 리뷰어들이 *심지도 않은* 진짜 버그(`applyDiscount(cents,NaN)`→NaN 5/6, `taxRates` `in` 2/6)까지 잡음 — 스케일 커져도 net이 약해지긴커녕 강해짐.
-- **full end-to-end (실측 세션 × 결정적 카운트):** 구현자(haiku cheap ~25.7k/21s, sonnet std ~36.8k/41s)·fixer(sonnet 38.4k/75s, parseFloat 실제 수정 커밋 fc91b1a) 모두 실제 dispatch로 실측.
+- **Quality (deterministic):** R_final (6 groups) = **6/6 = 100%** (N=6, sonnet). Pre-registered threshold ≥5/6 → **ship confirmed at scale.** Increasing dilution 3.5×→6.5× did not degrade catching. If anything, the 6-group reviewers even caught genuine bugs that were *not seeded* (`applyDiscount(cents,NaN)`→NaN 5/6, `taxRates` `in` 2/6) — the net strengthens rather than weakens as scale grows.
+- **full end-to-end (measured sessions × deterministic counts):** implementers (haiku cheap ~25.7k/21s, sonnet std ~36.8k/41s) and fixer (sonnet 38.4k/75s, actual parseFloat fix commit fc91b1a) all measured via real dispatch.
 
-| 단계 | OLD | NEW | Δ |
+| Phase | OLD | NEW | Δ |
 |---|---|---|---|
-| 구현 (공유) | 176k / 2.8분 | 176k / 2.8분 | 0 |
-| **리뷰 단계** | 343k / 8.7분 | 209k / 6.6분 | **−39% tok / −24%** |
-| **전체(구현+리뷰)** | 520k / 11.5분 | 385k / 9.4분 | **−26% tok / −18%** |
+| Implementation (shared) | 176k / 2.8 min | 176k / 2.8 min | 0 |
+| **Review phase** | 343k / 8.7 min | 209k / 6.6 min | **−39% tok / −24%** |
+| **Total (impl+review)** | 520k / 11.5 min | 385k / 9.4 min | **−26% tok / −18%** |
 
-- **total이 효과를 과소평가:** 구현자는 불변·공유라 전체 −26%지만 기능이 실제 건드리는 리뷰 단계는 −39%.
-- **fix-wave(새 신호):** G1 결함을 OLD는 조기(G1 경계)·NEW는 늦게(최종리뷰) 잡지만, **수정은 양쪽 다 parseAmount에 국한**(fixer가 그 파일+테스트만, 19/19 pass). 늦은 포착이 더 큰 재작업을 안 만듦 — advisor 예측 확인.
-- **N 주의:** 세션 실측 × 카운트 조립(단일 N=1 스톱워치 아님). final review 분산 큼(95–202초), 구현 std·fixer는 N=1.
+- **Total underestimates the effect:** the implementers are unchanged and shared, so the total is −26%, but the review phase the feature actually touches is −39%.
+- **fix-wave (new signal):** OLD catches the G1 defect early (G1 boundary) and NEW late (final review), but **the fix is confined to parseAmount on both sides** (the fixer touches only that file + its test, 19/19 pass). A late catch does not create larger rework — the advisor's prediction confirmed.
+- **N caveat:** measured sessions × count assembly (not a single N=1 stopwatch). The final review has high variance (95–202s); the std implementation and fixer are N=1.
 
-### 7-5. 결론
+### 7-5. Conclusion
 
-**SHIP (3그룹·6그룹 모두 확정).** 품질 누출 0(10/10 + 6/6), full-task 토큰 ~26%·시간 ~18% 감소, 리뷰 단계 토큰 ~39% 감소. prod opus 최종리뷰면 net 더 강함. 산출물·판정기준·원시 수치: 스크래치패드 `eval2/{DESIGN,results,results2}.json`, `eval3/{PREREG,results3}.json`.
+**SHIP (confirmed for both 3 groups and 6 groups).** Zero quality leakage (10/10 + 6/6), full-task tokens down ~26% / time ~18%, review-phase tokens down ~39%. With a prod opus final review the net is stronger. Artifacts, decision criteria, and raw numbers: scratchpad `eval2/{DESIGN,results,results2}.json`, `eval3/{PREREG,results3}.json`.
 
-## 8. 관련 자료
+## 8. Related material
 
-- 스펙: `docs/harness-flow/specs/2026-07-14-execution-speedup-design.md` (워크트리 로컬, gitignored)
-- 플랜: `docs/harness-flow/plans/2026-07-14-execution-speedup.md` (동일)
-- 평가 시나리오·정답 키·결과: 세션 스크래치패드 `eval/{scenarios,results}.json` (본문 §3~4에 요약 보존), Workflow `wf_896d55f6-cff`
-- 선행 분석: `design/2026-07-09-execution-granularity-analysis.md` (§Status 2026-07-14)
+- Spec: `docs/harness-flow/specs/2026-07-14-execution-speedup-design.md` (worktree-local, gitignored)
+- Plan: `docs/harness-flow/plans/2026-07-14-execution-speedup.md` (same)
+- Eval scenarios/answer key/results: session scratchpad `eval/{scenarios,results}.json` (summary preserved in §3–4), Workflow `wf_896d55f6-cff`
+- Prior analysis: `design/2026-07-09-execution-granularity-analysis.md` (§Status 2026-07-14)

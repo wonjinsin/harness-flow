@@ -2,7 +2,7 @@
 
 ## Overview
 
-> Claude Code와 Codex에서 같은 workflow를 제공하는 cross-harness plugin입니다. 기능 작업은 설계 → 격리 → 계획 → TDD → 최종 리뷰 → 마무리, 버그 수정은 원인 조사 → 회귀 테스트 → 최소 수정 흐름을 따릅니다.
+> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work follows design → isolation → planning → TDD → final review → wrap-up; bug fixing follows root-cause investigation → regression test → minimal fix.
 
 ### Problems it solves
 
@@ -14,11 +14,11 @@
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, no forced gate
 - Isolates the work into its own worktree, then forces an explicit merge / PR / keep / discard decision at the end
-- 구현은 현재 세션에서 inline TDD로 진행하고(깨끗한 격리가 이득일 때만 task 하나를 서브에이전트에 순차 위임 — 병렬 없음), 끝에 branch 전체를 한 번 리뷰합니다.
+- Implements inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is worth it — never for parallelism), then reviews the whole branch once at the end.
 
 ### Who it's for
 
-- Claude Code 또는 Codex에서 agent가 필수 단계를 생략하지 않길 원하는 사용자
+- Users who want the agent in Claude Code or Codex to not skip required steps
 - People who want TDD + worktree isolation + a final whole-branch review wired up in one shot
 
 ### Foundation
@@ -46,10 +46,10 @@ The chain routes by request type (no tier classifier): code work → `brainstorm
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — plan/spec을 현재 세션에서 inline으로 TDD 구현합니다(깨끗한 격리가 분명히 이득일 때만 task 하나를 서브에이전트에 순차 위임 — 병렬 없음). 최종 리뷰 전 완결성 체크를 돌리고, 마지막에 branch 전체를 fresh-context로 한 번 리뷰합니다.
+4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check before the final review, then reviews the whole branch once in a fresh context at the end.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — 마지막 whole-branch review에 쓰는 template입니다(most-capable 모델, severity-floor calibration). 리뷰어가 `git diff BASE..HEAD`를 직접 실행합니다.
-   - 4-3. **llm-md-revise** — 최종 리뷰 뒤 session 학습 내용을 platform에 맞는 project instruction(`AGENTS.md` 또는 `CLAUDE.md`) 후보로 제안합니다.
+   - 4-2. **requesting-code-review** — the template used for the final whole-branch review (most-capable model, severity-floor calibration). The reviewer runs `git diff BASE..HEAD` directly.
+   - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
 
@@ -72,14 +72,14 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Hooks
 
-Node.js hook 4개를 제공합니다(Node 18+, npm dependency 없음). Claude Code와 Codex가 같은 `hooks/hooks.json`을 사용합니다.
+Provides four Node.js hooks (Node 18+, no npm dependencies). Claude Code and Codex use the same `hooks/hooks.json`.
 
-- **`session-start-harness.js`** — 새 session, resume, clear, compaction 때 `using-harness-flow`를 주입합니다.
+- **`session-start-harness.js`** — injects `using-harness-flow` on new session, resume, clear, and compaction.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
-- **`pre-secrets.js`** — Read/Edit/Write/MultiEdit/Bash와 Codex `apply_patch`에서 secret 경로 접근을 막습니다.
+- **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
 
-차단 hook은 `permissionDecision: "deny"` JSON을 stdout으로 내보내고 exit 0으로 종료합니다. 그래야 Codex와 Claude Code가 모두 deny 결과를 해석하며, 보호 대상 명령이 실수로 실행되지 않습니다.
+A blocking hook emits `permissionDecision: "deny"` JSON to stdout and exits 0. This way both Codex and Claude Code interpret the deny result, and the protected command is not run by mistake.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
@@ -87,7 +87,7 @@ Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
 ## Installation
 
-사용하는 harness마다 별도로 설치합니다.
+Install separately for each harness you use.
 
 ### Codex
 
@@ -95,7 +95,7 @@ Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 codex plugin marketplace add wonjinsin/harness-flow
 ```
 
-설치 뒤 `/hooks`에서 command hook을 검토하고 신뢰하세요. Plugin enable만으로 command hook이 자동 신뢰되지는 않으며, hook 내용이 바뀌면 다시 검토해야 합니다.
+After installing, review and trust the command hooks under `/hooks`. Enabling the plugin alone does not auto-trust the command hooks, and you must review them again whenever the hook contents change.
 
 ### Claude Code A) Git marketplace (recommended)
 
@@ -200,7 +200,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **implement** — plan/spec을 inline TDD로 구현(격리가 이득일 때만 task 순차 위임) + 단일 final whole-branch review
+- **implement** — implements the plan/spec with inline TDD (delegating tasks sequentially only when isolation is worth it) + a single final whole-branch review
 - **using-git-worktrees** — parallel development branch isolation
 - **finishing-a-development-branch** — merge/PR decision workflow
 
@@ -217,16 +217,16 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
 - **writing-skills** — create, edit, and verify skills before deployment
-- **llm-md-revise** — session 학습 내용을 platform별 project instruction(`AGENTS.md` / `CLAUDE.md`) 후보로 정리
+- **llm-md-revise** — organizes session learnings into candidates for the platform-specific project instruction (`AGENTS.md` / `CLAUDE.md`)
 - **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 
 ---
 
 ## Credits & Third-Party Licenses
 
-이 저장소의 여러 skill은 MIT license 선행 작업에서 파생됐습니다. 원 저작권 고지와
-전체 license text는 [`design/reference/THIRD-PARTY-LICENSES.md`](design/reference/THIRD-PARTY-LICENSES.md)에
-한데 모아 두었습니다(per-skill `NOTICE` 파일은 이 파일로 통합됐습니다).
+Several skills in this repository are derived from MIT-licensed prior work. The original
+copyright notices and the full license text are consolidated in
+[`design/reference/THIRD-PARTY-LICENSES.md`](design/reference/THIRD-PARTY-LICENSES.md) (per-skill `NOTICE` files have been merged into this file).
 
 - [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `finishing-a-development-branch`, `requesting-code-review`, `implement`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-harness-flow`, `writing-plans`.
 - [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, and `writing-plans` from `to-tickets`.

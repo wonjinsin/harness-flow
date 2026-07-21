@@ -1,103 +1,104 @@
-# plan-demotion 복귀 결정 — 새 세션 실행 핸드오프
+# plan-demotion revert decision — handoff for a fresh session
 
-**날짜**: 2026-07-16
-**상태**: **실행 완료 — 단, §2의 점진 revert가 아니라 사용자 지시로 hard-reset 방식으로 종결.**
-master 트리를 832eb5e(1.1.7)와 동일하게 되돌리고 design/ 문서 3건만 보존
-(reset --hard는 권한 정책 차단 → 내용 동일한 가산 커밋으로 수행; 히스토리
-축약을 원하면 `git reset --hard <이 커밋>`을 직접 실행).
-CLAUDE.md는 832eb5e 오염분(함정 1)을 0398517 문구로 수동 교정함.
-**Task 2(fence-aware task-brief 이식)는 완성·테스트 통과 상태로 미머지 브랜치
-`worktree-revert-plan-arch`(tip d85bacc: 7a9eb4a 복원 + d85bacc fence 이식,
-Red 3건→Green, 186/186)에 보존** — 필요 시 d85bacc의 task-brief + 테스트만
-cherry-pick하면 됨. 이하 §2~§4는 결정 당시의 계획 원문 (기록용).
+**Date**: 2026-07-16
+**Status**: **Executed — but concluded via a user-directed hard-reset rather than the incremental revert in §2.**
+Reset the master tree to be identical to 832eb5e (1.1.7), preserving only the 3 design/ documents
+(reset --hard was blocked by permission policy → performed as an additive commit with identical content; if you
+want to squash the history, run `git reset --hard <this commit>` directly).
+CLAUDE.md was manually corrected from the 832eb5e contamination (pitfall 1) to the 0398517 wording.
+**Task 2 (fence-aware task-brief port) is preserved, complete and passing tests, in the unmerged branch
+`worktree-revert-plan-arch` (tip d85bacc: 7a9eb4a restore + d85bacc fence port,
+3 Red → Green, 186/186)** — if needed, just
+cherry-pick the task-brief + tests from d85bacc. §2–§4 below are the original plan as written at decision time (for the record).
 
-## 1. 결정과 근거 (재논의 불필요)
+## 1. Decision and rationale (no re-discussion needed)
 
-사용자 게이트: **"토큰과 속도 둘 다 개선되지 않으면 의미가 없다"** — 품질은
-하드 제약이지 교환재가 아님.
+User gate: **"if it doesn't improve both tokens and speed, it's pointless"** — quality is a
+hard constraint, not a tradeable.
 
-이 게이트를 plan-demotion(1.2.0–1.2.2)에 적용한 결과:
+Applying this gate to plan-demotion (1.2.0–1.2.2) yields:
 
-| 축 | 1.2.x vs 1.1.7 | 근거 |
+| Axis | 1.2.x vs 1.1.7 | Basis |
 |---|---|---|
-| 속도 | 승 (사람 게이트 2→1, 생산자 −25%) | retro §8 eval1 |
-| 토큰 | 중립~열세 — n=1 −0.9k / n≥3 +0.7k (이중 저작, n 선형) + 스킬 텍스트 +454단어 | retro §9 실측 |
-| (간접) | cheap 스킵의 전제(plan 인간 게이트) 상실 → follow-up 2가 리뷰어 +86.2k/기능으로 유료 대체 | retro §9 |
+| Speed | win (human gate 2→1, producer −25%) | retro §8 eval1 |
+| Tokens | neutral~losing — n=1 −0.9k / n≥3 +0.7k (dual authoring, linear in n) + skill text +454 words | retro §9 measured |
+| (indirect) | loss of the premise for the cheap skip (plan human gate) → follow-up 2 substitutes a paid reviewer at +86.2k/feature | retro §9 |
 
-→ **양축 동시 개선 실패 = 탈락. 1.1.x plan 아키텍처로 복귀**하되, 양축
-모두 이득인 요소만 이식한다: fence-aware 스캐너 (false-positive 재작성
-사이클 제거 = 토큰·속도 동시 개선 + task-brief 무신호 절단 버그 해소).
+→ **failed to improve both axes at once = rejected. Return to the 1.1.x plan architecture**, but
+port only the elements that gain on both axes: the fence-aware scanner (eliminates the false-positive rewrite
+cycle = simultaneous token/speed gain + fixes the silent task-brief truncation bug).
 
-## 2. 실행 스코프 (3 태스크 — SDD 인라인 경로, 최종 리뷰만 dispatch)
+## 2. Execution scope (3 tasks — SDD inline path, dispatch only the final review)
 
-### Task 1: 스킬 체인 1.1.x 의미로 복원
+### Task 1: restore the skill chain to 1.1.x semantics
 
-- 복원 (원본: 832eb5e — 단 §3 함정 1 필독):
-  `skills/writing-plans/SKILL.md`, `skills/writing-plans/plan-document-reviewer-prompt.md`(부활),
+- Restore (source: 832eb5e — but read §3 pitfall 1 first):
+  `skills/writing-plans/SKILL.md`, `skills/writing-plans/plan-document-reviewer-prompt.md` (revive),
   `skills/subagent-driven-development/SKILL.md`, `skills/subagent-driven-development/task-reviewer-prompt.md`,
-  `skills/brainstorming/SKILL.md`, `skills/subagent-driven-development/scripts/task-brief`(주석 원복; fence 수리는 Task 2)
-- 삭제: `skills/subagent-driven-development/scripts/brief-check`, `tests/scripts/brief-check.test.js`
-- 수동 재작성 (checkout 복원 금지 — 함정 1): `CLAUDE.md` 체인 2·4·5단계를 plan
-  문서 기반 서술로 (writing-plans → `docs/harness-flow/plans/` 출력, plan 리뷰
-  게이트, task-brief 추출, review gating = cheap 스킵), `README.md` 3단계·산출물
-  경로 원복. `docs/harness-flow/` gitignore 노트(Output Paths)는 유지 (계속 유효).
-- 1.1.7 스킬에 이미 있어 복원으로 자동 확보되는 것: inline path(≤3 tasks),
-  review gating cheap-skip(1.1.6), 3-re-review cap, ledger, review-package.
+  `skills/brainstorming/SKILL.md`, `skills/subagent-driven-development/scripts/task-brief` (restore comments to original; fence repair is Task 2)
+- Delete: `skills/subagent-driven-development/scripts/brief-check`, `tests/scripts/brief-check.test.js`
+- Manual rewrite (do NOT restore via checkout — pitfall 1): rewrite `CLAUDE.md` chain steps 2·4·5 into the plan-
+  document-based narrative (writing-plans → `docs/harness-flow/plans/` output, plan review
+  gate, task-brief extraction, review gating = cheap skip), and restore `README.md`'s 3 steps and artifact
+  paths. Keep the `docs/harness-flow/` gitignore note (Output Paths) (still valid).
+- Already present in 1.1.7 skills and thus secured automatically by the restore: inline path (≤3 tasks),
+  review gating cheap-skip (1.1.6), 3-re-review cap, ledger, review-package.
 
-### Task 2: fence-aware 스캐너를 task-brief에 이식 (TDD)
+### Task 2: port the fence-aware scanner into task-brief (TDD)
 
-- 원본 로직: 현 master `scripts/brief-check`의 awk `ticklen` 상태 머신 —
-  열림 = `[ \t]*` + backtick ≥3 (길이 기록), 닫힘 = backtick ≥ 열림 길이 +
-  `[ \t]*$`, 미달 행은 펜스 내용. BSD awk 호환 (GNU 전용 금지).
-- task-brief의 헤딩 탐지가 펜스 내부 헤딩을 무시하도록 이 상태 머신을 적용
-  (1.2.0 이전의 naive `/^```/` 토글이 4-backtick 중첩에서 그룹 텍스트를
-  무신호 절단한 실발동 버그의 수리).
-- Red 선행: 4-backtick 중첩 펜스 절단 재현 + 들여쓴 펜스 케이스를
-  `tests/scripts/task-brief.test.js`에 추가 (파일 존재 여부 먼저 확인; 없으면
-  brief-check.test.js의 spawnSync 관례로 신규 작성).
-- exit/CLI 계약 불변.
+- Source logic: the awk `ticklen` state machine in the current master's `scripts/brief-check` —
+  open = `[ \t]*` + backtick ≥3 (records the length), close = backtick ≥ open length +
+  `[ \t]*$`, a line short of that is fence content. BSD awk compatible (no GNU-only features).
+- Apply this state machine so that task-brief's heading detection ignores headings inside a fence
+  (repair of the real bug where the pre-1.2.0 naive `/^```/` toggle silently truncated group text
+  on a 4-backtick nested fence).
+- Red first: add a reproduction of the 4-backtick nested-fence truncation + an indented-fence case to
+  `tests/scripts/task-brief.test.js` (first check whether the file exists; if not, author a new one following
+  brief-check.test.js's spawnSync convention).
+- exit/CLI contract unchanged.
 
-### Task 3: 릴리스
+### Task 3: release
 
-- 버전 1.3.0: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
-  `.codex-plugin/plugin.json` (codex mirror 테스트가 동등성 강제).
-- `design/2026-07-15-plan-demotion-retrospective.md`에 §10 추가: 복귀 완료 기록.
-- 전체 스위트 green 확인 후 squash merge to master.
+- Version 1.3.0: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+  `.codex-plugin/plugin.json` (the codex mirror test enforces equivalence).
+- Add §10 to `design/2026-07-15-plan-demotion-retrospective.md`: record of the completed revert.
+- After confirming the full suite is green, squash merge to master.
 
-## 3. 함정 (이번 세션들에서 실제로 밟은 것)
+## 3. Pitfalls (actually hit across these sessions)
 
-1. **832eb5e는 순수 1.1.7 스냅샷이 아니다.** 히스토리 재작성 오염으로
-   CLAUDE.md가 1.2.x 체인 텍스트(자기 트리에 없는 `scripts/brief-check` 참조
-   포함)를 담고 있고 README도 일부 오염 가능. 따라서 CLAUDE.md·README는
-   832eb5e에서 checkout하지 말고 수동 재작성. 스킬 파일들은 복원 전
+1. **832eb5e is not a pure 1.1.7 snapshot.** Due to history-rewrite contamination,
+   CLAUDE.md carries the 1.2.x chain text (including a reference to `scripts/brief-check`, which does not
+   exist in its own tree), and README may be partly contaminated too. So do NOT checkout CLAUDE.md·README
+   from 832eb5e — rewrite them manually. For the skill files, before restoring, confirm no changes
+   between 1.1.6↔1.1.7 with
    `git diff 74f1cd9 832eb5e -- skills/writing-plans skills/subagent-driven-development skills/brainstorming`
-   으로 1.1.6↔1.1.7 간 무변경을 확인한 뒤 832eb5e에서 복원 (차이가 있으면
-   내용을 읽고 1.1.7 의미가 맞는 쪽 선택).
-2. **worktree는 stale origin/master에서 분기됨** — 생성 직후
-   `git merge --ff-only master` 필수 (두 세션 연속 발생).
-3. **digraph 노드 rename 시 개수를 grep으로 실측** — 들어오는 엣지 포함.
-   추정 개수 오기가 두 세션 연속 발생 (3이라 쓰고 실제 4).
-4. **사용자 전역 git hook**(`core.hooksPath=~/.git_template/hooks`)이 워크트리
-   브랜치 커밋 subject에 `[브랜치명]` 프리픽스를 붙임 (JIRA 매처 오인).
-   squash merge가 흡수 — 대응 불요, 커밋 메시지 검증 시 무시.
-5. **dispatch된 서브에이전트가 main checkout에 커밋할 수 있음** (CLAUDE.md
-   gotcha) — dispatch 프롬프트에 브랜치 확인 지시 + DONE 후 `git log` 검증.
-6. `docs/harness-flow/`는 gitignore — spec/plan은 미커밋 작업 산출물,
-   `git add -f` 금지. 영구 기록은 `design/`으로.
+   and then restore from 832eb5e (if there is a diff,
+   read the content and pick the side that matches 1.1.7 semantics).
+2. **The worktree branched off a stale origin/master** — right after creation,
+   `git merge --ff-only master` is required (occurred in two consecutive sessions).
+3. **When renaming digraph nodes, measure the count with grep** — including incoming edges.
+   A miscounted estimate occurred in two consecutive sessions (wrote 3, actually 4).
+4. **A user global git hook** (`core.hooksPath=~/.git_template/hooks`) prepends a `[branch-name]`
+   prefix to worktree-branch commit subjects (mistaken for a JIRA matcher).
+   The squash merge absorbs it — no action needed; ignore it when validating commit messages.
+5. **A dispatched subagent may commit to the main checkout** (CLAUDE.md
+   gotcha) — instruct the dispatch prompt to confirm the branch + verify with `git log` after DONE.
+6. `docs/harness-flow/` is gitignored — specs/plans are uncommitted working artifacts,
+   do not `git add -f`. Durable records go to `design/`.
 
-## 4. 보존 대상 (revert가 지우면 안 되는 것)
+## 4. Preservation targets (things the revert must not erase)
 
-- `design/` 회고 3건 전부 (plan-demotion §1–9, section-only, 이 문서)
-- hooks 일체 (이번 변경들과 무관) — 단 `hooks/pre-agent-model.js`의 `SDD_DESC`
-  앵커가 복원된 1.1.x 프롬프트 템플릿의 description 형태와 일치하는지 확인
-  ("Implement Group N:" / "Review Group N (spec + quality)" — 1.1.6에서 도입,
-  일치할 것)
-- 미머지 브랜치 `worktree-section-only-dispatch` (회수 가능 자산)
+- All 3 `design/` retrospectives (plan-demotion §1–9, section-only, this document)
+- All hooks (unrelated to these changes) — but confirm that the `SDD_DESC` anchor in `hooks/pre-agent-model.js`
+  matches the description form of the restored 1.1.x prompt templates
+  ("Implement Group N:" / "Review Group N (spec + quality)" — introduced in 1.1.6,
+  should match)
+- The unmerged branch `worktree-section-only-dispatch` (a recoverable asset)
 
-## 5. 판단 이력 요약 (컨텍스트용)
+## 5. Decision-history summary (for context)
 
-1.2.0 (spec 섹션 + dispatch-time brief) → 1.2.1 (경계 문구) → section-only
-실험 (음성, 미머지) → 심층평가 "keep with follow-ups" (§8) → follow-up 1–3
-실행 + 1.2.2 (§9): n=3 이중저작 +27% 실측, follow-up 2 리뷰어 +86.2k/기능
-→ 사용자 게이트 적용 → **복귀 확정**. 남는 교훈: 토큰 레버는 문서 구조가
-아니라 (a) 리뷰어 게이팅 정책, (b) false-positive 사이클 제거였다.
+1.2.0 (spec section + dispatch-time brief) → 1.2.1 (boundary wording) → section-only
+experiment (negative, unmerged) → deep eval "keep with follow-ups" (§8) → follow-up 1–3
+execution + 1.2.2 (§9): n=3 dual-authoring +27% measured, follow-up 2 reviewer +86.2k/feature
+→ user gate applied → **revert confirmed**. The lasting lesson: the token lever was not document structure
+but (a) reviewer gating policy and (b) elimination of the false-positive cycle.
