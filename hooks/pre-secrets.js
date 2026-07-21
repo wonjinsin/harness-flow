@@ -128,7 +128,7 @@ function main() {
 
   if (hit) {
     emitDeny(hit, value, kind);
-    process.exit(2);
+    return; // Exit 0 so the runtime parses the deny JSON on stdout.
   }
 }
 

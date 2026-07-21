@@ -2,7 +2,7 @@
 
 ## Overview
 
-> A Claude Code plugin that wires nine skills into two gated entry points — a feature track (design → isolation → planning → TDD → review → finish) and a bug-fix track (root-cause investigation → minimal fix) — so the agent walks the full path instead of jumping to the end.
+> Claude Code와 Codex에서 같은 workflow를 제공하는 cross-harness plugin입니다. 기능 작업은 설계 → 격리 → 계획 → TDD → 최종 리뷰 → 마무리, 버그 수정은 원인 조사 → 회귀 테스트 → 최소 수정 흐름을 따릅니다.
 
 ### Problems it solves
 
@@ -14,11 +14,11 @@
 
 - Gates the spec-agreement step so no implementation can start without explicit user approval
 - Isolates each task into its own worktree, then forces an explicit merge / PR / keep / discard decision at the end
-- Splits implementation and review into separate subagents — one implementer per Task Group, reviewed at each group boundary (a ≤3-task plan runs inline, no dispatch)
+- 구현은 Task Group별 implementer에게 맡기고, 모든 group이 끝난 뒤 branch 전체를 한 번 리뷰합니다. 전체 계획이 3개 이하 task면 현재 context에서 직접 구현합니다.
 
 ### Who it's for
 
-- People using Claude Code daily who want the agent to stop skipping steps
+- Claude Code 또는 Codex에서 agent가 필수 단계를 생략하지 않길 원하는 사용자
 - People who want TDD + worktree isolation + subagent-driven review wired up in one shot
 
 ### Foundation
@@ -45,10 +45,10 @@ Work is tiered before the chain starts: **trivial** (1–2 files, obvious, no co
 
 3. **writing-plans** — decomposes the design into TDD tasks (2–5 minutes sizes a *step*, not the task) and wraps related tasks into Task Groups (2–3 each), the unit the executor dispatches. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **subagent-driven-development** — runs one implementer subagent per Task Group (a ≤3-task plan runs inline, no dispatch), then reviews each group in two stages: spec compliance and code quality.
+4. **subagent-driven-development** — Task Group마다 fresh-context implementer를 실행합니다(3개 이하 task는 inline). 중간 group review 없이 마지막에 구현 시작점부터 branch 전체를 한 번 리뷰합니다.
    - 4-1. **test-driven-development** — sub-skill each implementer subagent follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — template used twice: (a) per group by the code quality reviewer subagent, and (b) once at the end as a final review of the entire implementation before moving on to step 5.
-   - 4-3. **claude-md-revise** — after the final review (default ON), surfaces session learnings (corrections, "always/never" rules, project facts, anti-patterns) as per-candidate CLAUDE.md edits, while the branch is still open, before handing off to step 5.
+   - 4-2. **requesting-code-review** — 마지막 whole-branch review에 사용하는 template입니다. `plan-audit`가 현재 `HEAD`의 ancestor인 구현 시작 commit을 요구하고, task별 선언 파일이 그 이후 실제로 변경됐는지 검증합니다.
+   - 4-3. **claude-md-revise** — 최종 리뷰 뒤 session 학습 내용을 platform에 맞는 project instruction(`AGENTS.md` 또는 `CLAUDE.md`) 후보로 제안합니다.
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
 
@@ -71,13 +71,16 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md        # writing-plans output
 
 ## Hooks
 
-Five Node.js hooks (Node 18+ required, zero npm dependencies, macOS · Claude Code only):
+Node.js hook 6개를 제공합니다(Node 18+, npm dependency 없음). Claude Code와 Codex가 같은 `hooks/hooks.json`을 사용합니다.
 
-- **`session-start-harness.js`** — injects the `using-harness-flow` skill into every new/cleared/compacted session.
+- **`session-start-harness.js`** — 새 session, resume, clear, compaction 때 `using-harness-flow`를 주입합니다.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
-- **`pre-secrets.js`** — PreToolUse(Read|Edit|Write|MultiEdit|Bash) secret-file access guard. Blocks any reference to secret-bearing paths: `.env` variants, SSH private keys (`id_rsa`/`id_ed25519`/`id_ecdsa`/`id_dsa`), `~/.aws/credentials`, gcloud credentials/ADC, GCP service-account JSON. Allowlist skips `.env.example`/`.sample`/`.template`/`.schema`/`.defaults`.
-- **`pre-agent-model.js`** — PreToolUse(Agent|Task) SDD model-omission guard. When a `subagent-driven-development` implementer/reviewer dispatch omits `model`, it silently inherits the session's most expensive model (Opus); this hook denies such a dispatch so the controller re-dispatches with an explicit tier. Scoped to SDD dispatch descriptions — every other Agent dispatch passes untouched.
+- **`pre-secrets.js`** — Read/Edit/Write/MultiEdit/Bash와 Codex `apply_patch`에서 secret 경로 접근을 막습니다.
+- **`pre-agent-model.js`** — model 인자를 지원하는 Claude Code Agent/Task dispatch에서 SDD model 누락을 막습니다. Codex는 권고형 `cheap` / `standard` / `most capable` tier 선택을 따릅니다. direct `spawn_agent`에는 호출별(per-call) 모델 강제 기능이 없으며 정확한 모델은 보장되지 않으므로 이 hook을 적용하지 않습니다.
+- **`pre-plan-audit.js`** — Claude Agent/Task와 Codex `spawn_agent`의 최종 review 전에 현재 `HEAD`의 ancestor인 implementation base를 요구하고, plan 선언 파일이 그 이후 실제로 변경됐는지 검증합니다.
+
+차단 hook은 `permissionDecision: "deny"` JSON을 stdout으로 내보내고 exit 0으로 종료합니다. 그래야 Codex와 Claude Code가 모두 deny 결과를 해석하며, 보호 대상 명령이 실수로 실행되지 않습니다.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
@@ -85,9 +88,17 @@ Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
 ## Installation
 
-There are two installation methods. If you use more than one environment, install separately in each.
+사용하는 harness마다 별도로 설치합니다.
 
-### A) Git marketplace (recommended)
+### Codex
+
+```bash
+codex plugin marketplace add wonjinsin/harness-flow
+```
+
+설치 뒤 `/hooks`에서 command hook을 검토하고 신뢰하세요. Plugin enable만으로 command hook이 자동 신뢰되지는 않으며, hook 내용이 바뀌면 다시 검토해야 합니다.
+
+### Claude Code A) Git marketplace (recommended)
 
 This repo exposes itself as a single-plugin marketplace via `.claude-plugin/marketplace.json`.
 
@@ -96,7 +107,7 @@ This repo exposes itself as a single-plugin marketplace via `.claude-plugin/mark
 /plugin install harness-flow@harness-flow
 ```
 
-Once installed, `hooks/hooks.json` is loaded automatically — all five hooks (session-start-harness, session-start-caveman, pre-bash-commands, pre-secrets, pre-agent-model) activate.
+Once installed, `hooks/hooks.json` is loaded automatically — all six hook scripts activate.
 
 ### B) Copy-paste mode — drop the repo into `.claude/`
 
@@ -125,7 +136,7 @@ Global (`~/.claude/settings.json`):
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|clear|compact",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/session-start-harness.js" },
           { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/session-start-caveman.js" }
@@ -140,7 +151,7 @@ Global (`~/.claude/settings.json`):
         ]
       },
       {
-        "matcher": "Read|Edit|Write|MultiEdit|Bash",
+        "matcher": "Read|Edit|Write|MultiEdit|Bash|apply_patch",
         "hooks": [
           { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-secrets.js" }
         ]
@@ -148,7 +159,8 @@ Global (`~/.claude/settings.json`):
       {
         "matcher": "Agent|Task",
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-agent-model.js" }
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-agent-model.js" },
+          { "type": "command", "command": "$HOME/.claude/harness-flow/hooks/pre-plan-audit.js" }
         ]
       }
     ]
@@ -163,7 +175,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|clear|compact",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start-harness.js" },
           { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/session-start-caveman.js" }
@@ -178,7 +190,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
         ]
       },
       {
-        "matcher": "Read|Edit|Write|MultiEdit|Bash",
+        "matcher": "Read|Edit|Write|MultiEdit|Bash|apply_patch",
         "hooks": [
           { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-secrets.js" }
         ]
@@ -186,7 +198,8 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
       {
         "matcher": "Agent|Task",
         "hooks": [
-          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-agent-model.js" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-agent-model.js" },
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/harness-flow/hooks/pre-plan-audit.js" }
         ]
       }
     ]
@@ -202,7 +215,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **subagent-driven-development** — subagent-based implementation (one implementer per Task Group; ≤3-task plans inline) + per-group review (merged spec + quality verdicts) + final whole-branch review
+- **subagent-driven-development** — Task Group별 구현(3개 이하 task는 inline) + 단일 final whole-branch review
 - **using-git-worktrees** — parallel development branch isolation
 - **finishing-a-development-branch** — merge/PR decision workflow
 
@@ -219,14 +232,16 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
 - **writing-skills** — create, edit, and verify skills before deployment
-- **claude-md-revise** — surface session-derived knowledge into the nearest project `CLAUDE.md` / rules file
+- **claude-md-revise** — session 학습 내용을 platform별 project instruction(`AGENTS.md` / `CLAUDE.md`) 후보로 정리
 - **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 
 ---
 
 ## Credits & Third-Party Licenses
 
-Most skills in this repository are derived from prior MIT-licensed work. Original copyright notices and full license texts are reproduced in [`NOTICE`](NOTICE), as required by the MIT License. Each derived skill folder under `skills/` also contains its own `NOTICE` file, so individual skill folders can be copied elsewhere without losing required attribution.
+이 저장소의 여러 skill은 MIT license 선행 작업에서 파생됐습니다. 각 파생
+skill 폴더의 `NOTICE`에 원 저작권 고지와 전체 license text가 포함되어 있어,
+skill 폴더를 개별 복사해도 attribution이 유지됩니다.
 
 - [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `finishing-a-development-branch`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-harness-flow`, `writing-plans`.
 - [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` additionally incorporates ideas from the `grill-me` skill.

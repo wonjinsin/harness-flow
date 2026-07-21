@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 'use strict';
 
-// pre-agent-model.js — PreToolUse(Agent|Task) model-omission guard for SDD.
+// pre-agent-model.js — Claude-style PreToolUse(Agent|Task) model-omission guard for SDD.
 // An SDD implementer/reviewer dispatch that omits `model` silently inherits the
 // session's most expensive model (Opus). This hook denies such a dispatch so the
-// controller must re-dispatch with an explicit tier. Scoped to SDD by matching
+// controller must re-dispatch with an explicit tier. Codex spawn_agent is not
+// matched because its current schema has no model field. Scoped to SDD by matching
 // the dispatch `description` — every other Agent dispatch (Explore, general
 // searches, etc.) passes untouched, so there is no blast radius.
 // Kill switch: HARNESS_FLOW_HOOKS_OFF=1. Fail-open on payload parse errors.
@@ -69,7 +70,7 @@ function main() {
   const hit = checkDispatch(payload && payload.tool_input);
   if (hit) {
     emitDeny(String((payload.tool_input && payload.tool_input.description) || ''));
-    process.exit(2); // belt-and-suspenders: JSON deny + exit code
+    return; // Exit 0 so the runtime parses the deny JSON on stdout.
   }
 }
 

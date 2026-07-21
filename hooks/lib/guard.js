@@ -46,7 +46,7 @@ function runGuard({ name, matchDangerous, kind = 'Bash command', getValue = getC
   const hit = matchDangerous(value);
   if (hit) {
     emitDeny(hit, value, kind);
-    process.exit(2); // belt-and-suspenders: JSON deny + exit code
+    return; // Exit 0 so Codex and Claude Code both parse the deny JSON.
   }
 }
 

@@ -33,7 +33,7 @@ function makeRepo(t, files) {
     fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
     fs.writeFileSync(path.join(dir, f), "x");
   }
-  execSync("git add -A && git commit -qm init", { cwd: dir });
+  execSync("git add -A && git commit -qm init", { cwd: dir, stdio: "pipe" });
   return dir;
 }
 
@@ -62,15 +62,39 @@ test("missing deliverables exit 1 and are named", (t) => {
 
 test("--base enforces commits >= tasks", (t) => {
   const dir = makeRepo(t, ["src/a.js", "test/a.test.js", "src/b.js"]);
-  execSync("git commit -q --allow-empty -m one", { cwd: dir });
-  const base = execSync("git rev-list --max-parents=0 HEAD", {
+  const base = execSync("git rev-parse HEAD", {
     cwd: dir,
     encoding: "utf8",
   }).trim();
+  fs.appendFileSync(path.join(dir, "src/a.js"), "a");
+  fs.appendFileSync(path.join(dir, "test/a.test.js"), "t");
+  fs.appendFileSync(path.join(dir, "src/b.js"), "b");
+  execSync("git add -A", { cwd: dir });
+  execSync("git commit -q --allow-empty -m one", { cwd: dir });
   const short = run(dir, ["plan.md", "--base", base]);
   assert.strictEqual(short.status, 1, short.stdout);
   assert.ok(short.stdout.includes("commits 1 < tasks 2"));
   execSync("git commit -q --allow-empty -m two", { cwd: dir });
+  assert.strictEqual(run(dir, ["plan.md", "--base", base]).status, 0);
+});
+
+test("--base rejects declared files unchanged since implementation base", (t) => {
+  const dir = makeRepo(t, ["src/a.js", "test/a.test.js", "src/b.js"]);
+  const base = execSync("git rev-parse HEAD", { cwd: dir, encoding: "utf8" }).trim();
+  execSync("git commit -q --allow-empty -m one && git commit -q --allow-empty -m two", {
+    cwd: dir,
+  });
+
+  const unchanged = run(dir, ["plan.md", "--base", base]);
+  assert.strictEqual(unchanged.status, 1, unchanged.stdout + unchanged.stderr);
+  assert.match(unchanged.stdout, /Task 1\.1: UNCHANGED/);
+  assert.match(unchanged.stdout, /Task 1\.2: UNCHANGED/);
+
+  fs.appendFileSync(path.join(dir, "src/a.js"), "a");
+  fs.appendFileSync(path.join(dir, "test/a.test.js"), "t");
+  execSync("git add -A && git commit -qm task-one", { cwd: dir });
+  fs.appendFileSync(path.join(dir, "src/b.js"), "b");
+  execSync("git add -A && git commit -qm task-two", { cwd: dir });
   assert.strictEqual(run(dir, ["plan.md", "--base", base]).status, 0);
 });
 

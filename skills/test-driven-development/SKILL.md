@@ -36,14 +36,19 @@ Thinking "skip TDD just this once"? Stop. That's rationalization.
 NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-Write code before the test? Delete it. Start over.
+Write code before the test during the current TDD cycle? Delete only that
+agent-authored code and start the cycle over.
+
+**Ownership guard:** pre-existing user code and changes from before the current
+TDD cycle are never yours to delete. Inspect the baseline diff first. Preserve
+them, then add a characterization or regression test around the existing code.
 
 **No exceptions:**
 
-- Don't keep it as "reference"
-- Don't "adapt" it while writing tests
-- Don't look at it
-- Delete means delete
+- Don't keep code you authored early in this cycle as "reference"
+- Don't "adapt" that early code while writing tests
+- Don't look at that early code while writing the test
+- Delete means delete only current-cycle, agent-authored code
 
 Implement fresh from tests. Period.
 
@@ -236,14 +241,17 @@ Manual testing is ad-hoc. You think you tested everything but:
 
 Automated tests are systematic. They run the same way every time.
 
-**"Deleting X hours of work is wasteful"**
+**"Deleting X hours of my current-cycle work is wasteful"**
 
 Sunk cost fallacy. The time is already gone. Your choice now:
 
-- Delete and rewrite with TDD (X more hours, high confidence)
-- Keep it and add tests after (30 min, low confidence, likely bugs)
+- Delete only the agent-authored current-cycle code and rewrite with TDD
+  (X more hours, high confidence)
+- Keep that current-cycle code and add tests after (30 min, low confidence,
+  likely bugs)
 
-The "waste" is keeping code you can't trust. Working code without real tests is technical debt.
+The "waste" is keeping current-cycle code you can't trust. Pre-existing user
+code is preserved and characterized; this argument never authorizes deleting it.
 
 **"TDD is dogmatic, being pragmatic means adapting"**
 
@@ -274,8 +282,8 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 | "I'll test after"                      | Tests passing immediately prove nothing.                                |
 | "Tests after achieve same goals"       | Tests-after = "what does this do?" Tests-first = "what should this do?" |
 | "Already manually tested"              | Ad-hoc ≠ systematic. No record, can't re-run.                           |
-| "Deleting X hours is wasteful"         | Sunk cost fallacy. Keeping unverified code is technical debt.           |
-| "Keep as reference, write tests first" | You'll adapt it. That's testing after. Delete means delete.             |
+| "Deleting X hours is wasteful"         | For agent-authored current-cycle code, sunk cost does not justify tests-after. |
+| "Keep as reference, write tests first" | For current-cycle agent code, you'll adapt it. Delete only that code.    |
 | "Need to explore first"                | Fine. Throw away exploration, start with TDD.                           |
 | "Test hard = design unclear"           | Listen to test. Hard to test = hard to use.                             |
 | "TDD will slow me down"                | TDD faster than debugging. Pragmatic = test-first.                      |
@@ -298,7 +306,8 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 - "TDD is dogmatic, I'm being pragmatic"
 - "This is different because..."
 
-**All of these mean: Delete code. Start over with TDD.**
+**All of these mean: remove only current-cycle agent code and restart TDD.
+Never delete pre-existing user code.**
 
 ## Example: Bug Fix
 
@@ -373,7 +382,8 @@ Never fix bugs without a test.
 
 ## Testing Anti-Patterns
 
-When adding mocks or test utilities, read @testing-anti-patterns.md to avoid common pitfalls:
+When adding mocks or test utilities, read
+[testing-anti-patterns.md](testing-anti-patterns.md) to avoid common pitfalls:
 
 - Testing mock behavior instead of real behavior
 - Adding test-only methods to production classes

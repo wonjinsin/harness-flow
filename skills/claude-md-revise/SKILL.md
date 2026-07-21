@@ -1,17 +1,31 @@
 ---
 name: claude-md-revise
-description: Use when finishing a development branch (after the final code review or a verified systematic-debugging fix) and the session produced user corrections, "always/never" rules, project-specific facts, anti-patterns, or external-system references worth persisting. Also use when the user says "remember this in CLAUDE.md", "add this to project memory", or repeats the same correction twice. Do NOT use to audit, score, or fix an existing CLAUDE.md as a whole (that is claude-md-improver), nor for code conventions derivable by reading the code, one-off task state, or personal preferences unrelated to this project.
+description: Use when finishing a development branch and the session produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this in CLAUDE.md", asks to add project memory, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # claude-md-revise
 
 ## Overview
 
-Surface session-derived knowledge worth persisting, place it at the **narrowest applicable scope** (root `CLAUDE.md`, a subdirectory `CLAUDE.md`, or `.claude/rules/*.md`), then apply it as scoped, per-candidate diffs the user approves one at a time.
+Surface session-derived knowledge worth persisting, select the active harness's
+durable instruction surface, place it at the **narrowest applicable scope**,
+then apply per-candidate diffs the user approves one at a time.
 
-**Core principle:** If a future Claude could derive it by reading the code, it does NOT belong in CLAUDE.md. Only persist what the project state cannot tell on its own.
+**Core principle:** If a future coding agent could derive it by reading the
+code, it does not belong in project instructions. Only persist what project
+state cannot tell on its own.
 
-**Announce at start:** "I'm using the claude-md-revise skill to surface CLAUDE.md update candidates from this session."
+**Announce at start:** "I'm using the claude-md-revise skill to surface project-memory update candidates from this session."
+
+## Platform Detection
+
+- Codex instructions or Codex-native tools present → target `AGENTS.md`.
+- Claude Code tools/session present → target `CLAUDE.md` and optional
+  `.claude/rules/*.md`.
+- If uncertain, inspect existing root instruction files and ask before writing.
+
+Do not create a Claude-only instruction surface in a Codex project, or vice
+versa, merely because this skill's compatibility name contains `claude`.
 
 ## When to Use
 
@@ -33,7 +47,12 @@ Surface session-derived knowledge worth persisting, place it at the **narrowest 
 ### Step 1: Gather Inputs
 
 1. **Current session context** — primary source.
-2. **Transcript fallback** — if the session is long and context may have compacted, the original messages live on disk:
+2. **Transcript fallback** — use only a documented, harness-owned transcript
+   pointer exposed to the current session.
+
+   - Codex: prefer current context and ledger files. Raw `~/.codex` transcript
+     formats are unstable; do not scan them by guessed path.
+   - Claude Code: if context compacted, the original messages may live on disk:
 
    ```bash
    slug=$(pwd | sed 's|/|-|g')
@@ -42,9 +61,15 @@ Surface session-derived knowledge worth persisting, place it at the **narrowest 
 
    Read the most-recent JSONL. Each line is a JSON object with a `type` field. Many internal types (`attachment`, `system`, `file-history-snapshot`, `permission-mode`, etc.) are interleaved with the conversation — filter to `type == "user"` or `type == "assistant"` before reading content.
 
-3. **Existing CLAUDE.md and rules files** — read all of these for context (so you can skip candidates already covered):
-   - **Project scope (editable with user approval):** every `CLAUDE.md` from `pwd` upward to repo root, every `CLAUDE.md` in subdirectories you touched this session, plus any `*.md` under `<project>/.claude/rules/` or `<project>/rules/` if those directories exist.
-   - **User scope (read-only — propose, do not edit):** `~/.claude/CLAUDE.md` and every `*.md` under `~/.claude/rules/`.
+3. **Existing project instructions** — read the active platform's files so you
+   can skip candidates already covered:
+   - **Codex project scope:** every `AGENTS.md` from `pwd` upward to repo root
+     and nested `AGENTS.md` files in directories touched this session.
+   - **Claude project scope:** every `CLAUDE.md` from `pwd` upward to repo root,
+     touched-subdirectory `CLAUDE.md` files, and project `.claude/rules/*.md`.
+   - **User scope:** only documented user-level instruction files for the active
+     platform are read-only; propose changes but never edit them directly. Do
+     not guess a Codex user-level path.
 
    Anything under `~/.claude/` is user-owned. Read it to avoid restating, but never write to it directly — surface a proposal and let the user apply it themselves.
 
@@ -63,17 +88,27 @@ Categorize what came up in the session:
 
 ### Step 3: Filter Against Existing Files
 
-For each candidate, scan all CLAUDE.md and `rules/*.md` files gathered in Step 1 (project scope and user scope). Skip candidates already covered (even with different wording). Don't restate.
+For each candidate, scan all active-platform instruction files gathered in
+Step 1. Skip candidates already covered, even with different wording.
 
 ### Step 4: Decide Placement (WHERE + HOW)
 
-For each surviving candidate, first decide **WHERE** it lives (narrowest scope that still loads when needed), then **HOW** it is referenced. Most candidates resolve WHERE from the table + flowchart below. For the subdir-vs-rules fork, the `@import`-vs-plain-path choice (HOW), or a 200-line spill, read **[references/placement-decision.md](references/placement-decision.md)** — HOW lives there, not here. To calibrate on concrete cases (subdir placement, a reactive spill, a noise reject, an `@import`-vs-path call), see **[references/examples.md](references/examples.md)**.
+For each surviving candidate, decide **WHERE** it lives: the narrowest scope
+that still loads when needed. On Codex use root or nested `AGENTS.md`; nearer
+files apply to their subtree. On Claude Code use the table below and consult
+[references/placement-decision.md](references/placement-decision.md) for the
+Claude-only rules/import fork.
 
 | Candidate scope | Target file | Why |
 |---|---|---|
+| Codex: maps to one module/subdir | that subdir's `AGENTS.md` | nearest scoped instructions |
+| Codex: project-wide rule/fact | root `AGENTS.md` | always applies in repository |
 | Maps to ONE existing module/subdir | that subdir's `CLAUDE.md` (create if absent) | on-demand load — keeps root lean |
 | Project-wide rule/fact | root `CLAUDE.md` | parent dirs load eagerly |
 | Topic spans multiple paths, **or** adding it pushes root past 200 lines, **or** large rule bundle | `.claude/rules/<topic>.md` + reference from root | loads per frontmatter (no `paths:` = always-on; `paths:` = per-path) |
+
+The following flowchart is Claude Code-only. Codex placement is fully described
+by the first two rows above.
 
 ```dot
 digraph placement {
@@ -117,12 +152,14 @@ The `reason:` clause is annotation, NOT a second question — placement is decid
 
 ### Step 6: Apply and Suggest Commit
 
-Use the Edit tool per approved candidate (create the target file when it does not yet exist). After all approved edits applied, summarize what changed and suggest:
+Use the Edit tool per approved candidate (create the target file when it does
+not yet exist). After all approved edits applied, summarize what changed and
+suggest:
 
 ```
-CLAUDE.md updated with N entries. Suggested commit:
+Project instructions updated with N entries. Suggested commit:
   git add <files>
-  git commit -m "docs(CLAUDE.md): persist session learnings"
+  git commit -m "docs: persist session learnings"
 
 Run now, or bundle with other work?
 ```
@@ -138,6 +175,7 @@ Do NOT auto-run the commit.
 | One-time "let's do it this way" | Defer unless user re-confirms |
 | External system mentioned | Candidate — Reference |
 | Deadline / freeze date / stakeholder ask | Candidate — Fact (absolute date) |
+| Codex module/project rule | Nested/root `AGENTS.md` |
 | Rule limited to one module/subdir | Subdir `CLAUDE.md`, not root |
 | Root would exceed 200 lines | Spill the new additions to `.claude/rules/<topic>.md` |
 | User explained existing code | NOT a candidate |

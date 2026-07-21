@@ -48,7 +48,7 @@ Implementer:
 ...
 
 [After all groups]
-[Run review-package MERGE_BASE HEAD; dispatch final code-reviewer
+[Run review-package IMPLEMENTATION_BASE HEAD; dispatch final code-reviewer
  (model: opus — most capable; sonnet if every group was cheap-tier)
  with the package path, every group's brief path + global constraints,
  the severity-floor block, and the finding-class block

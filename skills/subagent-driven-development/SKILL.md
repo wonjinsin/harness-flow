@@ -16,6 +16,11 @@ ledger and the tool results carry the record.
 
 **Continuous execution:** Do not pause to check in with your human partner between tasks. Execute all tasks from the plan without stopping. The only reasons to stop are: BLOCKED status you cannot resolve, ambiguity that genuinely prevents progress, or all tasks complete. "Should I continue?" prompts and progress summaries waste their time — they asked you to execute the plan, so execute it.
 
+**Bundled script paths:** Resolve the directory containing this loaded
+`SKILL.md` once as `SDD_SKILL_DIR`. Every `task-brief`, `review-package`, and
+`plan-audit` call below uses an absolute path under
+`$SDD_SKILL_DIR/scripts/`; the user's project CWD is not the skill directory.
+
 ## When to Use
 
 ```dot
@@ -41,8 +46,9 @@ digraph when_to_use {
 When the whole plan is ≤3 tasks, do NOT dispatch per-group implementers — the
 cold-start of a fresh subagent costs more than the work. Instead:
 
-1. Read `harness-flow:test-driven-development` into your current context (via
-   the Skill tool) and implement each task inline, following Red→Green→Refactor.
+1. Load `harness-flow:test-driven-development` into your current context with
+   the harness-native skill mechanism and implement each task inline, following
+   Red→Green→Refactor.
 2. Commit one task at a time (same discipline as a dispatched implementer).
 3. After the last task, run the full suite + formatter/typecheck once.
 4. **Still dispatch the final whole-branch review** — a fresh-context reviewer
@@ -126,7 +132,7 @@ capable available model, not the session default.
 **Exception — all-cheap plans:** when every group in the plan is cheap-tier,
 dispatch the final whole-branch review on the standard tier instead. The
 catch rate for cheap-tier defects is measured at 100% on the standard tier
-even at 6.5× diff dilution (design/2026-07-14-execution-speedup-retrospective.md
+even at 6.5× diff dilution ([design/2026-07-14-execution-speedup-retrospective.md](../../design/2026-07-14-execution-speedup-retrospective.md)
 §7). Count the tier labels in the plan: any standard or most-capable group
 keeps the final review on the most capable model.
 
@@ -134,9 +140,13 @@ keeps the final review on the most capable model.
 diff's size, complexity, and risk. A small mechanical diff does not need the
 most capable model; a subtle concurrency change does.
 
-**Always specify the model explicitly when dispatching a subagent.** An
-omitted model inherits your session's model — often the most capable and
-most expensive — which silently defeats this section.
+**Apply the tier through a mechanism the active harness exposes.** Claude Code
+supports a per-dispatch `model` field, so specify it there. On Codex, classify
+the dispatch as `cheap`, `standard`, or `most capable` with the same signals
+above and ask Codex to use the least powerful model that fits. This is advisory:
+use the model-selection capability the active Codex surface exposes, but do not
+claim the exact model is guaranteed. Direct `spawn_agent` does not accept
+per-call `model`, `profile`, or `agent_type`; omit those fields.
 
 **Turn count beats token price.** Wall-clock and context cost scale with how
 many turns a subagent takes, and the cheapest models routinely take 2-3× the
@@ -153,30 +163,38 @@ group up.
 - Any task touches multiple files with integration concerns → standard model
 - Any task requires design judgment or broad codebase understanding → most capable model
 
-**Tier → model alias (Claude Code).** The tiers above are harness-agnostic;
-below is the mapping this repo dispatches with. Use the short aliases, not
+**Tier → model selection.** The tiers above are harness-agnostic. On Claude
+Code, use the short aliases below, not
 versioned IDs (`claude-sonnet-5`, …): when a named model is unavailable or
 unrecognized, Claude Code silently falls back to the inherited — often the
 most expensive — model, which is the exact leak this section prevents. Aliases
-dodge that and never go stale. On non-Claude harnesses, map the tier to your
-own dispatch model:
+dodge that and never go stale:
 - cheap → `haiku`
 - standard → `sonnet`
 - most capable → `opus`
+
+On Codex, communicate the selected tier in the dispatch context and let Codex
+choose among models available to the active surface. The tier remains a cost and
+capability preference, not an exact-model guarantee.
 
 ## Handling Implementer Status
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** (per group) Verify the commits landed on the feature branch (worktree gotcha — see CLAUDE.md), append `Group N: complete (commits <base7>..<head7>, no group review — final nets)` to the ledger, and dispatch the next group. No review package and no reviewer at group boundaries — the final whole-branch review nets every group.
+**DONE:** (per group) Verify the commits landed on the feature branch (follow
+the active project instructions: `CLAUDE.md` on Claude Code, `AGENTS.md` on
+Codex), append `Group N: complete (commits <base7>..<head7>, no group review —
+final nets)` to the ledger, and dispatch the next group. No review package and
+no reviewer at group boundaries — the final whole-branch review nets every
+group.
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
-1. If it's a context problem, provide more context and re-dispatch with the same model
-2. If the task requires more reasoning, re-dispatch with a more capable model
+1. If it's a context problem, provide more context and re-dispatch at the same tier
+2. If the task requires more reasoning, re-dispatch at a more capable tier
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the human
 
@@ -213,13 +231,15 @@ The broad review happens once, at the final whole-branch review; verify-fix re-r
   Y"). The reviewer's template already carries the process rules (YAGNI,
   test hygiene, review method) — the constraints block is for what THIS
   project's spec demands.
-- Hand the reviewer its diff as a file: run this skill's
-  `scripts/review-package BASE HEAD` and pass the reviewer the file path
+- Hand the reviewer its diff as a file: run
+  `"$SDD_SKILL_DIR/scripts/review-package" BASE HEAD` and pass the reviewer the file path
   it prints (or, without bash: `git log --oneline`, `git diff --stat`,
   and `git diff -U10` for the range, redirected to one uniquely named
   file). The output never enters your own context, and the reviewer sees
   the commit list, stat summary, and full diff with context in one Read
-  call. For a verify-fix re-review use FIX_BASE (the HEAD recorded before the fixer); for the final review use MERGE_BASE — never `HEAD~1`, which silently truncates multi-commit ranges.
+  call. For a verify-fix re-review use `FIX_BASE` (the HEAD recorded before the
+  fixer); for the final review use `IMPLEMENTATION_BASE` — never `HEAD~1`, which
+  silently truncates multi-commit ranges.
 - A dispatch prompt describes one task, not the session's history. Do not
   paste accumulated prior-task summaries ("state after Tasks 1-3") into
   later dispatches — a real session's dispatch hit 42k chars of which 99%
@@ -235,8 +255,7 @@ The broad review happens once, at the final whole-branch review; verify-fix re-r
   Do not dismiss the finding because the plan mandates it, and do not
   dispatch a fix that contradicts the plan without asking.
 - The final whole-branch review gets a package too: run
-  `scripts/review-package MERGE_BASE HEAD` (MERGE_BASE = the commit the
-  branch started from, e.g. `git merge-base main HEAD`) and include the
+  `"$SDD_SKILL_DIR/scripts/review-package" IMPLEMENTATION_BASE HEAD` and include the
   printed path in the final review dispatch, so the final reviewer reads
   one file instead of re-deriving the branch diff with git commands.
 - Every fix dispatch carries the implementer contract: the fix subagent
@@ -253,15 +272,26 @@ The broad review happens once, at the final whole-branch review; verify-fix re-r
 
 ## Final Review Nets Every Group
 
-**Deterministic completeness gate first.** Before dispatching the final
-review, run this skill's `scripts/plan-audit PLAN_FILE` (add
-`--base MERGE_BASE` to also enforce one-commit-per-task). It verifies every
-task's declared Create/Modify/Test files exist — the measured worst-case
+**Deterministic completeness gate first.** Immediately before Task 1, take
+`IMPLEMENTATION_BASE=$(git rev-parse HEAD)` after the approved plan/spec commits
+and write it to the ledger as the line `implementationBase: <sha>` — that exact
+key is what the hook parses. It must remain an ancestor of the implementation
+branch's current `HEAD`; never substitute a sibling-branch commit. Before final
+review, run
+`"$SDD_SKILL_DIR/scripts/plan-audit" PLAN_FILE --base IMPLEMENTATION_BASE`.
+It verifies every task's declared Create/Modify/Test file exists, every declared
+file changed after implementation began, and implementation commit count is at
+least task count — the measured worst-case
 failure is silently dropping tasks and reviewing what remains
-(design/2026-07-18-external-loop-retrospective.md). On MISSING output,
+([design/2026-07-18-external-loop-retrospective.md](../../design/2026-07-18-external-loop-retrospective.md)). On MISSING or UNCHANGED output,
 dispatch implementers for those tasks before any review. A registered hook
 (`pre-plan-audit.js`) denies the final-review dispatch as a backstop, but
 running the audit yourself first is the normal path.
+
+The hook denies final review when this base is missing or invalid because it
+cannot prove changed-since or commit-count completeness. Restore the exact
+`implementationBase: <sha>` ledger entry or set
+`HARNESS_FLOW_IMPLEMENTATION_BASE`, then re-run the audit.
 
 No group earns a dedicated reviewer dispatch. The implementer's self-review
 is the only group-boundary check; the final whole-branch review IS the
@@ -275,7 +305,7 @@ review. Its dispatch prompt carries three additions:
   cannot verify from the diff as ⚠️ items.
 - **Severity floor.** Include this block verbatim — it counters the
   measured failure mode where a real mid-group defect is found but demoted
-  to Minor (design/2026-07-16-review-gating-v2-retrospective.md §3):
+  to Minor ([design/2026-07-16-review-gating-v2-retrospective.md](../../design/2026-07-16-review-gating-v2-retrospective.md) §3):
 
   ```
   This branch was implemented without intermediate group reviews. Rate
@@ -317,7 +347,7 @@ finding a fixer cannot resolve does not spin forever:
   findings list** (never one fixer per finding — per-finding fixers each
   rebuild context and re-run suites), then a verify-fix re-review
   (./task-reviewer-prompt.md): the open findings verbatim plus the fix-diff
-  package (`scripts/review-package FIX_BASE HEAD`, FIX_BASE = the HEAD
+  package (`"$SDD_SKILL_DIR/scripts/review-package" FIX_BASE HEAD`, FIX_BASE = the HEAD
   recorded before the fixer) — never the original branch package. Track the
   count in the progress ledger as `final: reviewCycles <n>`, incremented on
   every re-review dispatch, **capped at 3 re-reviews**. A verify-fix result
@@ -333,8 +363,8 @@ Everything you paste into a dispatch prompt — and everything a subagent
 prints back — stays resident in your context for the rest of the session
 and is re-read on every later turn. Hand artifacts over as files:
 
-- **Group brief:** before dispatching an implementer, run this skill's
-  `scripts/task-brief PLAN_FILE N` with the GROUP number — it extracts the
+- **Group brief:** before dispatching an implementer, run
+  `"$SDD_SKILL_DIR/scripts/task-brief" PLAN_FILE N` with the GROUP number — it extracts the
   whole group's text (all its tasks) to a uniquely named file and prints the
   path. Compose the dispatch so the
   brief stays the single source of requirements. Your dispatch should
@@ -350,7 +380,7 @@ and is re-read on every later turn. Hand artifacts over as files:
   the dispatch prompt. The implementer writes the full report there and
   returns only status, commits, a one-line test summary, and concerns.
 - **Final reviewer inputs:** the branch review package
-  (`scripts/review-package MERGE_BASE HEAD`), every group's brief path,
+  (`"$SDD_SKILL_DIR/scripts/review-package" IMPLEMENTATION_BASE HEAD`), every group's brief path,
   and the global constraints (see Final Review Nets Every Group). A
   verify-fix re-review gets the open findings verbatim, the fix-diff
   package, and the brief paths for context.
@@ -368,6 +398,9 @@ a ledger file, not only in todos.
   `cat "$(git rev-parse --show-toplevel)/.harness-flow/sdd/progress.md"`.
   Tasks listed there as complete are DONE — do not re-dispatch them; resume
   at the first task not marked complete.
+- Before Task 1, write `implementationBase: <sha>` after all approved plan/spec
+  commits. Reuse that SHA for final `plan-audit` and review packaging; never use
+  a merge base that includes planning commits in the implementation count.
 - When a group's implementer reports DONE and its commits are verified on the feature branch, append one line to the ledger in the same message as your other bookkeeping: `Group N: complete (commits <base7>..<head7>, no group review — final nets)`.
 - While the final review is in its fix loop, record the re-review count as
   `final: reviewCycles <n>` and update it on each verify-fix dispatch. This
@@ -393,9 +426,15 @@ full worked example (dispatch, final whole-branch review, fix→verify-fix loop)
 
 ## When All Tasks Complete
 
-After the final code reviewer subagent approves the entire implementation, surface session learnings before finishing:
+After the final code reviewer subagent approves the entire implementation,
+surface session learnings before finishing:
 
-Invoke the `harness-flow:claude-md-revise` skill to surface session-derived knowledge worth persisting (user corrections, "always/never" rules, project facts, anti-patterns, external-system references). Run it **now** — while the branch is still open — so any approved CLAUDE.md edits land in this branch before merge.
+Invoke the `harness-flow:claude-md-revise` skill to surface session-derived
+knowledge worth persisting (user corrections, "always/never" rules, project
+facts, anti-patterns, external-system references). On Claude Code it targets
+`CLAUDE.md`; on Codex it targets root/nested `AGENTS.md`. Run it **now** — while
+the branch is still open — so approved project-instruction edits land in this
+branch before merge.
 
 This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip signal — it means run this step.
 
@@ -413,8 +452,8 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - Skip the final whole-branch review, or dispatch it without every group's brief and the severity-floor and class blocks
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
-- Make a subagent read the whole plan file (hand it its task brief —
-  `scripts/task-brief` — instead)
+- Make a subagent read the whole plan file (hand it its task brief generated by
+  `"$SDD_SKILL_DIR/scripts/task-brief"` instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (reviewer found spec issues = not done)
@@ -423,8 +462,11 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - Tell a reviewer what not to flag, or pre-rate a finding's severity in the
   dispatch prompt ("treat it as Minor at most") — the plan's example code is
   a starting point, not evidence that its weaknesses were chosen
-- Dispatch the final review or a verify-fix re-review without a package file — generate it first (`scripts/review-package`) and name the printed path in the prompt
-- Dispatch the final review without a clean `scripts/plan-audit` run — missing
+- Dispatch the final review or a verify-fix re-review without a package file —
+  generate it first with `"$SDD_SKILL_DIR/scripts/review-package"` and name the
+  printed path in the prompt
+- Dispatch the final review without a clean
+  `"$SDD_SKILL_DIR/scripts/plan-audit"` run — missing or unchanged
   deliverables mean implementation is not done, whatever the reports said
 - Finish while the final review has open Critical/Important issues
 - Re-dispatch a task the progress ledger already marks complete — check
@@ -451,7 +493,7 @@ This is not optional cleanup. "finish", "we're done", or "proceed" is NOT a skip
 - **harness-flow:using-git-worktrees** - Ensures isolated workspace (creates one or verifies existing)
 - **harness-flow:writing-plans** - Creates the plan this skill executes
 - **harness-flow:requesting-code-review** - Code review template for the final whole-branch review
-- **harness-flow:claude-md-revise** - Surface session learnings to CLAUDE.md after the final review, before finishing
+- **harness-flow:claude-md-revise** - Surface session learnings to `CLAUDE.md` on Claude Code or `AGENTS.md` on Codex after the final review, before finishing
 - **harness-flow:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**

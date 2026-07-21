@@ -29,9 +29,9 @@ function parseDeny(stdout) {
 
 // ---------- Bash dispatch ----------
 
-test('Bash: blocks cat .env with JSON deny + exit 2', () => {
+test('Bash: blocks cat .env with JSON deny + exit 0', () => {
   const r = runBash('cat .env');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
@@ -42,21 +42,21 @@ test('Bash: blocks cat .env with JSON deny + exit 2', () => {
 
 test('Bash: blocks cat ~/.ssh/id_rsa', () => {
   const r = runBash('cat ~/.ssh/id_rsa');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-ssh-key\]/);
 });
 
 test('Bash: blocks cat ~/.aws/credentials', () => {
   const r = runBash('cat ~/.aws/credentials');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-aws-credentials\]/);
 });
 
 test('Bash: blocks cat my-service-account.json', () => {
   const r = runBash('cat my-service-account.json');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-gcp-service-account\]/);
 });
@@ -75,7 +75,7 @@ test('Bash: passes rm -rf / (handled by pre-bash-commands)', () => {
 
 test('Bash: blocks rm .env (non-reader verb still blocks)', () => {
   const r = runBash('rm .env');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-dotenv\]/);
   assert.match(out.systemMessage, /Blocked Bash command: rm \.env/);
@@ -83,7 +83,7 @@ test('Bash: blocks rm .env (non-reader verb still blocks)', () => {
 
 test('Bash: blocks vim ~/.ssh/id_rsa', () => {
   const r = runBash('vim ~/.ssh/id_rsa');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-ssh-key\]/);
 });
@@ -98,7 +98,7 @@ test('Bash: passes cat .env.example (ALLOWLIST applies to Bash too)', () => {
 
 test('Read: blocks /proj/.env', () => {
   const r = runFile('Read', '/proj/.env');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-dotenv\]/);
@@ -108,21 +108,21 @@ test('Read: blocks /proj/.env', () => {
 
 test('Edit: blocks /home/u/.ssh/id_rsa', () => {
   const r = runFile('Edit', '/home/u/.ssh/id_rsa');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-ssh-key\]/);
 });
 
 test('Write: blocks /tmp/my-service-account.json', () => {
   const r = runFile('Write', '/tmp/my-service-account.json');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-gcp-service-account\]/);
 });
 
 test('MultiEdit: blocks /home/u/.aws/credentials', () => {
   const r = runFile('MultiEdit', '/home/u/.aws/credentials');
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = parseDeny(r.stdout);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /^\[read-aws-credentials\]/);
 });

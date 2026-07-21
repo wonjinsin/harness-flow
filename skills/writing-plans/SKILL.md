@@ -36,20 +36,20 @@ This structure informs the task decomposition. Each task should produce self-con
 
 ## Task Right-Sizing
 
-A task is the smallest unit that carries its own test cycle and is worth a
-fresh reviewer's gate. When drawing task boundaries: fold setup,
+A task is the smallest unit that carries its own test cycle and produces an
+independently verifiable deliverable. When drawing task boundaries: fold setup,
 configuration, scaffolding, and documentation steps into the task whose
-deliverable needs them; split only where a reviewer could meaningfully
-reject one task while approving its neighbor. Each task ends with an
+deliverable needs them; split only where the deliverables form a meaningful
+independent boundary. Each task ends with an
 independently testable deliverable.
 
 ## Task Groups
 
 Wrap 2–3 related tasks into a **Task Group** — the unit `subagent-driven-development`
 dispatches to one implementer. Group tasks that share context and run in
-sequence (e.g. a parser task and the middleware that consumes it). A group
-is the coarser gate: one implementer builds all its tasks (one commit each),
-and one reviewer reviews the group's combined diff.
+sequence (e.g. a parser task and the middleware that consumes it). One
+implementer builds all tasks in a group, one commit per task. There is no
+group-boundary reviewer; the final whole-branch review covers every group.
 
 - Heading: `### Group N: <name>`, with tasks nested as `#### Task N.M: <name>`.
 - Keep a group to 2–3 tasks. A task that is naturally standalone is its own
@@ -235,9 +235,10 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 ## Execution Handoff
 
-After saving the plan, announce completion and proceed directly to Subagent-Driven execution:
+After the user approves the saved plan, announce completion and proceed to
+Subagent-Driven execution. Saving the file alone is not approval.
 
-**"Plan complete and saved to `docs/harness-flow/plans/<filename>.md`. Proceeding with Subagent-Driven execution — one implementer per Task Group (or inline for a ≤3-task plan), with review at each group boundary."**
+**"Plan approved and saved to `docs/harness-flow/plans/<filename>.md`. Proceeding with Subagent-Driven execution — one implementer per Task Group (or inline for a ≤3-task plan), followed by one final whole-branch review."**
 
 - **REQUIRED SUB-SKILL:** Use harness-flow:subagent-driven-development
-- Implementer per group + group-boundary review (tiny plans run inline)
+- Implementer per group + one final whole-branch review (tiny plans run inline)

@@ -24,6 +24,9 @@ git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
 - Uncommitted changes exist → stop and ask the user (commit / stash / leave out). A PR is outward-facing; never silently decide what ships.
+- Empty current branch (detached HEAD) → stop. Preserve the HEAD SHA and direct
+  Codex App users to **Create branch** or **Hand off to local**; otherwise ask
+  the user to create a named branch before PR creation.
 - On the base branch itself → stop and ask which branch to PR.
 - Base branch: default branch of `origin` (`gh repo view --json defaultBranchRef` when available, else main/master detection above).
 

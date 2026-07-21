@@ -1,6 +1,6 @@
 ---
 name: using-harness-flow
-description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions. Based on superpowers(https://github.com/obra/superpowers).
+description: Use when starting any conversation - establishes how to find and use skills, requiring native skill loading before ANY response including clarifying questions. Based on superpowers(https://github.com/obra/superpowers).
 ---
 
 <SUBAGENT-STOP>
@@ -21,7 +21,9 @@ This is not negotiable. You cannot rationalize your way out of this.
 
 **Before writing or changing any code/file — and before entering plan mode:** classify the work first (see Size the Work First) and follow its route. Standard-tier work requires brainstorming before any code.
 
-Then announce "Using [skill] to [purpose]" and follow the skill exactly. If it has a checklist, create a TodoWrite todo per item.
+Then announce "Using [skill] to [purpose]" and load it with the harness-native
+skill mechanism. Follow it exactly. If it has a checklist, create one item per
+check with the harness-native task tracking mechanism.
 
 ## Skill Priority
 

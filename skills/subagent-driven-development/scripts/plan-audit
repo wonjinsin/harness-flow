@@ -3,8 +3,9 @@
 
 // plan-audit — deterministic completeness gate for an implementation plan.
 // Checks that every file a plan task declares (Create/Modify/Test) exists in
-// the working tree, and optionally that the branch has at least one commit
-// per task. Catches the measured worst-case in-session failure: silently
+// the working tree. With --base, also checks that every declared file changed
+// since implementation began and that the branch has at least one
+// implementation commit per task. Catches the measured worst-case: silently
 // dropping tasks and self-reporting success
 // (design/2026-07-18-external-loop-retrospective.md).
 //
@@ -55,6 +56,23 @@ function main() {
   }
 
   if (base) {
+    const diff = spawnSync(
+      "git",
+      ["diff", "--name-only", `${base}..HEAD`, "--"],
+      { encoding: "utf8", cwd: root }
+    );
+    if (diff.status !== 0) die(`bad --base ref: ${base}`);
+    const changed = new Set(diff.stdout.split("\n").filter(Boolean));
+    for (const t of tasks) {
+      const unchanged = t.files
+        .map((f) => f.path)
+        .filter((p) => !changed.has(p));
+      if (unchanged.length) {
+        failed = true;
+        console.log(`Task ${t.task}: UNCHANGED ${unchanged.join(", ")}`);
+      }
+    }
+
     const count = spawnSync(
       "git",
       ["rev-list", "--count", `${base}..HEAD`],

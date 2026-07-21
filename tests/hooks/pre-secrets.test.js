@@ -372,12 +372,12 @@ test('apply_patch touching .env.example is allowed', () => {
 const { spawnSync } = require('node:child_process');
 const SCRIPT = require('node:path').join(__dirname, '..', '..', 'hooks', 'pre-secrets.js');
 
-test('apply_patch on .env denies end-to-end (exit 2)', () => {
+test('apply_patch on .env denies end-to-end (deny JSON + exit 0)', () => {
   const payload = {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: .env\n+X=1\n*** End Patch' },
   };
   const res = spawnSync('node', [SCRIPT], { input: JSON.stringify(payload), encoding: 'utf-8' });
-  assert.equal(res.status, 2);
+  assert.equal(res.status, 0);
   assert.match(res.stdout + res.stderr, /permissionDecision|deny|secret|\.env/i);
 });

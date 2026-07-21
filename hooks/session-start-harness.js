@@ -5,16 +5,17 @@
 // session-start-harness.js — harness-flow skill bootloader
 // =============================================================================
 //
-// WHEN: Fires on Claude Code SessionStart events with matcher `startup|clear|compact`.
-//       This means: every fresh session, after `/clear`, and after context compaction.
+// WHEN: Fires on SessionStart events with matcher `startup|resume|clear|compact`.
+//       This means: every fresh or resumed session, after `/clear`, and after context compaction.
 //       Anytime the LLM context is "reset", this runs.
 //
 // WHAT: Reads skills/using-harness-flow/SKILL.md and emits it as `additionalContext`
-//       wrapped in <EXTREMELY_IMPORTANT> tags. Claude Code injects this string into
-//       the LLM's system prompt for the new session.
+//       wrapped in <EXTREMELY_IMPORTANT> tags. A compatible plugin runtime injects
+//       this string into the LLM's context for the new session.
 //
 // WHY:  harness-flow's core rule — "if there's even a 1% chance a skill applies,
-//       you MUST invoke it via the Skill tool" — cannot be left to LLM autonomy.
+//       you MUST load it with the platform-native skill mechanism" — cannot be
+//       left to LLM autonomy.
 //       The using-harness-flow skill is the meta-skill that teaches the LLM how to
 //       use the brainstorming → writing-plans → subagent-driven-development chain.
 //       It must be present in context at every session boundary, so we inject it here.
@@ -42,11 +43,11 @@ try {
 
 // The <EXTREMELY_IMPORTANT> wrapper signals to the LLM that this is a hard
 // behavioral rule, not optional guidance. The skill body itself contains the
-// "1% rule" enforcement language and the Skill tool usage instructions.
+// "1% rule" enforcement language and platform-native skill instructions.
 const sessionContext =
   '<EXTREMELY_IMPORTANT>\n' +
   'You have harness-flow.\n\n' +
-  "**Below is the full content of your 'harness-flow:using-harness-flow' skill — your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n" +
+  "**Below is the full content of your 'harness-flow:using-harness-flow' skill — your introduction to using skills. Load all other skills with the current harness's native skill mechanism:**\n\n" +
   skillContent +
   '\n</EXTREMELY_IMPORTANT>';
 

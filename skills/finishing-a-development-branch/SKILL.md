@@ -45,6 +45,8 @@ Stop. Don't proceed to Step 2.
 ```bash
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
+BRANCH=$(git branch --show-current)
+STATUS=$(git status --short)
 ```
 
 This determines which menu to show and how cleanup works:
@@ -53,13 +55,21 @@ This determines which menu to show and how cleanup works:
 | -------------------------------------- | ---------------------------- | ------------------------------- |
 | `GIT_DIR == GIT_COMMON` (normal repo)  | Standard 4 options           | No worktree to clean up         |
 | `GIT_DIR != GIT_COMMON`, named branch  | Standard 4 options           | Provenance-based (see Step 6)   |
-| `GIT_DIR != GIT_COMMON`, detached HEAD | Reduced 3 options (no merge) | No cleanup (externally managed) |
+| `GIT_DIR != GIT_COMMON`, detached HEAD | Host handoff, 2 options | No cleanup (externally managed) |
 
 ### Step 3: Determine Base Branch
 
 ```bash
-# Try common base branches
-git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
+# Resolve the branch name first; merge-base returns a SHA, not a branch name.
+BASE_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+if [ -z "$BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then
+  BASE_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null)
+fi
+if [ -z "$BASE_BRANCH" ]; then
+  git show-ref --verify --quiet refs/heads/main && BASE_BRANCH=main
+  [ -n "$BASE_BRANCH" ] || { git show-ref --verify --quiet refs/heads/master && BASE_BRANCH=master; }
+fi
+MERGE_BASE=$(git merge-base HEAD "$BASE_BRANCH")
 ```
 
 Or ask: "This branch split from main - is that correct?"
@@ -79,14 +89,13 @@ Implementation complete. What would you like to do?
 Which option?
 ```
 
-**Detached HEAD — present exactly these 3 options:**
+**Detached HEAD — present exactly these 2 options:**
 
 ```
 Implementation complete. You're on a detached HEAD (externally managed workspace).
 
-1. Push as new branch and create a Pull Request
-2. Keep as-is (I'll handle it later)
-3. Discard this work
+1. Preserve the commits and hand off via the host's **Create branch** or **Hand off to local** control
+2. Keep this detached workspace as-is
 
 Which option?
 ```
@@ -131,8 +140,8 @@ git branch -D <feature-branch>   # squash merge requires -D — git treats the
 #### Option 2: Push and Create PR
 
 ```bash
-# Push branch
-git push -u origin <feature-branch>
+# PR creator performs preflight, pushes if needed, and creates the PR.
+# Invoke harness-flow:pr-creator here; do not stop after a bare push.
 ```
 
 **Do NOT clean up worktree** — user needs it alive to iterate on PR feedback.
@@ -162,14 +171,26 @@ If confirmed:
 
 ```bash
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
-cd "$MAIN_ROOT"
 ```
 
-Then: Cleanup worktree (Step 6), then force-delete branch:
+If this is a linked worktree, run Step 6 from `MAIN_ROOT`, then delete the
+feature branch. If this is a normal checkout, first verify status is clean and
+switch to the resolved base branch before deleting the old branch:
 
 ```bash
+test -z "$(git status --short)" || { echo "working tree is dirty" >&2; exit 1; }
+cd "$MAIN_ROOT"
+git switch <base-branch>  # normal checkout only
 git branch -D <feature-branch>
 ```
+
+#### Detached HEAD choices
+
+Detached workspaces are externally managed. Choice 1 reports the current HEAD
+SHA, suggested branch name, and PR title/body, then tells the user to use the
+host's **Create branch** or **Hand off to local** control. Choice 2 preserves
+the workspace. Do not map these choices onto named-branch Options 1–4, do not
+delete commits, and do not remove the host-owned worktree.
 
 ### Step 6: Cleanup Workspace
 
@@ -183,7 +204,9 @@ WORKTREE_PATH=$(git rev-parse --show-toplevel)
 
 **If `GIT_DIR == GIT_COMMON`:** Normal repo, no worktree to clean up. Done.
 
-**If worktree path is under `.worktrees/` or `worktrees/`:** harness-flow created this worktree — we own cleanup.
+**If `.harness-flow/worktree-owner` contains `manual-git-worktree`, or the
+worktree path is under `.worktrees/` or `worktrees/`:** harness-flow created
+this worktree — we own cleanup. The marker covers the sibling-directory default.
 
 ```bash
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
@@ -213,7 +236,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 **Open-ended questions**
 
 - **Problem:** "What should I do next?" is ambiguous
-- **Fix:** Present exactly 4 structured options (or 3 for detached HEAD)
+- **Fix:** Present exactly 4 structured options (or 2 for detached HEAD)
 
 **Cleaning up worktree for Option 2**
 
@@ -233,7 +256,8 @@ git worktree prune  # Self-healing: clean up any stale registrations
 **Cleaning up harness-owned worktrees**
 
 - **Problem:** Removing a worktree the harness created causes phantom state
-- **Fix:** Only clean up worktrees under `.worktrees/` or `worktrees/`
+- **Fix:** Only clean up worktrees with the harness-flow ownership marker or
+  paths under `.worktrees/` or `worktrees/`
 
 **No confirmation for discard**
 
@@ -256,7 +280,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 - Verify tests before offering options
 - Detect environment before presenting menu
-- Present exactly 4 options (or 3 for detached HEAD)
+- Present exactly 4 options for named branches or 2 host-safe options for detached HEAD
 - Get typed confirmation for Option 4
 - Clean up worktree for Options 1 & 4 only
 - `cd` to main repo root before worktree removal

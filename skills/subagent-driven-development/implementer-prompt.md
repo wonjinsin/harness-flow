@@ -2,11 +2,11 @@
 
 Use this template when dispatching an implementer subagent.
 
-```
-Subagent (general-purpose):
+```text
+Claude Code Agent (general-purpose):
   description: "Implement Group N: [group name]"
-  model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
-         model silently inherits the session's most expensive one.
+  model: [MODEL — REQUIRED on model-selectable dispatches: choose per SKILL.md
+         Model Selection; an omitted selectable model inherits the session.
          e.g. haiku (cheap, plan has complete code),
          sonnet (standard, multi-file/integration)]
   prompt: |
@@ -155,3 +155,11 @@ Subagent (general-purpose):
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need
     information that wasn't provided. Never silently produce work you're unsure about.
 ```
+
+**Codex translation:** Select the advisory tier before dispatch: `cheap` for a
+complete mechanical brief, `standard` for integration or routine judgment, and
+`most capable` for broad or high-risk work. Ask Codex to use the least powerful
+model that fits, without claiming an exact-model guarantee. Direct `spawn_agent`
+does not accept per-call `model`, `profile`, or `agent_type`; omit those fields,
+use `task_name: "implement_group_N"`, pass the filled prompt as `message`, and set
+`fork_turns: "none"`.

@@ -13,9 +13,9 @@ Dispatch a code reviewer subagent to catch issues before they cascade. The revie
 
 **Mandatory:**
 
-- After each task in subagent-driven development
 - After completing major feature
 - Before merge to main
+- At the final whole-branch gate in subagent-driven development
 
 **Optional but valuable:**
 
@@ -25,16 +25,30 @@ Dispatch a code reviewer subagent to catch issues before they cascade. The revie
 
 ## How to Request
 
-**1. Get git SHAs:**
+**1. Get git SHAs and prepare one review artifact:**
+
+Resolve the directory containing this loaded `SKILL.md` as `REVIEW_SKILL_DIR` —
+the project CWD is not the skill directory. Then:
 
 ```bash
 BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
 HEAD_SHA=$(git rev-parse HEAD)
+
+"$REVIEW_SKILL_DIR/../subagent-driven-development/scripts/review-package" \
+  "$BASE_SHA" "$HEAD_SHA"
 ```
+
+The script prints `wrote <path>: N commit(s), M bytes`. Use the `<path>` it
+names as `{DIFF_FILE}` — do not pass the whole line.
 
 **2. Dispatch code reviewer subagent:**
 
-Use Task tool with `general-purpose` type, fill template at `code-reviewer.md`
+On Claude Code, use Task/Agent with `general-purpose` and fill `code-reviewer.md`.
+On Codex direct `spawn_agent`, use `task_name: "final_review"`, pass the filled
+template as `message`, and set `fork_turns: "none"`. Do not add unsupported
+`model`, `profile`, or `agent_type`. Select the advisory review tier from SDD's
+complexity rules and ask Codex to use the least powerful model that fits,
+without claiming an exact-model guarantee.
 
 **Placeholders:**
 
@@ -42,6 +56,7 @@ Use Task tool with `general-purpose` type, fill template at `code-reviewer.md`
 - `{PLAN_OR_REQUIREMENTS}` - What it should do
 - `{BASE_SHA}` - Starting commit
 - `{HEAD_SHA}` - Ending commit
+- `{DIFF_FILE}` - Absolute path printed by the review-package script
 
 **3. Act on feedback:**
 
@@ -81,9 +96,9 @@ You: [Fix progress indicators]
 
 **Subagent-Driven Development:**
 
-- Review after EACH task
-- Catch issues before they compound
-- Fix before moving to next task
+- SDD intentionally has no task/group-boundary reviewer.
+- Run one final whole-branch review after all groups and `plan-audit` pass.
+- The SDD skill's final-review loop owns fixes and verify-fix re-reviews.
 
 **Executing Plans:**
 
@@ -110,4 +125,4 @@ You: [Fix progress indicators]
 - Show code/tests that prove it works
 - Request clarification
 
-See template at: requesting-code-review/code-reviewer.md
+See template at: [code-reviewer.md](code-reviewer.md)

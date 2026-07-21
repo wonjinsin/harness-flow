@@ -2,16 +2,18 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|clear|compact",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-harness.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\session-start-harness.js\"",
             "async": false
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-caveman.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\session-start-caveman.js\"",
             "async": false
           }
         ]
@@ -24,6 +26,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-bash-commands.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-bash-commands.js\"",
             "async": false
           }
         ]
@@ -34,6 +37,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-secrets.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-secrets.js\"",
             "async": false
           }
         ]
@@ -44,11 +48,24 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-agent-model.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-agent-model.js\"",
             "async": false
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-plan-audit.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-plan-audit.js\"",
+            "async": false
+          }
+        ]
+      },
+      {
+        "matcher": "spawn_agent|collaboration.spawn_agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-plan-audit.js\"",
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\hooks\\pre-plan-audit.js\"",
             "async": false
           }
         ]

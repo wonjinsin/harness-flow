@@ -60,41 +60,82 @@ Only proceed to Step 1b if you have no native worktree tool available.
 
 **Only use this if Step 1a does not apply** — you have no native worktree tool available. Create a worktree manually using git.
 
+#### Branch Name
+
+Choose a deterministic branch name from the approved task, for example
+`feat/oauth-refresh` or `fix/codex-hook-deny`. Normalize to lowercase ASCII,
+replace unsafe runs with `-`, then validate before creating anything:
+
+```bash
+BRANCH_NAME="fix/codex-hook-deny"
+git check-ref-format --branch "$BRANCH_NAME"
+git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" && {
+  echo "branch already exists: $BRANCH_NAME" >&2
+  exit 1
+}
+```
+
+If task intent cannot produce an unambiguous name, ask the user. Never run
+`git worktree add` with an empty or unvalidated `BRANCH_NAME`.
+
 #### Directory Selection
 
-Follow this priority order. Explicit user preference always beats observed filesystem state.
+Follow this priority order. Explicit user preference always beats observed
+filesystem state. Whichever branch you land on, set both `LOCATION` (the
+selected directory) and `LOCATION_KIND` (`project-local` or `sibling`) — the
+create step below branches on `LOCATION_KIND`.
 
 1. **Check your instructions for a declared worktree directory preference.** If the user has already specified one, use it without asking.
 
-2. **Check for an existing project-local worktree directory:**
+2. **Check for an existing, ignored project-local worktree directory:**
    ```bash
    ls -d .worktrees 2>/dev/null     # Preferred (hidden)
    ls -d worktrees 2>/dev/null      # Alternative
    ```
-   If found, use it. If both exist, `.worktrees` wins.
+   A found directory is usable only when that exact selected path is ignored.
+   If both are usable, `.worktrees` wins. Set `LOCATION_KIND="project-local"`.
 
-3. **If there is no other guidance available**, default to `.worktrees/` at the project root.
+3. **If there is no other guidance available**, default to a sibling directory
+   outside the repository: `../<repo-name>-<branch-slug>`, where
+   `<branch-slug>` replaces `/` in the validated branch name with `-`. This
+   avoids changing the user's current branch merely to add a worktree ignore
+   rule. Set `LOCATION_KIND="sibling"`.
 
 #### Safety Verification (project-local directories only)
 
-**MUST verify directory is ignored before creating worktree:**
+**MUST verify the exact selected project-local directory is ignored:**
 
 ```bash
-git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/dev/null
+git check-ignore -q -- "$LOCATION"
 ```
 
-**If NOT ignored:** Add to .gitignore, commit the change, then proceed.
+**If NOT ignored:** Do not edit or commit `.gitignore` on the current branch.
+Choose the sibling-directory default instead, or ask the user for an explicit
+location.
 
 **Why critical:** Prevents accidentally committing worktree contents to repository.
 
 #### Create the Worktree
 
 ```bash
-# Determine path based on chosen location
-path="$LOCATION/$BRANCH_NAME"
+# Project-local LOCATION contains multiple worktrees; sibling LOCATION is the
+# complete target path. Resolve and verify the final path does not exist.
+if [ "$LOCATION_KIND" = "project-local" ]; then
+  path="$LOCATION/$BRANCH_NAME"
+else
+  path="$LOCATION"
+fi
+test ! -e "$path"
 
 git worktree add "$path" -b "$BRANCH_NAME"
 cd "$path"
+
+# Record manual-worktree ownership in a self-ignored marker. The finishing
+# skill uses this marker to clean up sibling worktrees without touching
+# host-managed workspaces.
+mkdir -p .harness-flow
+printf '*\n' > .harness-flow/.gitignore
+printf 'manual-git-worktree\n' > .harness-flow/worktree-owner
 ```
 
 **Sandbox fallback:** If `git worktree add` fails with a permission error (sandbox denial), tell the user the sandbox blocked worktree creation and you're working in the current directory instead. Then run setup and baseline tests in place.
@@ -150,8 +191,8 @@ Ready to implement <feature-name>
 | `.worktrees/` exists | Use it (verify ignored) |
 | `worktrees/` exists | Use it (verify ignored) |
 | Both exist | Use `.worktrees/` |
-| Neither exists | Check instruction file, then default `.worktrees/` |
-| Directory not ignored | Add to .gitignore + commit |
+| Neither exists | Default to sibling path outside repository |
+| Selected directory not ignored | Use sibling path; do not edit current branch |
 | Permission error on create | Sandbox fallback, work in place |
 | Tests fail during baseline | Report failures + ask |
 | No package.json/Cargo.toml | Skip dependency install |
@@ -176,7 +217,7 @@ Ready to implement <feature-name>
 ### Assuming directory location
 
 - **Problem:** Creates inconsistency, violates project conventions
-- **Fix:** Follow priority: explicit instructions > existing project-local directory > default
+- **Fix:** Follow priority: explicit instructions > ignored project-local directory > sibling default
 
 ### Proceeding with failing tests
 
@@ -189,14 +230,15 @@ Ready to implement <feature-name>
 - Create a worktree when Step 0 detects existing isolation
 - Use `git worktree add` when you have a native worktree tool (e.g., `EnterWorktree`). This is the #1 mistake — if you have it, use it.
 - Skip Step 1a by jumping straight to Step 1b's git commands
-- Create worktree without verifying it's ignored (project-local)
+- Create a project-local worktree without checking the exact selected path
+- Use an empty, invalid, or already-existing branch name
 - Skip baseline test verification
 - Proceed with failing tests without asking
 
 **Always:**
 - Run Step 0 detection first
 - Prefer native tools over git fallback
-- Follow directory priority: explicit instructions > existing project-local directory > default
+- Follow directory priority: explicit instructions > ignored project-local directory > sibling default
 - Verify directory is ignored for project-local
 - Auto-detect and run project setup
 - Verify clean test baseline

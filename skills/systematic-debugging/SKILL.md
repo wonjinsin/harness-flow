@@ -216,7 +216,14 @@ You MUST complete each phase before proceeding to the next.
 
 Once the fix is verified and the bug is resolved:
 
-1. **If the session surfaced a reusable lesson** — a correction, an anti-pattern ("don't do X"), a rule, or a non-obvious external fact — invoke the `harness-flow:claude-md-revise` skill to surface it as a CLAUDE.md candidate. Debugging sessions are a common source of anti-patterns, so check. This is **conditional**: skip it when the fix taught nothing worth persisting (`claude-md-revise`'s own triggers decide). Do this *before* finalizing the branch, so any approved edit lands with the fix.
+1. **If the session surfaced a reusable lesson** — a correction, an anti-pattern
+   ("don't do X"), a rule, or a non-obvious external fact — invoke
+   `harness-flow:claude-md-revise`. On Claude Code it surfaces `CLAUDE.md`
+   candidates; on Codex it surfaces root/nested `AGENTS.md` candidates.
+   Debugging sessions are a common source of anti-patterns, so check. This is
+   **conditional**: skip it when the fix taught nothing worth persisting
+   (`claude-md-revise`'s own triggers decide). Do this *before* finalizing the
+   branch, so any approved edit lands with the fix.
 2. Then proceed to `harness-flow:finishing-a-development-branch` to integrate the work.
 
 ## Red Flags - STOP and Follow Process
@@ -292,7 +299,7 @@ These techniques are part of systematic debugging and available in this director
 
 **Related skills:**
 - **harness-flow:test-driven-development** - For creating failing test case (Phase 4, Step 1)
-- **harness-flow:claude-md-revise** - After the fix, surface any reusable lesson (anti-pattern, rule, fact) to CLAUDE.md (conditional)
+- **harness-flow:claude-md-revise** - After the fix, surface reusable lessons to `CLAUDE.md` on Claude Code or `AGENTS.md` on Codex (conditional)
 - **harness-flow:finishing-a-development-branch** - Integrate the work once the fix is verified
 
 ## Real-World Impact

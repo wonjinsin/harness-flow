@@ -4,8 +4,8 @@ Use this template when dispatching a code reviewer subagent.
 
 **Purpose:** Review completed work against requirements and code quality standards before it cascades into more work.
 
-````
-Task tool (general-purpose):
+````text
+Claude Code Task/Agent (general-purpose):
   description: "Review code changes"
   prompt: |
     You are a Senior Code Reviewer with expertise in software architecture,
@@ -25,10 +25,11 @@ Task tool (general-purpose):
     **Base:** {BASE_SHA}
     **Head:** {HEAD_SHA}
 
-    ```bash
-    git diff --stat {BASE_SHA}..{HEAD_SHA}
-    git diff {BASE_SHA}..{HEAD_SHA}
-    ```
+    **Diff file:** {DIFF_FILE}
+
+    Read the diff file once. It contains the commit list, stat summary, and
+    full diff. Do not re-run git commands unless the file is missing; if it is
+    missing, report that as a blocking review-input error.
 
     ## What to Check
 
@@ -121,12 +122,20 @@ Task tool (general-purpose):
     - Avoid giving a clear verdict
 ````
 
+**Codex translation:** Select the advisory review tier from the supplied scope
+and SDD complexity rules, then ask Codex to use the least powerful model that
+fits without claiming an exact-model guarantee. For direct `spawn_agent`, omit
+unsupported `model`, `profile`, and `agent_type` fields, use
+`task_name: "final_review"`, pass the filled `prompt` as `message`, and set
+`fork_turns: "none"`.
+
 **Placeholders:**
 
 - `{DESCRIPTION}` — brief summary of what was built
 - `{PLAN_OR_REQUIREMENTS}` — what it should do (plan file path, task text, or requirements)
 - `{BASE_SHA}` — starting commit
 - `{HEAD_SHA}` — ending commit
+- `{DIFF_FILE}` — absolute path to the prepared review package
 
 **Reviewer returns:** Strengths, Issues (Critical / Important / Minor), Recommendations, Assessment
 

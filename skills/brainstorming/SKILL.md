@@ -25,7 +25,10 @@ You MUST create a task for each of these items and complete them in order:
 2. **Grill on decisions** — one at a time with your recommended answer; walk the decision tree depth-first, resolving dependencies before branching
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
 4. **Present design** — in sections scaled to their complexity, get user approval after each section
-5. **Set up isolated worktree** — once the design is approved and BEFORE writing any file to disk, invoke the `using-git-worktrees` skill. The spec, plan, and all subsequent implementation must live inside this worktree.
+5. **Set up isolated worktree** — once the design is approved and BEFORE writing
+   any file to disk, invoke `using-git-worktrees`. The spec, plan, and subsequent
+   implementation live there unless the user explicitly declines isolation; an
+   explicit decline authorizes the in-place fallback documented by that skill.
 6. **Write design doc** — save to `docs/harness-flow/specs/YYYY-MM-DD-<topic>-design.md` (inside the worktree) and commit
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** — ask user to review the spec file before proceeding

@@ -5,7 +5,7 @@
 // session-start-caveman.js — caveman mode bootloader
 // =============================================================================
 //
-// WHEN: Fires on Claude Code SessionStart events with matcher `startup|clear|compact`.
+// WHEN: Fires on SessionStart events with matcher `startup|resume|clear|compact`.
 //       This means: every fresh session, after `/clear`, and after context compaction.
 //       Anytime the LLM context is "reset", this runs.
 //

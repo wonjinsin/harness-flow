@@ -15,7 +15,7 @@ Skills live under `skills/`. Each is a `SKILL.md` with a `name` and
 ## Codex users
 
 Skills use Claude Code tool names. Translations for Codex tools
-(`spawn_agent`, `apply_patch`, subagent profiles, model tiering) live in
+(`spawn_agent`, `apply_patch`, fresh-context dispatch, advisory model tiering) live in
 `skills/using-harness-flow/references/codex-tools.md`. Read it before
 executing skills that dispatch subagents or edit files.
 

@@ -15,9 +15,9 @@ function runWith(toolName, toolInput, env = {}) {
   });
 }
 
-test('blocks SDD implementer dispatch without model (JSON deny + exit 2)', () => {
+test('blocks SDD implementer dispatch without model (JSON deny + exit 0)', () => {
   const r = runWith('Agent', { description: 'Implement Task 1: add guard', prompt: 'x' });
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
@@ -36,7 +36,7 @@ test('deny systemMessage steers to the tier -> alias mapping', () => {
 
 test('Task alias also fires the guard', () => {
   const r = runWith('Task', { description: 'Implement Task 3: refactor' });
-  assert.equal(r.status, 2);
+  assert.equal(r.status, 0);
   assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /^\[sdd-model-required\]/);
 });
 

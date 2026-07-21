@@ -8,12 +8,12 @@ the whole branch; the final review already did.
 **Purpose:** Verify a fix wave resolved the final review's open findings
 without introducing new defects.
 
-```
-Subagent (general-purpose):
+```text
+Claude Code Agent (general-purpose):
   description: "Verify fix wave (final re-review)"
-  model: [MODEL — REQUIRED: reviewer floor is mid-tier: sonnet for a
-         routine fix diff, opus for a subtle/high-risk one. An omitted
-         model inherits the session's model — state your choice.]
+  model: [MODEL — REQUIRED on model-selectable dispatches: reviewer floor is
+         mid-tier: sonnet for a routine fix diff, opus for a subtle/high-risk
+         one. State the choice.]
   prompt: |
     You are verifying a fix wave against the open findings from the final
     whole-branch review. This is a fix-scoped gate: judge the open
@@ -103,15 +103,25 @@ Subagent (general-purpose):
     **Reasoning:** [1-2 sentence technical assessment]
 ```
 
+**Codex translation:** Select the advisory review tier before dispatch:
+`standard` for a routine fix diff and `most capable` for subtle or high-risk
+work. Ask Codex to use the least powerful model that fits, without claiming an
+exact-model guarantee. Direct `spawn_agent` does not accept per-call `model`,
+`profile`, or `agent_type`; omit those fields, use a unique `task_name`, pass the
+filled prompt as `message`, and set `fork_turns: "none"`.
+
 **Placeholders:**
 
-- `[MODEL]` — REQUIRED: per SKILL.md Model Selection (reviewer floor sonnet)
+- `[MODEL]` — required only on a model-selectable dispatch; follow SKILL.md
+  Model Selection (reviewer floor sonnet). Omit on Codex direct `spawn_agent`.
 - `[OPEN_FINDINGS]` — REQUIRED: the still-open findings, verbatim
-- `[BRIEF_PATHS]` — the group brief files (`scripts/task-brief PLAN N` printed these during execution)
+- `[BRIEF_PATHS]` — the group brief files (the absolute
+  `$SDD_SKILL_DIR/scripts/task-brief PLAN N` command printed these during execution)
 - `[GLOBAL_CONSTRAINTS]` — binding requirements copied verbatim from the plan's Global Constraints or the spec
 - `[FIX_BASE_SHA]` — HEAD recorded immediately before dispatching the fixer
 - `[HEAD_SHA]` — current commit
-- `[DIFF_FILE]` — REQUIRED: `scripts/review-package FIX_BASE HEAD` printed path
+- `[DIFF_FILE]` — REQUIRED: the path printed by the absolute
+  `$SDD_SKILL_DIR/scripts/review-package FIX_BASE HEAD` command
 
 Each verify-fix dispatch increments `final: reviewCycles` in the progress
 ledger — the 3-re-review cap lives in SKILL.md (Final Review Loop).

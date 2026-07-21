@@ -15,7 +15,10 @@ You write test cases (pressure scenarios with subagents), watch them fail (basel
 
 **Core principle:** If you didn't watch an agent fail without the skill, you don't know if the skill teaches the right thing.
 
-**REQUIRED BACKGROUND:** You MUST read references/test-driven-development/SKILL.md before using this skill. That document defines the fundamental RED-GREEN-REFACTOR cycle. This skill adapts TDD to documentation.
+**REQUIRED BACKGROUND:** You MUST read `../test-driven-development/SKILL.md`
+before using this skill. That canonical skill defines the fundamental
+RED-GREEN-REFACTOR cycle. Do not keep a nested `SKILL.md` copy under references;
+Codex recursively discovers it as a duplicate skill.
 
 **Official guidance:** For Anthropic's official skill authoring best practices, see anthropic-best-practices.md. This document provides additional patterns and guidelines that complement the TDD-focused approach in this skill.
 
@@ -318,7 +321,7 @@ digraph when_flowchart {
 - Linear instructions → Numbered lists
 - Labels without semantic meaning (step1, helper2)
 
-See @graphviz-conventions.dot for graphviz style rules.
+See [graphviz-conventions.dot](graphviz-conventions.dot) for graphviz style rules.
 
 **Visualizing for your human partner:** Use `render-graphs.js` in this directory to render a skill's flowcharts to SVG:
 
@@ -406,7 +409,9 @@ Edit skill without testing? Same violation.
 - Don't "adapt" while running tests
 - Delete means delete
 
-**REQUIRED BACKGROUND:** Read references/test-driven-development/SKILL.md — it explains why this matters. Same principles apply to documentation.
+**REQUIRED BACKGROUND:** Read
+[`../test-driven-development/SKILL.md`](../test-driven-development/SKILL.md) —
+it explains why this matters. Same principles apply to documentation.
 
 ## Testing All Skill Types
 
@@ -605,7 +610,9 @@ Full pressure-scenario runs are the final gate, but they are slow and expensive 
 
 Micro-tests verify wording; they do not replace pressure scenarios for discipline skills.
 
-**Testing methodology:** See @testing-skills-with-subagents.md for the complete testing methodology:
+**Testing methodology:** See
+[testing-skills-with-subagents.md](testing-skills-with-subagents.md) for the
+complete testing methodology:
 
 - How to write pressure scenarios
 - Pressure types (time, sunk cost, authority, exhaustion)
