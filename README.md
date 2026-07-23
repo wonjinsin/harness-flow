@@ -53,6 +53,12 @@ The chain routes by request type (no tier classifier): code work → `brainstorm
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
 
+> **The chain is a convention, not an enforced gate.** When a request leaves no
+> decisions open — e.g. a behavior-preserving restructure like moving folders or
+> renaming files — the agent may skip `brainstorming` and TDD and execute
+> directly. This is intended: forcing dialogue and Red→Green onto mechanical
+> work only burns tokens.
+
 ### Output locations
 
 Skills create artifacts lazily inside the active worktree (not the repo root):
