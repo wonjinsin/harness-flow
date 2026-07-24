@@ -42,7 +42,13 @@ propose, don't write).
 ### Step 1 — Gather inputs
 
 1. **Current session context** — primary source.
-2. **Transcript fallback** — only a documented, harness-owned transcript pointer.
+2. **Branch diff** — `git diff <base>...HEAD` (or the harness's changed-files view),
+   scanned as a memory aid: hunks embodying a workaround, an external quirk, or a
+   constraint discovered while coding point at candidates the dialogue never
+   mentioned. The candidate is the *why* behind the change when the code can't
+   tell it — its scope is wider than the touched file, or a code comment doesn't
+   capture it — never the code change itself.
+3. **Transcript fallback** — only a documented, harness-owned transcript pointer.
    - Codex: prefer current context and ledger files. Raw `~/.codex` transcript
      formats are unstable; do not scan them by guessed path.
    - Claude Code: if context compacted, the original messages may be on disk:
@@ -52,7 +58,7 @@ propose, don't write).
      ```
      Read the most-recent JSONL; filter to `type == "user"`/`"assistant"` (internal
      types like `attachment`, `system`, `file-history-snapshot` are interleaved).
-3. **Existing project instructions** — read the active platform's files to skip
+4. **Existing project instructions** — read the active platform's files to skip
    already-covered candidates: every `AGENTS.md`/`CLAUDE.md` from `pwd` up to repo
    root, plus touched-subdir files and project `.claude/rules/*.md`. Anything under
    `~/.claude/` is user-owned — read to avoid restating, never write; propose instead.
