@@ -73,7 +73,7 @@ flowchart LR
 
     IMPL --> RCR
     TDD -- "non-trivial diff" --> RCR
-    TDD -- "trivial diff" --> FIN
+    TDD -- "trivial diff (self-review)" --> FIN
     RCR -- "fix Critical /<br/>Important" --> FIN
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238

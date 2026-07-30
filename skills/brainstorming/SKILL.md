@@ -27,7 +27,7 @@ the gate; there is no separate approval loop.
 
 - Small / clear → "I'll implement this directly with TDD. OK?" → test-driven-development.
   This path skips the plan, so after the last commit measure the finished diff
-  (`git diff <base>..HEAD`) and close accordingly:
+  (`git diff <base>...HEAD`) and close accordingly:
   - Trivial diff — a few lines in one file, touching no contract, dependency, or
     security surface → self-review it for correctness and scope creep, then finish.
   - Anything larger → dispatch a fresh-context review via requesting-code-review
