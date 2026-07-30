@@ -25,8 +25,20 @@ Claude Code Task/Agent (general-purpose):
     **Base:** {BASE_SHA}
     **Head:** {HEAD_SHA}
 
-    Run `git log {BASE_SHA}..{HEAD_SHA}` and `git diff {BASE_SHA}..{HEAD_SHA}`
-    to read the commits and full diff for this range. Review only this range.
+    Run `git log {BASE_SHA}..{HEAD_SHA}` once, then `git diff -U10 {BASE_SHA}..{HEAD_SHA}`
+    once. That output is your review package. Review only this range.
+
+    **Read scope.** The diff's context lines ARE the changed files: Read a
+    changed file separately only when a hunk is cut off mid-function and you
+    need the rest to judge it. Do not re-run git commands you have already run.
+    Do not crawl the broader codebase. Inspect code outside the diff only to
+    evaluate a concrete risk you can name (a lock order, an API contract,
+    shared mutable state) — one focused check per named risk.
+
+    **Tests.** The implementer already ran the tests; do not re-run the suite
+    to confirm their report. If you must run a test to settle a specific doubt,
+    run one focused test. If heavier validation seems warranted, recommend it
+    in your report instead of running it.
 
     ## What to Check
 
@@ -81,8 +93,12 @@ Claude Code Task/Agent (general-purpose):
 
     ## Output Format
 
+    Your final message is the report itself: begin directly with `### Strengths`.
+    Every line is a finding with file:line, a verdict, or a check you ran — no
+    preamble, no process narration, no closing summary after the Assessment.
+
     ### Strengths
-    [What's well done? Be specific.]
+    [What's well done? 2-3 bullets, specific.]
 
     ### Issues
 
@@ -106,7 +122,8 @@ Claude Code Task/Agent (general-purpose):
       no implementation of it can be correct (state the plan text at fault).
 
     ### Recommendations
-    [Improvements for code quality, architecture, or process]
+    [Improvements for code quality, architecture, or process. Omit this
+    section if you have none.]
 
     ### Assessment
 
