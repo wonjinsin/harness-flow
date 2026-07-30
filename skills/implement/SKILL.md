@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Use when executing an approved implementation plan or spec in the current session.
+description: Use when executing an approved implementation plan or spec in the current session. Triggers on "execute/run this plan", "implement the plan/spec", or a plan file being handed over for execution.
 ---
 
 # Implement

@@ -17,6 +17,8 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
 
 - Build / feature / refactor / script → brainstorming
 - Bug / test failure / unexpected behavior → systematic-debugging
+- Explicit ask for a specific artifact (an implementation plan, a spec, a code
+  review) → that skill directly; it recovers its own missing inputs
 
 Skills use harness-neutral wording — map any generic mechanism (skill loading,
 task tracking, subagent dispatch) to your harness's native tool.

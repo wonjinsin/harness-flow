@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have an approved spec or agreed large design for a multi-step task, before touching code.
+description: Use when you have an approved spec or agreed large design for a multi-step task, before touching code. Also use when the user explicitly asks for an implementation plan ("write a plan", "plan this out").
 ---
 
 # Writing Plans
@@ -8,6 +8,10 @@ description: Use when you have an approved spec or agreed large design for a mul
 Turn an approved design into a plan the implementing session can follow. A plan is
 a list of **tracer-bullet tasks** — vertical slices, each a complete path through
 every layer it touches, verifiable on its own.
+
+**Input:** an approved spec, or the design agreed in the current conversation.
+When the user asks for a plan directly and key decisions are still open, don't
+plan around them — ask the 1–2 questions that settle them first, then plan.
 
 **Context:** work in an isolated workspace — invoke `using-git-worktrees` first if
 not already in one. Save to `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.

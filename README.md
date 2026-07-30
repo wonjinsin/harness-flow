@@ -37,7 +37,7 @@ After analyzing peer Claude Code harnesses ([`design/2026-05-05-comparison.md`](
 
 ## Skill chain — the order work flows in
 
-The chain routes by request type (no tier classifier): code work → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below).
+The chain routes by request type (no tier classifier): code work → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
