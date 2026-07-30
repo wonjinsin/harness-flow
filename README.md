@@ -39,10 +39,64 @@ After analyzing peer Claude Code harnesses ([`design/2026-05-05-comparison.md`](
 
 The chain routes by request type (no tier classifier): code work → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below).
 
+```mermaid
+flowchart LR
+    subgraph DESIGN [design]
+        direction LR
+        BS(["brainstorming"])
+        SPEC(["spec"])
+        WP(["writing-plans"])
+        BS -- "large /<br/>ambiguous" --> SPEC --> WP
+    end
+
+    subgraph BUILD [build]
+        direction LR
+        TDD(["test-driven-development"])
+        IMPL(["implement"])
+    end
+
+    subgraph SHIP [review & ship]
+        direction LR
+        RCR(["requesting-code-review"])
+        LMR(["llm-md-revise"])
+        FIN(["finishing-a-development-branch"])
+        RCR -. "durable<br/>learnings" .-> LMR -.-> FIN
+    end
+
+    REQ(["user request"]) --> UHF(["using-harness-flow"])
+    UHF -- "feature / refactor" --> BS
+    UHF -- "bug / test failure" --> SD(["systematic-debugging"])
+
+    BS -- "small / clear" --> TDD
+    WP --> IMPL
+    SD -- "root cause →<br/>failing test" --> TDD
+
+    IMPL --> RCR
+    TDD -- "non-trivial diff" --> RCR
+    TDD -- "trivial diff" --> FIN
+    RCR -- "fix Critical /<br/>Important" --> FIN
+
+    classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
+    classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
+    classDef build fill:#e8f5e9,stroke:#81c784,color:#1b5e20
+    classDef ship fill:#fff3e0,stroke:#ffb74d,color:#e65100
+    classDef debug fill:#ffebee,stroke:#e57373,color:#b71c1c
+
+    class REQ,UHF entry
+    class BS,SPEC,WP design
+    class TDD,IMPL build
+    class RCR,LMR,FIN ship
+    class SD debug
+
+    style DESIGN fill:none,stroke:#64b5f6,stroke-dasharray:4 4
+    style BUILD fill:none,stroke:#81c784,stroke-dasharray:4 4
+    style SHIP fill:none,stroke:#ffb74d,stroke-dasharray:4 4
+```
+
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
-2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD; large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
-   - 2-1. **using-git-worktrees** — isolates the workspace. Detects existing worktrees → prefers native tools → falls back to manual `git worktree add`.
+2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD, then close by the measured diff (trivial → self-review; anything larger → one fresh-context review via `requesting-code-review`); large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
+   - 2-1. **using-git-worktrees** — isolates the workspace. Not tied to the spec: required before `writing-plans` on the large exit, optional on any other path (asks before creating; declining means working in place). Detects existing isolation → prefers native tools → falls back to manual `git worktree add`.
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 

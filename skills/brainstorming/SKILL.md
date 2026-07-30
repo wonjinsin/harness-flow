@@ -26,9 +26,13 @@ Once the approach is agreed, recommend an exit and confirm. The user's "ok" is
 the gate; there is no separate approval loop.
 
 - Small / clear → "I'll implement this directly with TDD. OK?" → test-driven-development.
-  This path skips the plan and the final whole-branch review, so after the last
-  commit self-review the full diff (`git diff <base>..HEAD`) for correctness and
-  scope creep before finishing.
+  This path skips the plan, so after the last commit measure the finished diff
+  (`git diff <base>..HEAD`) and close accordingly:
+  - Trivial diff — a few lines in one file, touching no contract, dependency, or
+    security surface → self-review it for correctness and scope creep, then finish.
+  - Anything larger → dispatch a fresh-context review via requesting-code-review
+    over the branch (most capable model); fix Critical/Important findings before
+    finishing.
 - Large / ambiguous / spans sessions → "Big enough to write down — I'll save a
   spec, then a plan. OK?" → write the spec below, then writing-plans.
 
