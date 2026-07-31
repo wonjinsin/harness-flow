@@ -16,6 +16,8 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
 ## Routing
 
 - Build / feature / refactor / script → brainstorming
+- Stated intent or desire to change code, or investigating whether code should
+  change ("check if X needs updating", "compare to decide") → brainstorming
 - Bug / test failure / unexpected behavior → systematic-debugging
 - Explicit ask for a specific artifact (an implementation plan, a spec, a code
   review) → that skill directly; it recovers its own missing inputs
