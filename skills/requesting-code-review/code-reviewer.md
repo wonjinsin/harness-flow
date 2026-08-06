@@ -7,7 +7,7 @@ Use this template when dispatching a code reviewer subagent.
 ````text
 Claude Code Task/Agent (general-purpose):
   description: "Review code changes"
-  model: sonnet   # mid-tier; do not inherit the session's top-tier model
+  model: sonnet   # mid-tier — substitute your harness's mid tier (Claude Code: sonnet; Codex: its equivalent); never the session's top-tier model
   prompt: |
     You are a Senior Code Reviewer with expertise in software architecture,
     design patterns, and best practices. Your job is to review completed work
@@ -159,8 +159,8 @@ Claude Code Task/Agent (general-purpose):
 
 **Codex translation:** for direct `spawn_agent`, omit unsupported `model`,
 `profile`, and `agent_type` fields, use `task_name: "final_review"`, pass the
-filled `prompt` as `message`, and set `fork_turns: "none"`. Ask for a mid-tier
-model without claiming an exact-model guarantee.
+filled `prompt` as `message`, and set `fork_turns: "none"`. Ask for the
+harness's mid-tier model without claiming an exact-model guarantee.
 
 **Placeholders:**
 
