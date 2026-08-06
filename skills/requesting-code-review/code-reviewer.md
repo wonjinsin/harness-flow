@@ -54,6 +54,10 @@ Claude Code Task/Agent (general-purpose):
     - Type safety where applicable?
     - DRY without premature abstraction?
     - Edge cases handled?
+    - Comments carry only what the code cannot say? A comment that narrates
+      process — discussion/plan/review references, prior versions, restating the
+      adjacent code — is an **Important** finding even when the narrative is
+      accurate; the fix is to delete it or compress it to the technical fact.
 
     **Architecture:**
     - Sound design decisions?

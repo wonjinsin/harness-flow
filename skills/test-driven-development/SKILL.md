@@ -48,6 +48,13 @@ behavior.
 Test behavior through public interfaces, not internals — a test that breaks on a
 refactor when behavior did not change is testing the wrong thing.
 
+## Comments
+
+Write code that reads without comments. A comment states a current fact the
+code cannot: a non-obvious invariant, an external constraint, a domain rule —
+one terse line. Design alternatives, prior versions, review history, and
+deferred ideas belong in the commit message, not in code.
+
 ## When stuck
 
 Test pain is usually a design signal:

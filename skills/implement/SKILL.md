@@ -34,7 +34,9 @@ general-purpose subagent for that task:
 
 - Pass the plan's task section as its prompt inline (no brief files, no ledger).
 - Give it the files to touch, the interfaces it must honor (derive these from the
-  plan and the codebase — the plan does not pre-compute them), and "TDD, one commit."
+  plan and the codebase — the plan does not pre-compute them), and "TDD, one commit;
+  comments state only what the code cannot — design history belongs in the commit
+  message, not in code."
 - When it returns, verify its commit landed on the feature branch before continuing.
 
 **Pick a model tier for the dispatch — and set it explicitly.** Use the least
