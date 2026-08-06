@@ -9,7 +9,7 @@
     {
       "name": "harness-flow",
       "description": "Personal skills library for Claude Code: TDD, worktree workflows, fresh-context code review, and battle-tested engineering patterns",
-      "version": "2.0.4",
+      "version": "2.0.5",
       "source": "./",
       "author": {
         "name": "wonjinsin",
