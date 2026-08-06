@@ -31,7 +31,7 @@ the gate; there is no separate approval loop.
   - Trivial diff — a few lines in one file, touching no contract, dependency, or
     security surface → self-review it for correctness and scope creep, then finish.
   - Anything larger → dispatch a fresh-context review via requesting-code-review
-    over the branch (most capable model); fix Critical/Important findings before
+    over the branch (mid-tier model); fix Critical/Important findings before
     finishing.
 - Large / ambiguous / spans sessions → "Big enough to write down — I'll save a
   spec, then a plan. OK?" → write the spec below, then writing-plans.

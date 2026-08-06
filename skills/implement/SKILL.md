@@ -63,9 +63,9 @@ and implement it before reviewing. Do not run the final review on a partial bran
 ## Always: one final review
 
 After all tasks are done, dispatch a fresh-context reviewer via
-`requesting-code-review` over the whole branch, on the most capable available model
-(the final review is the one place that cost is worth it). Route its findings by the
-reviewer's `class` tag:
+`requesting-code-review` over the whole branch, on a mid-tier model (measured:
+with the template's severity floor it holds at large-diff scale — the top-tier
+premium buys nothing here). Route its findings by the reviewer's `class` tag:
 
 - The plan/spec itself is wrong → stop and escalate to the human.
 - Implementation defects → fix them (inline, or one fix subagent), then re-review.

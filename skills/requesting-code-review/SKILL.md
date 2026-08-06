@@ -24,13 +24,16 @@ BASE_SHA=$(git rev-parse origin/main)   # or the branch point
 HEAD_SHA=$(git rev-parse HEAD)
 ```
 
-**2. Dispatch the reviewer.** Fill `code-reviewer.md` and dispatch on the most
-capable available model (a review is the one place that cost is worth it):
+**2. Dispatch the reviewer.** Fill `code-reviewer.md` and dispatch on a
+mid-tier model — measured: paired with the template's severity floor it catches
+discovery-class defects at large-diff scale, so the top-tier premium buys
+nothing here. Do not compensate with confidence filters or finding suppression;
+cost control lives in model tier and output shape, not in dropped findings.
 
-- **Claude Code:** Task/Agent with `general-purpose`.
+- **Claude Code:** Task/Agent with `general-purpose`, `model: sonnet`.
 - **Codex:** direct `spawn_agent` with `task_name: "final_review"`, the filled
   template as `message`, and `fork_turns: "none"`. Omit unsupported `model` /
-  `profile` / `agent_type`; ask for the most capable model without claiming an
+  `profile` / `agent_type`; ask for a mid-tier model without claiming an
   exact-model guarantee.
 
 Placeholders: `{DESCRIPTION}` (what you built), `{PLAN_OR_REQUIREMENTS}` (what it

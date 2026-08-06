@@ -102,7 +102,7 @@ flowchart LR
 
 4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check before the final review, then reviews the whole branch once in a fresh context at the end.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — the template used for the final whole-branch review (most-capable model, severity-floor calibration). The reviewer runs `git diff BASE..HEAD` directly.
+   - 4-2. **requesting-code-review** — the template used for the final whole-branch review (mid-tier model, severity-floor calibration). The reviewer runs `git diff BASE..HEAD` directly.
    - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.

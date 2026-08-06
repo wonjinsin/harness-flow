@@ -7,6 +7,7 @@ Use this template when dispatching a code reviewer subagent.
 ````text
 Claude Code Task/Agent (general-purpose):
   description: "Review code changes"
+  model: sonnet   # mid-tier; do not inherit the session's top-tier model
   prompt: |
     You are a Senior Code Reviewer with expertise in software architecture,
     design patterns, and best practices. Your job is to review completed work
@@ -97,6 +98,10 @@ Claude Code Task/Agent (general-purpose):
     Every line is a finding with file:line, a verdict, or a check you ran — no
     preamble, no process narration, no closing summary after the Assessment.
 
+    Keep it terse: at most 3 Strengths bullets, and at most 5 lines per finding.
+    There is no cap on the NUMBER of findings — report every issue you see;
+    compress the wording, never the list.
+
     ### Strengths
     [What's well done? 2-3 bullets, specific.]
 
@@ -150,8 +155,8 @@ Claude Code Task/Agent (general-purpose):
 
 **Codex translation:** for direct `spawn_agent`, omit unsupported `model`,
 `profile`, and `agent_type` fields, use `task_name: "final_review"`, pass the
-filled `prompt` as `message`, and set `fork_turns: "none"`. Ask for the most
-capable model without claiming an exact-model guarantee.
+filled `prompt` as `message`, and set `fork_turns: "none"`. Ask for a mid-tier
+model without claiming an exact-model guarantee.
 
 **Placeholders:**
 
@@ -161,41 +166,3 @@ capable model without claiming an exact-model guarantee.
 - `{HEAD_SHA}` — ending commit
 
 **Reviewer returns:** Strengths, Issues (Critical / Important / Minor), Recommendations, Assessment
-
-## Example Output
-
-```
-### Strengths
-- Clean database schema with proper migrations (db.ts:15-42)
-- Comprehensive test coverage (18 tests, all edge cases)
-- Good error handling with fallbacks (summarizer.ts:85-92)
-
-### Issues
-
-#### Important
-1. **Missing help text in CLI wrapper**
-   - File: index-conversations:1-31
-   - Issue: No --help flag, users won't discover --concurrency
-   - Fix: Add --help case with usage examples
-
-2. **Date validation missing**
-   - File: search.ts:25-27
-   - Issue: Invalid dates silently return no results
-   - Fix: Validate ISO format, throw error with example
-
-#### Minor
-1. **Progress indicators**
-   - File: indexer.ts:130
-   - Issue: No "X of Y" counter for long operations
-   - Impact: Users don't know how long to wait
-
-### Recommendations
-- Add progress reporting for user experience
-- Consider config file for excluded projects (portability)
-
-### Assessment
-
-**Ready to merge: With fixes**
-
-**Reasoning:** Core implementation is solid with good architecture and tests. Important issues (help text, date validation) are easily fixed and don't affect core functionality.
-```
