@@ -1,13 +1,21 @@
 ---
 name: brainstorming
-description: "Use BEFORE writing or changing code for a feature, fix, refactor, or script. Triggers on \"add X\", \"build/make/create X\", \"change how X works\", \"let's refactor Y\", \"a new endpoint/page/component\", \"a quick script to X\", or any request to modify existing behavior. Do NOT use for diagnosing a bug or test failure (use systematic-debugging), or when an approved spec/plan already exists (use writing-plans)."
+description: "Use BEFORE writing or changing code for a feature, fix, refactor, or script, and when the user asks to research, investigate, compare, analyze, or report on an in-scope codebase, repository, or technical artifact, even without requesting a change. Do NOT use for general-knowledge questions, diagnosing bugs or test failures (use systematic-debugging), or when an approved spec/plan already exists (use writing-plans)."
 ---
 
 # Brainstorming
 
-Turn an idea into an agreed approach through dialogue. Don't jump to code.
+Turn an idea into an agreed approach through dialogue, or investigate an in-scope
+codebase, repository, or technical artifact and report the evidence. Don't jump
+to code.
 
-## Loop
+## Read-only investigation
+
+Inspect the relevant evidence, state the conclusion and its basis, then stop.
+Ask only when missing scope blocks useful investigation. Do not force an
+implementation, spec, or plan unless the user asks for a change.
+
+## Change loop
 
 1. Explore context — files, recent commits. If a question is answerable by
    reading, read instead of asking.
@@ -20,7 +28,7 @@ Turn an idea into an agreed approach through dialogue. Don't jump to code.
 Large request spanning independent subsystems? Say so first and decompose into
 sub-projects before grilling details — each gets its own pass.
 
-## Exit — recommend, let the user pick
+## Change exit — recommend, let the user pick
 
 Once the approach is agreed, recommend an exit and confirm. The user's "ok" is
 the gate; there is no separate approval loop.

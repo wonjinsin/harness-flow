@@ -37,7 +37,7 @@ After analyzing peer Claude Code harnesses ([`design/2026-05-05-comparison.md`](
 
 ## Skill chain — the order work flows in
 
-The chain routes by request type (no tier classifier): code work → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+The chain routes by request type (no tier classifier): code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
@@ -65,8 +65,10 @@ flowchart LR
 
     REQ(["user request"]) --> UHF(["using-harness-flow"])
     UHF -- "feature / refactor" --> BS
+    UHF -- "codebase research /<br/>technical report" --> BS
     UHF -- "bug / test failure" --> SD(["systematic-debugging"])
 
+    BS -- "read-only evidence report" --> REPORT(["report & stop"])
     BS -- "small / clear" --> TDD
     WP --> IMPL
     SD -- "root cause →<br/>failing test" --> TDD
