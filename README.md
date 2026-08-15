@@ -14,7 +14,7 @@
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, no forced gate
 - Isolates the work into its own worktree, then forces an explicit merge / PR / keep / discard decision at the end
-- Implements inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is worth it — never for parallelism), then reviews the whole branch once at the end.
+- Implements inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is worth it — never for parallelism), then gets one report-only whole-branch review and verifies any fix through a focused delta review.
 
 ### Who it's for
 
@@ -57,7 +57,7 @@ flowchart LR
 
     subgraph SHIP [review & ship]
         direction LR
-        RCR(["requesting-code-review"])
+        RCR(["requesting-code-review<br/>report-only"])
         LMR(["llm-md-revise"])
         FIN(["finishing-a-development-branch"])
         RCR -. "durable<br/>learnings" .-> LMR -.-> FIN
@@ -76,7 +76,7 @@ flowchart LR
     IMPL --> RCR
     TDD -- "non-trivial diff" --> RCR
     TDD -- "trivial diff (self-review)" --> FIN
-    RCR -- "fix Critical /<br/>Important" --> FIN
+    RCR -- "pass / focused<br/>verify-fix" --> FIN
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -97,14 +97,14 @@ flowchart LR
 
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
-2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD, then close by the measured diff (trivial → self-review; anything larger → one fresh-context review via `requesting-code-review`); large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
+2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD, then close by the measured diff (trivial → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, followed by focused fix verification only when needed); large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
    - 2-1. **using-git-worktrees** — isolates the workspace. Not tied to the spec: required before `writing-plans` on the large exit, optional on any other path (asks before creating; declining means working in place). Detects existing isolation → prefers native tools → falls back to manual `git worktree add`.
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check before the final review, then reviews the whole branch once in a fresh context at the end.
+4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check, requests one fresh-context whole-branch report, then batches fixes and allows at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — the template used for the final whole-branch review (mid-tier model, severity-floor calibration). The reviewer runs `git diff BASE..HEAD` directly.
+   - 4-2. **requesting-code-review** — report-only mid-tier reviewer templates: `full-review` runs `git diff BASE..HEAD` once; focused `verify-fix` checks only the committed fix delta and prior finding IDs. The caller owns fixes and loop limits.
    - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
@@ -262,14 +262,14 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **implement** — implements the plan/spec with inline TDD (delegating tasks sequentially only when isolation is worth it) + a single final whole-branch review
+- **implement** — inline TDD plus one final whole-branch review and at most two focused post-fix reviewer turns
 - **using-git-worktrees** — parallel development branch isolation
 - **finishing-a-development-branch** — merge/PR decision workflow
 
 **Quality assurance**
 
 - **test-driven-development** — enforces the Red-Green-Refactor cycle (includes testing-anti-patterns reference)
-- **requesting-code-review** — code review request checklist
+- **requesting-code-review** — report-only full review and focused `verify-fix` request contracts
 
 **Debugging**
 

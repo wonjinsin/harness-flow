@@ -62,18 +62,39 @@ it yourself first. For every task in the plan, confirm against the actual diff
 **acceptance** boxes hold. A task whose files are untouched was dropped — go back
 and implement it before reviewing. Do not run the final review on a partial branch.
 
-## Always: one final review
+## Always: one final review, then focused fix verification
 
-After all tasks are done, dispatch a fresh-context reviewer via
-`requesting-code-review` over the whole branch, on a mid-tier model (measured:
+After all tasks are done, record the branch-point `BASE_SHA` and current
+`REVIEWED_HEAD`, then request one fresh-context `full-review` via
+`requesting-code-review` over that whole range on a mid-tier model (measured:
 with the template's severity floor it holds at large-diff scale — the top-tier
-premium buys nothing here). Route its findings by the reviewer's `class` tag:
+premium buys nothing here). Route the report before changing code:
 
-- The plan/spec itself is wrong → stop and escalate to the human.
-- Implementation defects → fix them (inline, or one fix subagent), then re-review.
-  Cap at 3 re-reviews; if it still fails, escalate.
+- `Review execution: Incomplete` → stop and escalate with the missing evidence.
+- Any `plan-escalate` → stop and escalate to the human.
+- No Critical/Important findings → the review passes.
+- `impl-fix` findings → batch all Critical/Important implementation fixes, use
+  TDD, run the relevant checks and full suite, then make one fix commit so
+  `FIXED_HEAD` is immutable. Minor findings remain optional.
 
-Fixing Critical/Important findings is required; Minor is optional.
+After an `impl-fix` batch, request a focused `verify-fix` over
+`REVIEWED_HEAD..FIXED_HEAD`, passing the prior report, unchanged requirements,
+and exact test evidence. Resume the same reviewer when supported; otherwise use
+a fresh mid-tier reviewer with only that verify package. A complete report with
+all prior findings resolved and no new Critical/Important issue passes.
+
+Use another whole-branch `full-review` instead of `verify-fix` only when the fix
+is not attributable to the reported findings or changes a public API, schema or
+migration, security or authorization behavior, or dependencies. A verify report
+that marks this semantic expansion Incomplete may request that full-review when
+budget remains. Other Incomplete reports, any `plan-escalate`, or exhausted
+budget escalate to the human.
+
+Allow at most two post-fix reviewer turns. Every post-fix dispatch —
+`full-review` or `verify-fix` — counts toward the same limit. For another fix
+round, advance `REVIEWED_HEAD` to the commit just reviewed, batch fixes again,
+test, commit a new `FIXED_HEAD`, and spend the second turn. Never restart an
+unbounded whole-branch loop.
 
 ## Then
 

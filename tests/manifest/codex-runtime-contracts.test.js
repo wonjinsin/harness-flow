@@ -78,6 +78,39 @@ test('review report proves execution and preserves stable finding identity', () 
   assert.match(template, /Reviewed range/);
 });
 
+test('code review supports focused verification without rereading the branch', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  for (const text of [review, template]) {
+    assert.match(text, /full-review/);
+    assert.match(text, /verify-fix/);
+    assert.match(text, /REVIEWED_HEAD/);
+    assert.match(text, /FIXED_HEAD/);
+  }
+  assert.match(template, /PRIOR_FINDINGS/);
+  assert.match(template, /TEST_EVIDENCE/);
+  assert.match(template, /Resolved[\s\S]*Unresolved[\s\S]*Not-verifiable/i);
+  assert.match(template, /do not reread\s+the\s+original branch diff/i);
+  assert.match(review, /resume[\s\S]*same reviewer/i);
+});
+
+test('managed review loops batch fixes and cap focused verification', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const brainstorm = read('skills/brainstorming/SKILL.md');
+  const agents = read('AGENTS.md');
+  const readme = read('README.md');
+  assert.match(implement, /batch all Critical\/Important[\s\S]*impl-fix/i);
+  assert.match(implement, /resume the same reviewer/i);
+  assert.match(implement, /at most two post-fix reviewer turns/i);
+  assert.match(implement, /full-review[\s\S]*verify-fix[\s\S]*count/i);
+  assert.match(implement, /public API[\s\S]*schema[\s\S]*security[\s\S]*dependencies[\s\S]*full-review/i);
+  assert.match(implement, /Incomplete[\s\S]*escalate/i);
+  assert.doesNotMatch(implement, /3 re-reviews/i);
+  assert.match(brainstorm, /focused `verify-fix`[\s\S]*two post-fix reviewer turns/i);
+  assert.match(agents, /report-only[\s\S]*two focused post-fix/i);
+  assert.match(readme, /report-only[\s\S]*focused `verify-fix`/i);
+});
+
 test('SessionStart covers Codex resume and Windows hook commands', () => {
   const hooks = read('hooks/hooks.json');
   assert.match(hooks, /startup\|resume\|clear\|compact/);

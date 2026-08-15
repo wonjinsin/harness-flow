@@ -1,8 +1,10 @@
 # Code Reviewer Prompt Template
 
-Use this template when dispatching a code reviewer subagent.
+Use these templates when dispatching a code reviewer subagent.
 
 **Purpose:** Review completed work against requirements and code quality standards before it cascades into more work.
+
+## full-review
 
 ````text
 Claude Code Task/Agent (general-purpose):
@@ -17,6 +19,8 @@ Claude Code Task/Agent (general-purpose):
     push; do not reset, rebase, switch, or check out branches; do not run
     formatters or generators. Do not dispatch a fixer. Return only the review
     report requested below.
+
+    **Review mode:** `full-review`
 
     ## What Was Implemented
 
@@ -183,3 +187,76 @@ harness's mid-tier model without claiming an exact-model guarantee.
 - `{HEAD_SHA}` — ending commit
 
 **Reviewer returns:** Strengths, Issues (Critical / Important / Minor), Recommendations, Assessment
+
+## verify-fix
+
+Resume the original reviewer with this follow-up when supported. Otherwise send
+the complete prompt to a new mid-tier general-purpose reviewer with fresh
+context.
+
+````text
+Verify the implementation fixes below. You remain report-only. Do not edit or
+create files; do not stage, commit, push, reset, rebase, switch, or check out;
+do not run formatters, generators, or tests; do not dispatch a fixer.
+
+**Review mode:** `verify-fix`
+
+## Original Requirements / Plan
+
+{PLAN_OR_REQUIREMENTS}
+
+## Prior Findings
+
+{PRIOR_FINDINGS}
+
+## Implementer Test Evidence
+
+{TEST_EVIDENCE}
+
+## Fix Range
+
+**Reviewed head:** {REVIEWED_HEAD}
+**Fixed head:** {FIXED_HEAD}
+
+Run `git diff -U10 {REVIEWED_HEAD}..{FIXED_HEAD}` once. Do not reread the
+original branch diff. Review this fix delta against the prior findings and
+requirements. Read minimal unchanged context only for a concrete named risk.
+
+For every prior Finding ID, assign exactly one status:
+
+- `Resolved` — the fix removes the reported consequence.
+- `Unresolved` — the consequence remains or the fix is incomplete.
+- `Not-verifiable` — this package cannot prove resolution; explain what is missing.
+
+Also report every new issue introduced by the fix delta, using the full-review
+severity, evidence, and `impl-fix` / `plan-escalate` class rules. If the delta
+changes unrelated behavior, a public API, schema or migration, security or
+authorization behavior, or dependencies, mark execution Incomplete and require
+a new full-review. Do not suppress findings with confidence filters.
+
+Your final message is the report itself:
+
+### Finding Verification
+[One terse bullet per prior Finding ID: status, file:line evidence, reason.]
+
+### New Issues
+[Critical / Important / Minor findings. Write `None` when empty.]
+
+### Assessment
+
+**Review execution:** [Complete | Incomplete]
+
+**Reviewed range:** {REVIEWED_HEAD}..{FIXED_HEAD}
+
+**Fixes verified?** [Yes | No]
+
+**Reasoning:** [1-2 sentence technical assessment]
+````
+
+**Verify-fix placeholders:**
+
+- `{PLAN_OR_REQUIREMENTS}` — unchanged requirements from full-review
+- `{PRIOR_FINDINGS}` — full-review or previous verify report with stable Finding IDs
+- `{TEST_EVIDENCE}` — exact checks and results supplied by the implementer
+- `{REVIEWED_HEAD}` — commit reviewed before the fix
+- `{FIXED_HEAD}` — committed fix to verify
