@@ -111,6 +111,15 @@ test('managed review loops batch fixes and cap focused verification', () => {
   assert.match(readme, /report-only[\s\S]*focused `verify-fix`/i);
 });
 
+test('incomplete or mutating reviewer runs fail closed', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  assert.match(template, /execution is Incomplete[\s\S]*Ready to merge[^\n]*No/i);
+  assert.match(review, /after the reviewer returns[\s\S]*git rev-parse[\s\S]*git status/i);
+  assert.match(review, /timeout[\s\S]*empty[\s\S]*malformed[\s\S]*not approval/i);
+  assert.match(review, /state changed[\s\S]*invalid[\s\S]*never\s+revert/i);
+});
+
 test('SessionStart covers Codex resume and Windows hook commands', () => {
   const hooks = read('hooks/hooks.json');
   assert.match(hooks, /startup\|resume\|clear\|compact/);

@@ -77,8 +77,13 @@ Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
 `{PRIOR_FINDINGS}`, `{TEST_EVIDENCE}`, `{REVIEWED_HEAD}`, `{FIXED_HEAD}`. The
 reviewer runs the single bounded diff named by its mode.
 
-**3. Return the report.** Do not act on findings inside this skill. The caller
-decides whether to stop, fix, or request another review.
+**3. Validate and return the report.** After the reviewer returns, re-run
+`git rev-parse --verify 'HEAD^{commit}'` and `git status --porcelain`. If repo
+state changed, the report is invalid: stop, surface the mutation, and never
+revert it automatically. A timeout, empty response, malformed report, or report
+missing a required field is not approval; return it as an incomplete review.
+Do not act on findings inside this skill. The caller decides whether to stop,
+fix, or request another review.
 
 ## In `implement`
 

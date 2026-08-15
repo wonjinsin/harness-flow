@@ -149,6 +149,10 @@ Claude Code Task/Agent (general-purpose):
 
     ### Assessment
 
+    If review execution is Incomplete for any reason — command failure,
+    truncated output, or missing evidence — set Ready to merge to `No`. An
+    incomplete review is never approval.
+
     **Review execution:** [Complete | Incomplete]
 
     **Reviewed range:** {BASE_SHA}..{HEAD_SHA}
@@ -243,6 +247,9 @@ Your final message is the report itself:
 [Critical / Important / Minor findings. Write `None` when empty.]
 
 ### Assessment
+
+If review execution is Incomplete, set Fixes verified to `No`. An incomplete
+verification is never approval.
 
 **Review execution:** [Complete | Incomplete]
 
