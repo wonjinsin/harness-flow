@@ -41,8 +41,9 @@ git diff --quiet "$BASE_SHA" "$HEAD_SHA"
 
 - `verify-fix` — managed callers only. Freeze the previous reviewed commit as
   `REVIEWED_HEAD` and the committed fix as `FIXED_HEAD`; include
-  `PRIOR_FINDINGS`, the original `PLAN_OR_REQUIREMENTS`, and `TEST_EVIDENCE`.
-  Review only `REVIEWED_HEAD..FIXED_HEAD` plus the named prior findings.
+  active `PRIOR_FINDINGS`, the carry-forward `RESOLVED_FINDINGS` ledger, the
+  original `PLAN_OR_REQUIREMENTS`, and `TEST_EVIDENCE`. Review only
+  `REVIEWED_HEAD..FIXED_HEAD` plus the named active findings.
 
 Each package is an immutable commit range. Verify both SHAs. If either is
 invalid, stop and report the bad range. Run `git status --porcelain`; if the
@@ -60,15 +61,20 @@ git rev-parse --verify 'HEAD^{commit}'
 git symbolic-ref -q HEAD
 git status --porcelain=v2 --branch --untracked-files=all --ignored=matching
 git for-each-ref --format='%(refname) %(objectname)'
+git ls-files --stage --debug | git hash-object --stdin
 git config --local --list | git hash-object --stdin
 git remote -v | git hash-object --stdin
 ```
 
 The snapshot covers current commit, symbolic/detached HEAD, worktree/index plus
-untracked and ignored path membership, refs, local repository config, and remote
-configuration. Where the harness supports it, add tool-level read-only
-restrictions: deny file-edit tools and state-changing shell commands. Prompt
-rules remain mandatory because tool policies vary by harness.
+index flags, untracked and ignored path membership, refs, local repository
+config, and remote configuration. Tool-level read-only protection is mandatory,
+not optional. Use native deny/restriction controls when the harness can enforce
+them. If it cannot enforce them, dispatch in an isolated disposable checkout
+that has no write-capable access to the active checkout, its refs, or remotes;
+do not dispatch against the active checkout with prompt-only protection. The
+caller owns setup and cleanup of that isolation. Prompt rules remain mandatory
+defense in depth because tool policies vary by harness.
 
 **2. Dispatch exactly one reviewer turn.** Fill the matching template in
 `code-reviewer.md` and dispatch on a
@@ -93,11 +99,14 @@ findings.
 
 Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
 `{BASE_SHA}`, `{HEAD_SHA}`. Verify-fix placeholders: `{PLAN_OR_REQUIREMENTS}`,
-`{PRIOR_FINDINGS}`, `{TEST_EVIDENCE}`, `{REVIEWED_HEAD}`, `{FIXED_HEAD}`. The
-reviewer freezes the bounded range's changed-file list, reads each listed file's
-diff exactly once in a separate result, and proves coverage with an `N/N` count.
-This adds cheap read calls but avoids truncating one aggregate diff and repeating
-the whole review.
+`{PRIOR_FINDINGS}`, `{RESOLVED_FINDINGS}`, `{TEST_EVIDENCE}`,
+`{REVIEWED_HEAD}`, `{FIXED_HEAD}`. For later verify turns, pass only unresolved,
+not-verifiable, and new Critical/Important IDs as active findings; carry already
+resolved IDs in the resolved ledger without asking the reviewer to re-evaluate
+them against a newer delta. The reviewer freezes the bounded range's changed-file
+list, reads each listed file's diff exactly once in a separate result, and proves
+coverage with an `N/N` count. This adds cheap read calls but avoids truncating one
+aggregate diff and repeating the whole review.
 
 **3. Validate and return the report.** After the reviewer returns, repeat and
 compare every snapshot check exactly against its preflight value. If repository

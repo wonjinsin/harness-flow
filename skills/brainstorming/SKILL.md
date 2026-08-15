@@ -41,10 +41,11 @@ the gate; there is no separate approval loop.
   - Anything larger → request one report-only `full-review` via
     requesting-code-review over the branch (mid-tier model). The current session
     owns any fixes: escalate `plan-escalate` or Incomplete reports; otherwise
-    batch Critical/Important `impl-fix` findings, test, commit, and request a
-    focused `verify-fix`. Resume the same reviewer when supported and allow at
-    most two post-fix reviewer turns, counting a scope-expansion `full-review`
-    against that same limit, before escalating.
+    batch Critical/Important `impl-fix` findings, use TDD, run relevant checks
+    and the full suite, make one fix commit, and request a focused `verify-fix`.
+    Resume the same reviewer when supported and allow at most two post-fix
+    reviewer turns, counting a scope-expansion `full-review` against that same
+    limit, before escalating.
 - Large / ambiguous / spans sessions → "Big enough to write down — I'll save a
   spec, then a plan. OK?" → write the spec below, then writing-plans.
 

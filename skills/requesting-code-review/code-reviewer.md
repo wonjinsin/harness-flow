@@ -43,7 +43,8 @@ Claude Code Task/Agent (general-purpose):
     freeze the changed-file list. Then, for each listed path, run
     `git diff -U10 {BASE_SHA}..{HEAD_SHA} -- "$path"` exactly once, keeping each
     file in a separate tool result so a large aggregate diff cannot truncate.
-    Those per-file outputs are your review package. Review only this range.
+    Do not run an aggregate diff. Those per-file outputs are your review package.
+    Review only this range.
 
     **Read scope.** The diff's context lines ARE the changed files: Read a
     changed file separately only when a hunk is cut off mid-function and you
@@ -223,9 +224,19 @@ other agent.
 
 {PLAN_OR_REQUIREMENTS}
 
-## Prior Findings
+## Active Findings
 
 {PRIOR_FINDINGS}
+
+These contain only unresolved, not-verifiable, or new Critical/Important IDs
+that the current fix intended to address.
+
+## Resolved Finding Ledger
+
+{RESOLVED_FINDINGS}
+
+Carry these resolved IDs forward unchanged. Do not re-evaluate them against the
+current delta.
 
 ## Implementer Test Evidence
 
@@ -240,27 +251,33 @@ For the fix range, run
 `git diff --name-only --diff-filter=ACDMRTUXB {REVIEWED_HEAD}..{FIXED_HEAD}`
 once. Then, for each listed path, run
 `git diff -U10 {REVIEWED_HEAD}..{FIXED_HEAD} -- "$path"` exactly once, keeping
-each file in a separate tool result. Do not reread the original branch diff.
-Review this fix delta against the prior findings and requirements. Do not read
-files or commits outside this diff. If the delta does not contain enough
-evidence, mark the affected Finding `Not-verifiable` instead of expanding scope.
+each file in a separate tool result. Do not run an aggregate diff and do not
+reread the original branch diff. Review this fix delta against the active
+findings and requirements. Do not read files or commits outside this diff. If
+the delta does not contain enough evidence, mark the affected Finding
+`Not-verifiable` instead of expanding scope.
 
-For every prior Finding ID, assign exactly one status:
+For every active Finding ID, assign exactly one status:
 
 - `Resolved` — the fix removes the reported consequence.
 - `Unresolved` — the consequence remains or the fix is incomplete.
 - `Not-verifiable` — this package cannot prove resolution; explain what is missing.
 
 Also report every new issue introduced by the fix delta, using the full-review
-severity, evidence, and `impl-fix` / `plan-escalate` class rules. If the delta
-changes unrelated behavior, a public API, schema or migration, security or
-authorization behavior, or dependencies, mark execution Incomplete and require
-a new full-review. Do not suppress findings with confidence filters.
+severity, evidence, and `impl-fix` / `plan-escalate` class rules. Give each new
+issue an ID unique across the finding ledger (prefix it with the fixed HEAD's
+short SHA), and preserve that exact ID if a later turn carries it forward. If
+the delta changes unrelated behavior, a public API, schema or migration,
+security or authorization behavior, or dependencies, mark execution Incomplete
+and require a new full-review. Do not suppress findings with confidence filters.
 
 Your final message is the report itself:
 
 ### Finding Verification
-[One terse bullet per prior Finding ID: status, file:line evidence, reason.]
+[One terse bullet per active Finding ID: status, file:line evidence, reason.]
+
+### Carried Resolved Findings
+[Copy the resolved Finding IDs unchanged. Write `None` when empty.]
 
 ### New Issues
 [Critical / Important / Minor findings. Write `None` when empty.]
@@ -285,7 +302,8 @@ never approval.
 **Verify-fix placeholders:**
 
 - `{PLAN_OR_REQUIREMENTS}` — unchanged requirements from full-review
-- `{PRIOR_FINDINGS}` — full-review or previous verify report with stable Finding IDs
+- `{PRIOR_FINDINGS}` — active unresolved, not-verifiable, or new Critical/Important IDs
+- `{RESOLVED_FINDINGS}` — resolved IDs and statuses to carry forward unchanged
 - `{TEST_EVIDENCE}` — exact checks and results supplied by the implementer
 - `{REVIEWED_HEAD}` — commit reviewed before the fix
 - `{FIXED_HEAD}` — committed fix to verify

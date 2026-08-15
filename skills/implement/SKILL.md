@@ -83,6 +83,11 @@ and exact test evidence. Resume the same reviewer when supported; otherwise use
 a fresh mid-tier reviewer with only that verify package. A complete report with
 all prior findings resolved and no new Critical/Important issue passes.
 
+Maintain a finding ledger across verify turns. Pass only unresolved,
+not-verifiable, and newly introduced Critical/Important IDs as active findings
+for the next fix delta. Carry resolved IDs forward unchanged; never ask a later
+delta to re-prove them.
+
 Use another whole-branch `full-review` instead of `verify-fix` only when the fix
 is not attributable to the reported findings or changes a public API, schema or
 migration, security or authorization behavior, or dependencies. A verify report

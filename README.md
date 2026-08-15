@@ -111,7 +111,7 @@ flowchart LR
 
 4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check, requests one fresh-context whole-branch report, then batches fixes and allows at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta and prior finding IDs. The caller owns fixes and loop limits.
+   - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
    - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
 5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.

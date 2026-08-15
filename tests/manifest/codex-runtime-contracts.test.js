@@ -67,6 +67,7 @@ test('code review preflights an immutable commit range', () => {
   assert.match(review, /git symbolic-ref -q HEAD/);
   assert.match(review, /git status --porcelain=v2 --branch --untracked-files=all --ignored=matching/);
   assert.match(review, /git for-each-ref/);
+  assert.match(review, /git ls-files --stage --debug/);
   assert.match(review, /git config --local --list/);
   assert.match(review, /git remote -v/);
   assert.match(review, /git diff --quiet/);
@@ -86,6 +87,7 @@ test('review report proves execution and preserves stable finding identity', () 
   assert.match(template, /each listed path[\s\S]*exactly once/i);
   assert.match(template, /Reviewed files:[^\n]*N\/N/i);
   assert.match(template, /reviewed-file count[\s\S]*changed-file count[\s\S]*Incomplete/i);
+  assert.match(template, /do not run an aggregate diff/i);
 });
 
 test('code review supports focused verification without rereading the branch', () => {
@@ -100,11 +102,14 @@ test('code review supports focused verification without rereading the branch', (
   assert.match(template, /PRIOR_FINDINGS/);
   assert.match(template, /TEST_EVIDENCE/);
   assert.match(template, /Resolved[\s\S]*Unresolved[\s\S]*Not-verifiable/i);
-  assert.match(template, /do not reread\s+the\s+original branch diff/i);
+  assert.match(template, /do not\s+reread\s+the\s+original branch diff/i);
   assert.match(template, /do not read\s+files or commits outside this diff/i);
   assert.match(template, /fix range[\s\S]*git diff --name-only/i);
+  assert.match(template, /new issue[\s\S]*unique[\s\S]*preserve/i);
+  assert.match(template, /resolved[\s\S]*carry[\s\S]*do not re-evaluate/i);
   assert.doesNotMatch(template, /Read minimal unchanged context/i);
   assert.match(review, /resume[\s\S]*same reviewer/i);
+  assert.match(review, /active findings[\s\S]*resolved ledger/i);
 });
 
 test('managed review loops batch fixes and cap focused verification', () => {
@@ -119,7 +124,8 @@ test('managed review loops batch fixes and cap focused verification', () => {
   assert.match(implement, /public API[\s\S]*schema[\s\S]*security[\s\S]*dependencies[\s\S]*full-review/i);
   assert.match(implement, /Incomplete[\s\S]*escalate/i);
   assert.doesNotMatch(implement, /3 re-reviews/i);
-  assert.match(brainstorm, /focused `verify-fix`[\s\S]*two post-fix reviewer turns/i);
+  assert.match(brainstorm, /focused `verify-fix`[\s\S]*two post-fix\s+reviewer turns/i);
+  assert.match(brainstorm, /use TDD[\s\S]*full suite[\s\S]*one fix commit/i);
   assert.match(agents, /report-only[\s\S]*two focused post-fix/i);
   assert.match(readme, /report-only[\s\S]*focused `verify-fix`/i);
   assert.match(readme, /RCR_FULL -- "impl-fix" --> FIX/);
@@ -133,6 +139,7 @@ test('incomplete or mutating reviewer runs fail closed', () => {
   assert.match(template, /execution is Incomplete[\s\S]*Ready to merge[^\n]*No/i);
   assert.match(review, /after the reviewer returns[\s\S]*compare every snapshot/i);
   assert.match(review, /tool-level read-only/i);
+  assert.match(review, /cannot enforce[\s\S]*isolated disposable checkout[\s\S]*active checkout/i);
   assert.match(review, /timeout[\s\S]*empty[\s\S]*malformed[\s\S]*not approval/i);
   assert.match(review, /state changed[\s\S]*invalid[\s\S]*never\s+revert/i);
 });
