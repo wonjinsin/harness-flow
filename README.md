@@ -57,10 +57,18 @@ flowchart LR
 
     subgraph SHIP [review & ship]
         direction LR
-        RCR(["requesting-code-review<br/>report-only"])
+        RCR_FULL(["requesting-code-review<br/>full-review · report-only"])
+        FIX(["controller<br/>batch fix → test → commit"])
+        RCR_VERIFY(["requesting-code-review<br/>verify-fix · report-only"])
         LMR(["llm-md-revise"])
         FIN(["finishing-a-development-branch"])
-        RCR -. "durable<br/>learnings" .-> LMR -.-> FIN
+        RCR_FULL -- "pass" --> LMR
+        RCR_FULL -- "impl-fix" --> FIX
+        FIX --> RCR_VERIFY
+        RCR_VERIFY -- "pass" --> LMR
+        RCR_VERIFY -- "remaining fix<br/>shared max 2 post-fix turns" --> FIX
+        RCR_VERIFY -- "semantic expansion<br/>shared max 2 post-fix turns" --> RCR_FULL
+        LMR --> FIN
     end
 
     REQ(["user request"]) --> UHF(["using-harness-flow"])
@@ -73,10 +81,9 @@ flowchart LR
     WP --> IMPL
     SD -- "root cause →<br/>failing test" --> TDD
 
-    IMPL --> RCR
-    TDD -- "non-trivial diff" --> RCR
+    IMPL --> RCR_FULL
+    TDD -- "non-trivial diff" --> RCR_FULL
     TDD -- "trivial diff (self-review)" --> FIN
-    RCR -- "pass / focused<br/>verify-fix" --> FIN
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -87,7 +94,7 @@ flowchart LR
     class REQ,UHF entry
     class BS,SPEC,WP design
     class TDD,IMPL build
-    class RCR,LMR,FIN ship
+    class RCR_FULL,FIX,RCR_VERIFY,LMR,FIN ship
     class SD debug
 
     style DESIGN fill:none,stroke:#64b5f6,stroke-dasharray:4 4

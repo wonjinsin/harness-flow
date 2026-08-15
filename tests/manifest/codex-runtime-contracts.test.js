@@ -57,12 +57,18 @@ test('code review is report-only and standalone review has no fix lifecycle', ()
   assert.match(template, /report-only/i);
   assert.match(template, /do not edit[\s\S]*stage[\s\S]*commit[\s\S]*push/i);
   assert.match(template, /do not dispatch a fixer/i);
+  assert.match(template, /files, worktree, index, refs, repository config, or remotes/i);
+  assert.match(template, /delete, move[\s\S]*restore[\s\S]*stash[\s\S]*clean/i);
 });
 
 test('code review preflights an immutable commit range', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   assert.match(review, /git merge-base/);
-  assert.match(review, /git status --porcelain/);
+  assert.match(review, /git symbolic-ref -q HEAD/);
+  assert.match(review, /git status --porcelain=v2 --branch --untracked-files=all --ignored=matching/);
+  assert.match(review, /git for-each-ref/);
+  assert.match(review, /git config --local --list/);
+  assert.match(review, /git remote -v/);
   assert.match(review, /git diff --quiet/);
   assert.match(review, /dirty[\s\S]*stop/i);
   assert.match(review, /empty[\s\S]*stop/i);
@@ -91,6 +97,8 @@ test('code review supports focused verification without rereading the branch', (
   assert.match(template, /TEST_EVIDENCE/);
   assert.match(template, /Resolved[\s\S]*Unresolved[\s\S]*Not-verifiable/i);
   assert.match(template, /do not reread\s+the\s+original branch diff/i);
+  assert.match(template, /do not read files or commits outside this diff/i);
+  assert.doesNotMatch(template, /Read minimal unchanged context/i);
   assert.match(review, /resume[\s\S]*same reviewer/i);
 });
 
@@ -109,13 +117,17 @@ test('managed review loops batch fixes and cap focused verification', () => {
   assert.match(brainstorm, /focused `verify-fix`[\s\S]*two post-fix reviewer turns/i);
   assert.match(agents, /report-only[\s\S]*two focused post-fix/i);
   assert.match(readme, /report-only[\s\S]*focused `verify-fix`/i);
+  assert.match(readme, /RCR_FULL -- "impl-fix" --> FIX/);
+  assert.match(readme, /FIX --> RCR_VERIFY/);
+  assert.match(readme, /shared[^\n]*2 post-fix turns/i);
 });
 
 test('incomplete or mutating reviewer runs fail closed', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');
   assert.match(template, /execution is Incomplete[\s\S]*Ready to merge[^\n]*No/i);
-  assert.match(review, /after the reviewer returns[\s\S]*git rev-parse[\s\S]*git status/i);
+  assert.match(review, /after the reviewer returns[\s\S]*compare every snapshot/i);
+  assert.match(review, /tool-level read-only/i);
   assert.match(review, /timeout[\s\S]*empty[\s\S]*malformed[\s\S]*not approval/i);
   assert.match(review, /state changed[\s\S]*invalid[\s\S]*never\s+revert/i);
 });

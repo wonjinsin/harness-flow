@@ -51,6 +51,25 @@ never commit or stash them. Run `git diff --quiet` for the selected range; if
 the diff is empty, stop and report that there is nothing to review. Do not
 dispatch a reviewer for an invalid, partial, or empty package.
 
+Before dispatch, capture a repository-state snapshot with these read-only
+checks. Hash config and remote output so credentials embedded in URLs are not
+printed:
+
+```bash
+git rev-parse --verify 'HEAD^{commit}'
+git symbolic-ref -q HEAD
+git status --porcelain=v2 --branch --untracked-files=all --ignored=matching
+git for-each-ref --format='%(refname) %(objectname)'
+git config --local --list | git hash-object --stdin
+git remote -v | git hash-object --stdin
+```
+
+The snapshot covers current commit, symbolic/detached HEAD, worktree/index plus
+untracked and ignored path membership, refs, local repository config, and remote
+configuration. Where the harness supports it, add tool-level read-only
+restrictions: deny file-edit tools and state-changing shell commands. Prompt
+rules remain mandatory because tool policies vary by harness.
+
 **2. Dispatch exactly one reviewer turn.** Fill the matching template in
 `code-reviewer.md` and dispatch on a
 **mid-tier model** — the tier is the spec, not a specific model name: map it to
@@ -77,8 +96,8 @@ Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
 `{PRIOR_FINDINGS}`, `{TEST_EVIDENCE}`, `{REVIEWED_HEAD}`, `{FIXED_HEAD}`. The
 reviewer runs the single bounded diff named by its mode.
 
-**3. Validate and return the report.** After the reviewer returns, re-run
-`git rev-parse --verify 'HEAD^{commit}'` and `git status --porcelain`. If repo
+**3. Validate and return the report.** After the reviewer returns, repeat and
+compare every snapshot check exactly against its preflight value. If repository
 state changed, the report is invalid: stop, surface the mutation, and never
 revert it automatically. A timeout, empty response, malformed report, or report
 missing a required field is not approval; return it as an incomplete review.

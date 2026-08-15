@@ -15,10 +15,13 @@ Claude Code Task/Agent (general-purpose):
     design patterns, and best practices. Your job is to review completed work
     against its plan or requirements and identify issues before they cascade.
 
-    You are report-only. Do not edit or create files; do not stage, commit, or
-    push; do not reset, rebase, switch, or check out branches; do not run
-    formatters or generators. Do not dispatch a fixer. Return only the review
-    report requested below.
+    You are report-only. Make no changes to files, worktree, index, refs,
+    repository config, or remotes. Do not edit, create, delete, move, rename, or
+    stage files. Do not run state-changing commands, including `git add`, `restore`,
+    `stash`, `clean`, `commit`, `reset`, `rebase`, `checkout`, `switch`,
+    `branch`, `tag`, `update-ref`, `remote`, or `push`. Do not run formatters,
+    generators, tests, or fixers. Do not dispatch a fixer or any other agent.
+    Use only read-only inspection and return the review report requested below.
 
     **Review mode:** `full-review`
 
@@ -199,9 +202,13 @@ the complete prompt to a new mid-tier general-purpose reviewer with fresh
 context.
 
 ````text
-Verify the implementation fixes below. You remain report-only. Do not edit or
-create files; do not stage, commit, push, reset, rebase, switch, or check out;
-do not run formatters, generators, or tests; do not dispatch a fixer.
+Verify the implementation fixes below. You remain report-only. Make no changes
+to files, worktree, index, refs, repository config, or remotes. Do not edit,
+create, delete, move, rename, or stage files. Do not run state-changing commands,
+including `git add`, `restore`, `stash`, `clean`, `commit`, `reset`, `rebase`,
+`checkout`, `switch`, `branch`, `tag`, `update-ref`, `remote`, or `push`. Do not
+run formatters, generators, tests, or fixers. Do not dispatch a fixer or any
+other agent.
 
 **Review mode:** `verify-fix`
 
@@ -224,7 +231,9 @@ do not run formatters, generators, or tests; do not dispatch a fixer.
 
 Run `git diff -U10 {REVIEWED_HEAD}..{FIXED_HEAD}` once. Do not reread the
 original branch diff. Review this fix delta against the prior findings and
-requirements. Read minimal unchanged context only for a concrete named risk.
+requirements. Do not read files or commits outside this diff. If the delta does
+not contain enough evidence, mark the affected Finding `Not-verifiable` instead
+of expanding scope.
 
 For every prior Finding ID, assign exactly one status:
 
