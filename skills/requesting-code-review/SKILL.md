@@ -9,6 +9,13 @@ Dispatch a fresh-context reviewer subagent over a git range. The reviewer gets a
 crafted prompt and the diff — never your session history — so it judges the work
 product, not your thought process, and your own context stays free.
 
+## Contract
+
+One invocation dispatches exactly one reviewer turn and returns its report. The
+reviewer is report-only: it never edits code or changes git state. A standalone
+invocation returns the report and stops; it does not fix, re-review, or finish a
+development branch. A controller such as `implement` owns any later action.
+
 ## When
 
 - Before merging a branch, or after a major feature.
@@ -17,12 +24,22 @@ product, not your thought process, and your own context stays free.
 
 ## How
 
-**1. Pick the range.**
+**1. Freeze and preflight the range.** Resolve the target base ref from the
+request or branch metadata, then pin the actual branch point and committed HEAD:
 
 ```bash
-BASE_SHA=$(git rev-parse origin/main)   # or the branch point
-HEAD_SHA=$(git rev-parse HEAD)
+HEAD_SHA=$(git rev-parse --verify 'HEAD^{commit}')
+BASE_SHA=$(git merge-base <base-ref> "$HEAD_SHA")
+git rev-parse --verify "$BASE_SHA^{commit}"
+git status --porcelain
+git diff --quiet "$BASE_SHA" "$HEAD_SHA"
 ```
+
+The review package is an immutable commit range. If either SHA is invalid, stop
+and report the bad range. If the worktree is dirty, stop because those changes
+would be silently excluded; never commit or stash them. If the diff is empty,
+stop and report that there is nothing to review. Do not dispatch a reviewer for
+an invalid, partial, or empty package.
 
 **2. Dispatch the reviewer.** Fill `code-reviewer.md` and dispatch on a
 **mid-tier model** — the tier is the spec, not a specific model name: map it to
@@ -43,8 +60,8 @@ Placeholders: `{DESCRIPTION}` (what you built), `{PLAN_OR_REQUIREMENTS}` (what i
 should do), `{BASE_SHA}`, `{HEAD_SHA}`. The reviewer runs `git diff` over the range
 itself.
 
-**3. Act on feedback.** Fix Critical and Important before proceeding; note Minor for
-later. Push back with reasoning (code/tests that prove it) if the reviewer is wrong.
+**3. Return the report.** Do not act on findings inside this skill. The caller
+decides whether to stop, fix, or request another review.
 
 ## In `implement`
 

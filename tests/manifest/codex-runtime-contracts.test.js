@@ -49,6 +49,35 @@ test('review dispatch documents the Codex direct-call translation', () => {
   }
 });
 
+test('code review is report-only and standalone review has no fix lifecycle', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  assert.match(review, /one invocation dispatches exactly one reviewer turn/i);
+  assert.match(review, /standalone[\s\S]*report[\s\S]*does not fix, re-review, or finish/i);
+  assert.match(template, /report-only/i);
+  assert.match(template, /do not edit[\s\S]*stage[\s\S]*commit[\s\S]*push/i);
+  assert.match(template, /do not dispatch a fixer/i);
+});
+
+test('code review preflights an immutable commit range', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  assert.match(review, /git merge-base/);
+  assert.match(review, /git status --porcelain/);
+  assert.match(review, /git diff --quiet/);
+  assert.match(review, /dirty[\s\S]*stop/i);
+  assert.match(review, /empty[\s\S]*stop/i);
+});
+
+test('review report proves execution and preserves stable finding identity', () => {
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  assert.match(template, /Stage 1[\s\S]*Requirements compliance/i);
+  assert.match(template, /Stage 2[\s\S]*Implementation quality/i);
+  assert.match(template, /do not run tests/i);
+  assert.match(template, /Finding ID/);
+  assert.match(template, /Review execution:[^\n]*Complete[^\n]*Incomplete/i);
+  assert.match(template, /Reviewed range/);
+});
+
 test('SessionStart covers Codex resume and Windows hook commands', () => {
   const hooks = read('hooks/hooks.json');
   assert.match(hooks, /startup\|resume\|clear\|compact/);
