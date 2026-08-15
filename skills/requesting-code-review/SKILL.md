@@ -94,7 +94,10 @@ findings.
 Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
 `{BASE_SHA}`, `{HEAD_SHA}`. Verify-fix placeholders: `{PLAN_OR_REQUIREMENTS}`,
 `{PRIOR_FINDINGS}`, `{TEST_EVIDENCE}`, `{REVIEWED_HEAD}`, `{FIXED_HEAD}`. The
-reviewer runs the single bounded diff named by its mode.
+reviewer freezes the bounded range's changed-file list, reads each listed file's
+diff exactly once in a separate result, and proves coverage with an `N/N` count.
+This adds cheap read calls but avoids truncating one aggregate diff and repeating
+the whole review.
 
 **3. Validate and return the report.** After the reviewer returns, repeat and
 compare every snapshot check exactly against its preflight value. If repository

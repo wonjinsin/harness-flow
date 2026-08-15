@@ -38,8 +38,12 @@ Claude Code Task/Agent (general-purpose):
     **Base:** {BASE_SHA}
     **Head:** {HEAD_SHA}
 
-    Run `git log {BASE_SHA}..{HEAD_SHA}` once, then `git diff -U10 {BASE_SHA}..{HEAD_SHA}`
-    once. That output is your review package. Review only this range.
+    Run `git log {BASE_SHA}..{HEAD_SHA}` once. Run
+    `git diff --name-only --diff-filter=ACDMRTUXB {BASE_SHA}..{HEAD_SHA}` once to
+    freeze the changed-file list. Then, for each listed path, run
+    `git diff -U10 {BASE_SHA}..{HEAD_SHA} -- "$path"` exactly once, keeping each
+    file in a separate tool result so a large aggregate diff cannot truncate.
+    Those per-file outputs are your review package. Review only this range.
 
     **Read scope.** The diff's context lines ARE the changed files: Read a
     changed file separately only when a hunk is cut off mid-function and you
@@ -153,12 +157,15 @@ Claude Code Task/Agent (general-purpose):
     ### Assessment
 
     If review execution is Incomplete for any reason — command failure,
-    truncated output, or missing evidence — set Ready to merge to `No`. An
-    incomplete review is never approval.
+    truncated output, missing evidence, or a reviewed-file count that does not
+    equal the changed-file count — set Ready to merge to `No`. An incomplete
+    review is never approval.
 
     **Review execution:** [Complete | Incomplete]
 
     **Reviewed range:** {BASE_SHA}..{HEAD_SHA}
+
+    **Reviewed files:** [N/N]
 
     **Ready to merge?** [Yes | No | With fixes]
 
@@ -229,11 +236,14 @@ other agent.
 **Reviewed head:** {REVIEWED_HEAD}
 **Fixed head:** {FIXED_HEAD}
 
-Run `git diff -U10 {REVIEWED_HEAD}..{FIXED_HEAD}` once. Do not reread the
-original branch diff. Review this fix delta against the prior findings and
-requirements. Do not read files or commits outside this diff. If the delta does
-not contain enough evidence, mark the affected Finding `Not-verifiable` instead
-of expanding scope.
+For the fix range, run
+`git diff --name-only --diff-filter=ACDMRTUXB {REVIEWED_HEAD}..{FIXED_HEAD}`
+once. Then, for each listed path, run
+`git diff -U10 {REVIEWED_HEAD}..{FIXED_HEAD} -- "$path"` exactly once, keeping
+each file in a separate tool result. Do not reread the original branch diff.
+Review this fix delta against the prior findings and requirements. Do not read
+files or commits outside this diff. If the delta does not contain enough
+evidence, mark the affected Finding `Not-verifiable` instead of expanding scope.
 
 For every prior Finding ID, assign exactly one status:
 
@@ -257,12 +267,15 @@ Your final message is the report itself:
 
 ### Assessment
 
-If review execution is Incomplete, set Fixes verified to `No`. An incomplete
-verification is never approval.
+If review execution is Incomplete, or the reviewed-file count does not equal the
+changed-file count, set Fixes verified to `No`. An incomplete verification is
+never approval.
 
 **Review execution:** [Complete | Incomplete]
 
 **Reviewed range:** {REVIEWED_HEAD}..{FIXED_HEAD}
+
+**Reviewed files:** [N/N]
 
 **Fixes verified?** [Yes | No]
 

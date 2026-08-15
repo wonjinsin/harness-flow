@@ -82,6 +82,10 @@ test('review report proves execution and preserves stable finding identity', () 
   assert.match(template, /Finding ID/);
   assert.match(template, /Review execution:[^\n]*Complete[^\n]*Incomplete/i);
   assert.match(template, /Reviewed range/);
+  assert.match(template, /git diff --name-only/);
+  assert.match(template, /each listed path[\s\S]*exactly once/i);
+  assert.match(template, /Reviewed files:[^\n]*N\/N/i);
+  assert.match(template, /reviewed-file count[\s\S]*changed-file count[\s\S]*Incomplete/i);
 });
 
 test('code review supports focused verification without rereading the branch', () => {
@@ -97,7 +101,8 @@ test('code review supports focused verification without rereading the branch', (
   assert.match(template, /TEST_EVIDENCE/);
   assert.match(template, /Resolved[\s\S]*Unresolved[\s\S]*Not-verifiable/i);
   assert.match(template, /do not reread\s+the\s+original branch diff/i);
-  assert.match(template, /do not read files or commits outside this diff/i);
+  assert.match(template, /do not read\s+files or commits outside this diff/i);
+  assert.match(template, /fix range[\s\S]*git diff --name-only/i);
   assert.doesNotMatch(template, /Read minimal unchanged context/i);
   assert.match(review, /resume[\s\S]*same reviewer/i);
 });
