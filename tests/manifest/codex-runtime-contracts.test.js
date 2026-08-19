@@ -41,8 +41,12 @@ test('entry skill uses harness-neutral wording, not Claude-specific tools', () =
 
 test('caveman starts in lite mode', () => {
   const caveman = read('skills/caveman/SKILL.md');
+  assert.match(
+    caveman,
+    /Supports intensity levels: lite \(default\), full, ultra/,
+  );
   assert.match(caveman, /Default: \*\*lite\*\*/);
-  assert.doesNotMatch(caveman, /lite, full \(default\), ultra/);
+  assert.doesNotMatch(caveman, /full \(default\)/);
 });
 
 test('review dispatch documents the Codex direct-call translation', () => {
