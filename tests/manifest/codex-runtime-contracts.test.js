@@ -39,6 +39,12 @@ test('entry skill uses harness-neutral wording, not Claude-specific tools', () =
   assert.doesNotMatch(entry, /TodoWrite/);
 });
 
+test('caveman starts in lite mode', () => {
+  const caveman = read('skills/caveman/SKILL.md');
+  assert.match(caveman, /Default: \*\*lite\*\*/);
+  assert.doesNotMatch(caveman, /lite, full \(default\), ultra/);
+});
+
 test('review dispatch documents the Codex direct-call translation', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');
