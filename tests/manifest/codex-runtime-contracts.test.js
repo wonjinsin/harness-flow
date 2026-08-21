@@ -73,13 +73,10 @@ test('code review is report-only and standalone review has no fix lifecycle', ()
 
 test('code review preflights an immutable commit range', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
+  const snapshot = read('scripts/repository-snapshot.js');
   assert.match(review, /git merge-base/);
-  assert.match(review, /git symbolic-ref -q HEAD/);
-  assert.match(review, /git status --porcelain=v2 --branch --untracked-files=all --ignored=matching/);
-  assert.match(review, /git for-each-ref/);
-  assert.match(review, /git ls-files --stage --debug/);
-  assert.match(review, /git config --local --list/);
-  assert.match(review, /git remote -v/);
+  assert.match(review, /scripts\/repository-snapshot\.js/);
+  assert.match(snapshot, /symbolic-ref[\s\S]*status[\s\S]*for-each-ref[\s\S]*ls-files[\s\S]*config[\s\S]*remote/);
   assert.match(review, /git diff --quiet/);
   assert.match(review, /dirty[\s\S]*stop/i);
   assert.match(review, /empty[\s\S]*stop/i);
@@ -148,6 +145,8 @@ test('incomplete or mutating reviewer runs fail closed', () => {
   const template = read('skills/requesting-code-review/code-reviewer.md');
   assert.match(template, /execution is Incomplete[\s\S]*Ready to merge[^\n]*No/i);
   assert.match(review, /after the reviewer returns[\s\S]*repeat every snapshot/i);
+  assert.match(review, /if \[ "\$POST_REVIEW_SNAPSHOT" != "\$REVIEW_SNAPSHOT" \]; then/);
+  assert.match(review, /POST_REVIEW_SNAPSHOT[\s\S]*REVIEW_SNAPSHOT[\s\S]*byte-for-byte[\s\S]*`CONTRACT`/i);
   assert.match(review, /tool-level read-only/i);
   assert.match(review, /cannot enforce[\s\S]*isolated disposable checkout[\s\S]*active checkout/i);
   assert.match(review, /OPERATIONAL[^\n]*timeout or empty[\s\S]*only `PASS` is approval/i);

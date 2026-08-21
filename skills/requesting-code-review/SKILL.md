@@ -58,23 +58,22 @@ status, and pass/fail/skip summary. A skip names its reason. The tested commit S
 must equal `HEAD_SHA` for full-review or `FIXED_HEAD` for verify-fix; stale or
 missing evidence stops dispatch until it is refreshed.
 
-Before dispatch, capture a repository-state snapshot with these read-only
-checks. Hash config and remote output so credentials embedded in URLs are not
-printed:
+Before dispatch, capture one canonical repository-state manifest. The helper checks
+exit status for every Git command before hashing any output, normalizes an expected
+detached HEAD explicitly, and never prints config or remote values:
 
 ```bash
-git rev-parse --verify 'HEAD^{commit}'
-git symbolic-ref -q HEAD
-git status --porcelain=v2 --branch --untracked-files=all --ignored=matching
-git for-each-ref --format='%(refname) %(objectname)'
-git ls-files --stage --debug | git hash-object --stdin
-git config --local --list | git hash-object --stdin
-git remote -v | git hash-object --stdin
+if ! REVIEW_SNAPSHOT=$(node scripts/repository-snapshot.js); then
+  echo "cannot collect complete review snapshot" >&2
+  exit 1
+fi
 ```
 
-The snapshot covers current commit, symbolic/detached HEAD, worktree/index plus
-index flags, untracked and ignored path membership, refs, local repository
-config, and remote configuration. Tool-level read-only protection is mandatory.
+Keep the exact `REVIEW_SNAPSHOT` value in the controller, outside reviewer access. The
+manifest covers current commit, symbolic/detached HEAD, worktree/index plus index flags,
+untracked and ignored path membership, refs, local repository config, and remote
+configuration. Snapshot collection failure stops dispatch; it is never treated as an
+empty or valid fingerprint. Tool-level read-only protection is mandatory.
 The tool policy must deny writes, network, secret/credential reads, and agent
 dispatch while allowing bounded repository inspection. Use native restrictions
 when the harness can enforce them. If it cannot enforce them, dispatch in an
@@ -99,7 +98,23 @@ Later verify turns keep only active Critical/Important IDs and carry resolved ID
 unchanged. Each reviewer freezes the changed-file list, reads each diff once, and
 proves `N/N` coverage.
 
-**3. Validate and classify.** After the reviewer returns, repeat every snapshot check.
+**3. Validate and classify.** After the reviewer returns, repeat every snapshot check:
+
+```bash
+if ! POST_REVIEW_SNAPSHOT=$(node scripts/repository-snapshot.js); then
+  echo "cannot collect complete post-review snapshot" >&2
+  exit 1
+fi
+if [ "$POST_REVIEW_SNAPSHOT" != "$REVIEW_SNAPSHOT" ]; then
+  echo "review repository snapshot changed" >&2
+  exit 1
+fi
+```
+
+Compare `POST_REVIEW_SNAPSHOT` with the retained `REVIEW_SNAPSHOT` byte-for-byte before
+parsing the report. Collection failure or any mismatch is immediately `CONTRACT`; stop,
+surface the failure, and never auto-revert.
+
 Apply this precedence in order so the five states are mutually exclusive:
 
 1. Any repository mutation → `CONTRACT`.
