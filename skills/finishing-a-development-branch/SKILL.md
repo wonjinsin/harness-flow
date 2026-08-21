@@ -242,7 +242,14 @@ if ! {
   IFS= read -r OWNER_KIND &&
   IFS= read -r OWNER_PATH &&
   IFS= read -r OWNER_COMMON &&
-  ! IFS= read -r OWNER_EXTRA
+  {
+    OWNER_EXTRA=
+    if IFS= read -r OWNER_EXTRA; then
+      false
+    else
+      [ -z "$OWNER_EXTRA" ]
+    fi
+  }
 } < "$OWNER_FILE"; then
   echo "malformed private provenance; preserve the worktree" >&2
   exit 1

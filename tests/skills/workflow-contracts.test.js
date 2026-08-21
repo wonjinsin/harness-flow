@@ -330,6 +330,7 @@ test('portable provenance parser accepts exactly three lines', (t) => {
     ['valid', 'manual-git-worktree\n/path\n/common\n', true],
     ['short', 'manual-git-worktree\n/path\n', false],
     ['long', 'manual-git-worktree\n/path\n/common\nextra\n', false],
+    ['long-no-newline', 'manual-git-worktree\n/path\n/common\nextra', false],
   ]) {
     const ownerFile = path.join(tmp, name);
     fs.writeFileSync(ownerFile, record);
