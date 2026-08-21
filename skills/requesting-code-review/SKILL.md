@@ -41,7 +41,8 @@ git diff --quiet "$BASE_SHA" "$HEAD_SHA"
 
 - `verify-fix` — managed callers only. Freeze the previous reviewed commit as
   `REVIEWED_HEAD` and the committed fix as `FIXED_HEAD`; include
-  active `PRIOR_FINDINGS`, the carry-forward `RESOLVED_FINDINGS` ledger, the
+  `EXPECTED_ACTIVE_IDS`, active `PRIOR_FINDINGS`, the carry-forward
+  `RESOLVED_FINDINGS` ledger, the
   original `PLAN_OR_REQUIREMENTS`, and `TEST_EVIDENCE`. Review only
   `REVIEWED_HEAD..FIXED_HEAD` plus the named active findings.
 
@@ -92,7 +93,8 @@ the complete package to a fresh mid-tier reviewer.
 
 Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
 `{TEST_EVIDENCE}`, `{BASE_SHA}`, `{HEAD_SHA}`. Verify-fix also receives
-`{PRIOR_FINDINGS}`, `{RESOLVED_FINDINGS}`, `{REVIEWED_HEAD}`, and `{FIXED_HEAD}`.
+`{EXPECTED_ACTIVE_IDS}`, `{PRIOR_FINDINGS}`, `{RESOLVED_FINDINGS}`,
+`{REVIEWED_HEAD}`, and `{FIXED_HEAD}`.
 Later verify turns keep only active Critical/Important IDs and carry resolved IDs
 unchanged. Each reviewer freezes the changed-file list, reads each diff once, and
 proves `N/N` coverage.
@@ -106,6 +108,10 @@ Apply this precedence in order so the five states are mutually exclusive:
 4. Incomplete execution, wrong range, incomplete file coverage, or stale evidence →
    `CONTRACT`.
 5. Classify the remaining complete tuple by mode:
+
+For verify-fix, the expected active ID list must equal the exact set of reported
+IDs. Any missing ID, extra ID, or duplicate ID is `CONTRACT` before approval is
+evaluated.
 
 | Mode | Required tuple | State |
 |---|---|---|

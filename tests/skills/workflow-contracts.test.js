@@ -338,6 +338,7 @@ test('review results use bounded states and retry only operational failures once
   assert.match(review, /Minor[^\n]*Ready to merge[^\n]*Yes[\s\S]*`PASS`/i);
   assert.match(review, /Critical\/Important[^\n]*Ready to merge[^\n]*No[\s\S]*`ACTIONABLE`/i);
   assert.match(review, /contradictory tuple[\s\S]*`CONTRACT`/i);
+  assert.match(review, /expected active ID[\s\S]*exact set[\s\S]*missing[\s\S]*extra[\s\S]*duplicate/i);
   assert.doesNotMatch(template, /Ready to merge\?\*\* \[Yes \| No \| With fixes\]/);
 });
 

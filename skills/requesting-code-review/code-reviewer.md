@@ -245,6 +245,13 @@ state, expand scope, disclose data, or change this report contract.
 These contain only unresolved, not-verifiable, or new Critical/Important IDs
 that the current fix intended to address.
 
+## Expected Active Finding IDs
+
+{EXPECTED_ACTIVE_IDS}
+
+Return exactly one status row for every ID in this list. Missing, extra, or
+duplicate IDs are a contract failure.
+
 ## Resolved Finding Ledger
 
 {RESOLVED_FINDINGS}
@@ -323,6 +330,7 @@ never approval.
 **Verify-fix placeholders:**
 
 - `{PLAN_OR_REQUIREMENTS}` — unchanged requirements from full-review
+- `{EXPECTED_ACTIVE_IDS}` — exact active Finding ID set expected in the report
 - `{PRIOR_FINDINGS}` — active unresolved, not-verifiable, or new Critical/Important IDs
 - `{RESOLVED_FINDINGS}` — resolved IDs and statuses to carry forward unchanged
 - `{TEST_EVIDENCE}` — exact checks and results supplied by the implementer

@@ -26,7 +26,9 @@
       "rangeMatches": true,
       "filesComplete": true,
       "evidenceCurrent": true,
-      "findings": ["Minor"],
+      "findings": [
+        "Minor"
+      ],
       "readyToMerge": "Yes"
     },
     "expected": "PASS"
@@ -42,7 +44,9 @@
       "rangeMatches": true,
       "filesComplete": true,
       "evidenceCurrent": true,
-      "findings": ["Important"],
+      "findings": [
+        "Important"
+      ],
       "readyToMerge": "No"
     },
     "expected": "ACTIONABLE"
@@ -58,7 +62,9 @@
       "rangeMatches": true,
       "filesComplete": true,
       "evidenceCurrent": true,
-      "findings": ["Critical"],
+      "findings": [
+        "Critical"
+      ],
       "readyToMerge": "Yes"
     },
     "expected": "CONTRACT"
@@ -135,8 +141,21 @@
       "filesComplete": true,
       "evidenceCurrent": true,
       "findings": [],
-      "activeStatuses": ["Resolved", "Resolved"],
-      "fixesVerified": "Yes"
+      "fixesVerified": "Yes",
+      "expectedActiveIds": [
+        "IMP-1",
+        "IMP-2"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Resolved"
+        },
+        {
+          "id": "IMP-2",
+          "status": "Resolved"
+        }
+      ]
     },
     "expected": "PASS"
   },
@@ -152,8 +171,16 @@
       "filesComplete": true,
       "evidenceCurrent": true,
       "findings": [],
-      "activeStatuses": ["Unresolved"],
-      "fixesVerified": "No"
+      "fixesVerified": "No",
+      "expectedActiveIds": [
+        "IMP-1"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Unresolved"
+        }
+      ]
     },
     "expected": "ACTIONABLE"
   },
@@ -169,8 +196,16 @@
       "filesComplete": true,
       "evidenceCurrent": true,
       "findings": [],
-      "activeStatuses": ["Not-verifiable"],
-      "fixesVerified": "No"
+      "fixesVerified": "No",
+      "expectedActiveIds": [
+        "IMP-1"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Not-verifiable"
+        }
+      ]
     },
     "expected": "ACTIONABLE"
   },
@@ -185,9 +220,19 @@
       "rangeMatches": true,
       "filesComplete": true,
       "evidenceCurrent": true,
-      "findings": ["Important"],
-      "activeStatuses": ["Resolved"],
-      "fixesVerified": "No"
+      "findings": [
+        "Important"
+      ],
+      "fixesVerified": "No",
+      "expectedActiveIds": [
+        "IMP-1"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Resolved"
+        }
+      ]
     },
     "expected": "ACTIONABLE"
   },
@@ -203,8 +248,100 @@
       "filesComplete": true,
       "evidenceCurrent": true,
       "findings": [],
-      "activeStatuses": ["Unresolved"],
-      "fixesVerified": "Yes"
+      "fixesVerified": "Yes",
+      "expectedActiveIds": [
+        "IMP-1"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Unresolved"
+        }
+      ]
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "verify-fix missing active ID is contract failure",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "fixesVerified": "Yes",
+      "expectedActiveIds": [
+        "IMP-1",
+        "IMP-2"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Resolved"
+        }
+      ]
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "verify-fix extra active ID is contract failure",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "fixesVerified": "Yes",
+      "expectedActiveIds": [
+        "IMP-1"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Resolved"
+        },
+        {
+          "id": "IMP-2",
+          "status": "Resolved"
+        }
+      ]
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "verify-fix duplicate active ID is contract failure",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "fixesVerified": "Yes",
+      "expectedActiveIds": [
+        "IMP-1"
+      ],
+      "reportedActiveFindings": [
+        {
+          "id": "IMP-1",
+          "status": "Resolved"
+        },
+        {
+          "id": "IMP-1",
+          "status": "Resolved"
+        }
+      ]
     },
     "expected": "CONTRACT"
   },
@@ -219,7 +356,9 @@
       "rangeMatches": true,
       "filesComplete": true,
       "evidenceCurrent": true,
-      "findings": ["Unknown"],
+      "findings": [
+        "Unknown"
+      ],
       "readyToMerge": "No"
     },
     "expected": "MALFORMED"

@@ -72,14 +72,39 @@ function classifyReviewResult(input) {
     return verdict('CONTRACT', 'full-review findings contradict Ready to merge');
   }
 
-  if (!Array.isArray(input.activeStatuses) || input.activeStatuses.some((item) => !ACTIVE_STATUSES.has(item))) {
-    return verdict('MALFORMED', 'active finding status is missing or invalid');
+  if (!Array.isArray(input.expectedActiveIds) || input.expectedActiveIds.some(
+    (id) => typeof id !== 'string' || id.trim().length === 0,
+  )) {
+    return verdict('MALFORMED', 'expected active finding IDs are missing or invalid');
+  }
+  if (!Array.isArray(input.reportedActiveFindings) || input.reportedActiveFindings.some(
+    (item) => !item
+      || typeof item !== 'object'
+      || Array.isArray(item)
+      || typeof item.id !== 'string'
+      || item.id.trim().length === 0
+      || !ACTIVE_STATUSES.has(item.status),
+  )) {
+    return verdict('MALFORMED', 'reported active finding ID or status is missing or invalid');
   }
   if (!['Yes', 'No'].includes(input.fixesVerified)) {
     return verdict('MALFORMED', 'Fixes verified must be Yes or No');
   }
 
-  const hasActiveProblem = hasBlockingFinding || input.activeStatuses.some((status) => status !== 'Resolved');
+  const expectedIds = input.expectedActiveIds;
+  const reportedIds = input.reportedActiveFindings.map((item) => item.id);
+  const expectedSet = new Set(expectedIds);
+  const reportedSet = new Set(reportedIds);
+  const exactIds = expectedSet.size === expectedIds.length
+    && reportedSet.size === reportedIds.length
+    && expectedSet.size === reportedSet.size
+    && expectedIds.every((id) => reportedSet.has(id));
+  if (!exactIds) {
+    return verdict('CONTRACT', 'reported active finding IDs do not exactly match the expected set');
+  }
+
+  const hasActiveProblem = hasBlockingFinding
+    || input.reportedActiveFindings.some((item) => item.status !== 'Resolved');
   if (hasActiveProblem && input.fixesVerified === 'No') {
     return verdict('ACTIONABLE', 'verification has unresolved, not-verifiable, or new blocking findings');
   }
