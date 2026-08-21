@@ -120,3 +120,28 @@ test('implement accepts only an approved task plan and normalizes specs through 
     assert.match(implement, new RegExp(field, 'i'));
   }
 });
+
+test('full review receives test evidence tied to the reviewed commit', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  const fullTemplate = template.slice(0, template.indexOf('## verify-fix'));
+  const implement = read('skills/implement/SKILL.md');
+
+  assert.match(fullTemplate, /\{TEST_EVIDENCE\}/);
+  for (const field of ['tested commit SHA', 'command', 'exit status', 'pass/fail/skip summary']) {
+    assert.match(review, new RegExp(field.replaceAll(' ', '\\s+'), 'i'));
+  }
+  assert.match(review, /tested commit SHA[\s\S]*HEAD_SHA|HEAD_SHA[\s\S]*tested commit SHA/i);
+  assert.match(implement, /TEST_EVIDENCE/);
+});
+
+test('review results use bounded states and retry only operational failures once', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+
+  for (const state of ['PASS', 'ACTIONABLE', 'OPERATIONAL', 'CONTRACT', 'MALFORMED']) {
+    assert.match(review, new RegExp(`\\b${state}\\b`));
+  }
+  assert.match(review, /Only\s+`OPERATIONAL` may be retried once with the same immutable package/);
+  assert.match(review, /mutation[\s\S]*`CONTRACT`/i);
+  assert.match(review, /`MALFORMED`[^\n]*missing required fields|missing required fields[\s\S]*`MALFORMED`/i);
+});

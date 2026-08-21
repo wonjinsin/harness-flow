@@ -62,8 +62,8 @@ test('review dispatch documents the Codex direct-call translation', () => {
 test('code review is report-only and standalone review has no fix lifecycle', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');
-  assert.match(review, /one invocation dispatches exactly one reviewer turn/i);
-  assert.match(review, /standalone[\s\S]*report[\s\S]*does not fix, re-review, or finish/i);
+  assert.match(review, /normally dispatches one reviewer turn[\s\S]*sole exception[\s\S]*OPERATIONAL/i);
+  assert.match(review, /standalone invocation never fixes or finishes/i);
   assert.match(template, /report-only/i);
   assert.match(template, /do not edit[\s\S]*stage[\s\S]*commit[\s\S]*push/i);
   assert.match(template, /do not dispatch a fixer/i);
@@ -119,7 +119,7 @@ test('code review supports focused verification without rereading the branch', (
   assert.match(template, /resolved[\s\S]*carry[\s\S]*do not re-evaluate/i);
   assert.doesNotMatch(template, /Read minimal unchanged context/i);
   assert.match(review, /resume[\s\S]*same reviewer/i);
-  assert.match(review, /active findings[\s\S]*resolved ledger/i);
+  assert.match(review, /active (?:findings|Critical\/Important IDs)[\s\S]*resolved (?:ledger|IDs)/i);
 });
 
 test('managed review loops batch fixes and cap focused verification', () => {
@@ -132,7 +132,7 @@ test('managed review loops batch fixes and cap focused verification', () => {
   assert.match(implement, /at most two post-fix reviewer turns/i);
   assert.match(implement, /full-review[\s\S]*verify-fix[\s\S]*count/i);
   assert.match(implement, /public API[\s\S]*schema[\s\S]*security[\s\S]*dependencies[\s\S]*full-review/i);
-  assert.match(implement, /Incomplete[\s\S]*escalate/i);
+  assert.match(implement, /OPERATIONAL[\s\S]*CONTRACT[\s\S]*MALFORMED[\s\S]*stop and escalate/i);
   assert.doesNotMatch(implement, /3 re-reviews/i);
   assert.match(brainstorm, /focused `verify-fix`[\s\S]*two post-fix\s+reviewer turns/i);
   assert.match(brainstorm, /use TDD[\s\S]*full suite[\s\S]*one fix commit/i);
@@ -147,11 +147,11 @@ test('incomplete or mutating reviewer runs fail closed', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');
   assert.match(template, /execution is Incomplete[\s\S]*Ready to merge[^\n]*No/i);
-  assert.match(review, /after the reviewer returns[\s\S]*compare every snapshot/i);
+  assert.match(review, /after the reviewer returns[\s\S]*repeat every snapshot/i);
   assert.match(review, /tool-level read-only/i);
   assert.match(review, /cannot enforce[\s\S]*isolated disposable checkout[\s\S]*active checkout/i);
-  assert.match(review, /timeout[\s\S]*empty[\s\S]*malformed[\s\S]*not approval/i);
-  assert.match(review, /state changed[\s\S]*invalid[\s\S]*never\s+revert/i);
+  assert.match(review, /OPERATIONAL[^\n]*timeout or empty[\s\S]*only `PASS` is approval/i);
+  assert.match(review, /mutation is `CONTRACT`[\s\S]*never auto-revert/i);
 });
 
 test('SessionStart covers Codex resume and Windows hook commands', () => {

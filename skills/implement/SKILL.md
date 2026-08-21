@@ -25,7 +25,8 @@ Work the plan in the current session, on the session's model:
 
 1. Load `test-driven-development` and implement each task Red → Green → Refactor.
 2. One commit per task, on the feature branch.
-3. After the last task, run the full suite + formatter/typecheck once.
+3. After the last task, run the full suite + formatter/typecheck once. Record
+   `TEST_EVIDENCE`: tested HEAD, commands, exit status, and pass/fail/skip summary.
 
 Do not pause between tasks to check in — execute the whole plan. Stop only for a
 blocker you cannot resolve or genuine ambiguity.
@@ -65,10 +66,10 @@ After all tasks are done, record the branch-point `BASE_SHA` and current
 with the template's severity floor it holds at large-diff scale — the top-tier
 premium buys nothing here). Route the report before changing code:
 
-- `Review execution: Incomplete` → stop and escalate with the missing evidence.
-- Any `plan-escalate` → stop and escalate to the human.
-- No Critical/Important findings → the review passes.
-- `impl-fix` findings → batch all Critical/Important implementation fixes, use
+- `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and escalate.
+- `PASS` → the review passes.
+- `ACTIONABLE` with any `plan-escalate` → stop and escalate to the human.
+- `ACTIONABLE` `impl-fix` findings → batch all Critical/Important fixes, use
   TDD, run the relevant checks and full suite, then make one fix commit so
   `FIXED_HEAD` is immutable. Minor findings remain optional.
 
