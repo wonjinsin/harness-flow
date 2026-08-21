@@ -23,7 +23,7 @@ Route by current state, not by keywords alone:
 | Read-only codebase research or report | `brainstorming` read-only exit |
 | Change intent without an approved design | `brainstorming` |
 | Approved design or spec, or explicit plan artifact | `writing-plans` |
-| Approved task plan | `implement` |
+| Approved task plan | Mandatory workspace preflight in `implement`, then plan execution |
 | Explicit code-review artifact | `requesting-code-review` |
 | General-knowledge question | Answer directly |
 

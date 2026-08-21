@@ -84,7 +84,10 @@
     "required": [
       "Required input: an approved task plan",
       "A spec or design is not executable input",
-      "`writing-plans`"
+      "`writing-plans`",
+      "Step 0: Establish the execution workspace",
+      "clean, named, non-base branch",
+      "stop before editing"
     ]
   }
 ]

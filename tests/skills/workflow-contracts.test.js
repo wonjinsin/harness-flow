@@ -180,6 +180,22 @@ test('implement accepts only an approved task plan and normalizes specs through 
   }
 });
 
+test('approved-plan execution establishes a clean named non-base workspace before edits', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const entry = read('skills/using-harness-flow/SKILL.md');
+  const preflight = implement.indexOf('## Step 0: Establish the execution workspace');
+  const planScan = implement.indexOf('## Before you start');
+
+  assert.notEqual(preflight, -1);
+  assert.ok(preflight < planScan, 'workspace preflight must precede plan scan and edits');
+  assert.match(implement, /capture[\s\S]*approved plan source[\s\S]*before[\s\S]*workspace transition/i);
+  assert.match(implement, /clean, named, non-base branch/i);
+  assert.match(implement, /dirty[\s\S]*detached[\s\S]*base branch[\s\S]*`using-git-worktrees`/i);
+  assert.match(implement, /declines?[^\n]*isolation[\s\S]*stop before editing/i);
+  assert.match(implement, /after (?:the )?workspace transition[\s\S]*plan input[\s\S]*active\s+workspace/i);
+  assert.match(entry, /Approved task plan[\s\S]*mandatory workspace preflight[\s\S]*`implement`/i);
+});
+
 test('full review receives test evidence tied to the reviewed commit', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');

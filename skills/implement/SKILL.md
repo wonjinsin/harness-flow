@@ -12,6 +12,26 @@ Dispatch a subagent only when clean isolation helps — never for parallelism.
 Blocked by, and acceptance criteria. A spec or design is not executable input;
 invoke `writing-plans` to normalize it before continuing.
 
+## Step 0: Establish the execution workspace
+
+Before any workspace transition, capture the approved plan source. For an inline
+plan, retain the complete approved text in the task context. For a plan file,
+resolve its absolute source path and read it completely before moving; do not rely
+on an ignored file appearing in another checkout.
+
+Record the current HEAD, branch, resolved base branch, and `git status --short`.
+Plan execution requires a **clean, named, non-base branch** before the first edit.
+If status is dirty, HEAD is detached, or the current branch is the base branch,
+invoke `using-git-worktrees` and establish that state. This is stricter than that
+skill's optional in-place fallback. If the user declines isolation, stop before editing
+rather than advancing a base ref or mixing user changes.
+
+After the workspace transition, verify the plan input is available in the active
+workspace. Recover a captured ignored plan into that workspace's
+`docs/harness-flow/plans/` only when needed, then compare it with the captured
+source. If the complete approved input cannot be recovered, stop; never implement
+from memory or a missing artifact.
+
 ## Before you start
 
 Scan the plan once for conflicts — tasks that contradict each other or the
