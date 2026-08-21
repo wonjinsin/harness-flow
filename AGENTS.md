@@ -28,7 +28,8 @@ to `requesting-code-review`. General knowledge stays outside the chain. Skills r
 independently invocable, but their input and workspace preconditions are mandatory.
 There is no trivial/standard tier classifier — a "small" middle tier and the split
 were A/B-evaluated and removed (see the size-classifier retrospective before retrying).
-`scripts/routing-contract.js` and its fixtures are the executable routing precedence.
+`scripts/routing-contract.js` and `scripts/workspace-contract.js` are the executable
+routing precedence and required-execution workspace eligibility.
 
 **Spec is optional (Model B).** `brainstorming` recommends an exit and the user picks: **small/clear** → implement directly with `test-driven-development`, then close by the measured diff (trivial — a few lines in one file, no contract/dependency/security surface → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, with controller-owned fixes followed by focused verification); **large/ambiguous** → save a spec, then a plan. No `<HARD-GATE>`, no forced spec file, no separate approval loop.
 
@@ -185,7 +186,8 @@ Skills use Claude Code tool names (`Task`/`Agent`, `TodoWrite`, `Skill`) only wh
 - **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
 - **Run validation**: `node scripts/validate-skills.js`, then
   `node scripts/eval-skills.js`, then `node --test`. The evaluator runs deterministic
-  workflow fixtures plus executable routing and review-state matrices; the test command covers
+  workflow fixtures plus executable routing, workspace, and review-state matrices;
+  the test command covers
   hooks, manifests/runtime contracts, and skill tooling.
 - **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add a smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
 - **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array). Add match + non-match cases in the matching `tests/hooks/*.test.js`.

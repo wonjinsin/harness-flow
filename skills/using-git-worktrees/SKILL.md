@@ -10,18 +10,26 @@ harness's native tool, then fall back to manual git. Never fight the harness.
 
 ## Step 0: Detect existing isolation
 
+The caller selects `optional` mode by default or `required-execution` mode for an
+approved-plan handoff. Record status, whether HEAD names a branch, and whether that
+branch is the resolved base branch, in addition to the isolation check:
+
 ```bash
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
 ```
 
 If `GIT_DIR != GIT_COMMON` AND `git rev-parse --show-superproject-working-tree`
-is empty → already in a linked worktree, skip to Step 2. (A non-empty
-superproject means a submodule; treat it as a normal repo.)
+is empty, the checkout is a linked worktree. In `optional` mode, skip to Step 2.
+In `required-execution` mode, reuse it only when it is **clean, named, non-base**.
+A dirty, detached, or base-branch linked worktree does not satisfy isolation:
+create another workspace or stop before editing. A non-empty superproject means a
+submodule; treat it as a normal checkout.
 
-Otherwise you are in a normal checkout. Unless the user already stated a
-preference, ask before creating a worktree; if they decline, work in place and
-skip to Step 2.
+Otherwise you are in a normal checkout. In `optional` mode, ask before creating a
+worktree unless the user already stated a preference; if they decline, work in place.
+In `required-execution` mode, an ineligible checkout must create another workspace
+or stop. `scripts/workspace-contract.js` is the executable state matrix.
 
 ## Step 1: Create the workspace
 

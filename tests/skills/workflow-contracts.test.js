@@ -254,9 +254,15 @@ test('approved-plan execution establishes a clean named non-base workspace befor
   assert.match(implement, /capture[\s\S]*approved plan source[\s\S]*before[\s\S]*workspace transition/i);
   assert.match(implement, /clean, named, non-base branch/i);
   assert.match(implement, /dirty[\s\S]*detached[\s\S]*base branch[\s\S]*`using-git-worktrees`/i);
-  assert.match(implement, /declines?[^\n]*isolation[\s\S]*stop before editing/i);
+  assert.match(implement, /`required-execution` mode/i);
+  assert.match(implement, /declines?\s+isolation[\s\S]*stop before editing/i);
   assert.match(implement, /after (?:the )?workspace transition[\s\S]*plan input[\s\S]*active\s+workspace/i);
   assert.match(entry, /Approved task plan[\s\S]*mandatory workspace preflight[\s\S]*`implement`/i);
+
+  const worktree = read('skills/using-git-worktrees/SKILL.md');
+  assert.match(worktree, /`required-execution` mode[\s\S]*clean, named, non-base/i);
+  assert.match(worktree, /dirty[\s\S]*detached[\s\S]*base[\s\S]*create another workspace or stop/i);
+
 });
 
 test('full review receives test evidence tied to the reviewed commit', () => {

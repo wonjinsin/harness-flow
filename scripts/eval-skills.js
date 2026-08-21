@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { evaluateReviewStateFixtures } = require('./review-state-contract.js');
 const { evaluateRoutingFixtures } = require('./routing-contract.js');
+const { evaluateWorkspaceFixtures } = require('./workspace-contract.js');
 
 function normalize(value) {
   return value.replace(/\s+/g, ' ').trim();
@@ -59,14 +60,18 @@ function evaluateAll(root = process.cwd()) {
   const routing = evaluateRoutingFixtures(
     path.join(root, 'tests', 'skills', 'routing-state-fixtures.json'),
   );
+  const workspaces = evaluateWorkspaceFixtures(
+    path.join(root, 'tests', 'skills', 'workspace-state-fixtures.json'),
+  );
   const reviewStates = evaluateReviewStateFixtures(
     path.join(root, 'tests', 'skills', 'review-state-fixtures.json'),
   );
   return {
     workflowCount: workflows.count,
     routingCount: routing.count,
+    workspaceCount: workspaces.count,
     reviewStateCount: reviewStates.count,
-    errors: [...workflows.errors, ...routing.errors, ...reviewStates.errors],
+    errors: [...workflows.errors, ...routing.errors, ...workspaces.errors, ...reviewStates.errors],
   };
 }
 
@@ -77,7 +82,7 @@ if (require.main === module) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Evaluated ${result.workflowCount} workflow fixtures, ${result.routingCount} routing fixtures, and ${result.reviewStateCount} review-state fixtures.`,
+      `Evaluated ${result.workflowCount} workflow fixtures, ${result.routingCount} routing fixtures, ${result.workspaceCount} workspace fixtures, and ${result.reviewStateCount} review-state fixtures.`,
     );
   }
 }

@@ -22,9 +22,9 @@ on an ignored file appearing in another checkout.
 Record the current HEAD, branch, resolved base branch, and `git status --short`.
 Plan execution requires a **clean, named, non-base branch** before the first edit.
 If status is dirty, HEAD is detached, or the current branch is the base branch,
-invoke `using-git-worktrees` and establish that state. This is stricter than that
-skill's optional in-place fallback. If the user declines isolation, stop before editing
-rather than advancing a base ref or mixing user changes.
+invoke `using-git-worktrees` in `required-execution` mode and establish that state.
+This is stricter than that skill's optional in-place fallback. If the user declines
+isolation, stop before editing rather than advancing a base ref or mixing user changes.
 
 After the workspace transition, verify the plan input is available in the active
 workspace. Recover a captured ignored plan into that workspace's

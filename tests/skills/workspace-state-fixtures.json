@@ -1,0 +1,42 @@
+[
+  {
+    "name": "optional mode reuses an existing linked worktree",
+    "input": { "mode": "optional", "linkedWorktree": true, "clean": false, "namedBranch": false, "onBaseBranch": true },
+    "expected": "REUSE_CURRENT"
+  },
+  {
+    "name": "optional mode offers isolation in a normal checkout",
+    "input": { "mode": "optional", "linkedWorktree": false, "clean": true, "namedBranch": true, "onBaseBranch": false },
+    "expected": "OFFER_ISOLATION"
+  },
+  {
+    "name": "required execution reuses an eligible linked worktree",
+    "input": { "mode": "required-execution", "linkedWorktree": true, "clean": true, "namedBranch": true, "onBaseBranch": false },
+    "expected": "REUSE_CURRENT"
+  },
+  {
+    "name": "required execution rejects a dirty linked worktree",
+    "input": { "mode": "required-execution", "linkedWorktree": true, "clean": false, "namedBranch": true, "onBaseBranch": false },
+    "expected": "CREATE_OR_STOP"
+  },
+  {
+    "name": "required execution rejects a detached linked worktree",
+    "input": { "mode": "required-execution", "linkedWorktree": true, "clean": true, "namedBranch": false, "onBaseBranch": false },
+    "expected": "CREATE_OR_STOP"
+  },
+  {
+    "name": "required execution rejects a base-branch linked worktree",
+    "input": { "mode": "required-execution", "linkedWorktree": true, "clean": true, "namedBranch": true, "onBaseBranch": true },
+    "expected": "CREATE_OR_STOP"
+  },
+  {
+    "name": "required execution creates from an ineligible normal checkout",
+    "input": { "mode": "required-execution", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false },
+    "expected": "CREATE_OR_STOP"
+  },
+  {
+    "name": "invalid mode fails closed",
+    "input": { "mode": "unknown", "linkedWorktree": true, "clean": true, "namedBranch": true, "onBaseBranch": false },
+    "expected": "UNRESOLVED"
+  }
+]
