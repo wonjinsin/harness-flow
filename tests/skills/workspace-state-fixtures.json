@@ -35,6 +35,26 @@
     "expected": "CREATE_OR_STOP"
   },
   {
+    "name": "planless eligible workspace proceeds normally",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": true, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "not-needed" },
+    "expected": "REUSE_CURRENT"
+  },
+  {
+    "name": "planless ineligible workspace offers isolation before editing",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "undecided" },
+    "expected": "OFFER_ISOLATION"
+  },
+  {
+    "name": "planless accepted isolation must create and revalidate",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "accepted" },
+    "expected": "CREATE_AND_REVALIDATE"
+  },
+  {
+    "name": "planless declined isolation uses limited in-place contract",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "declined" },
+    "expected": "LIMITED_IN_PLACE"
+  },
+  {
     "name": "invalid mode fails closed",
     "input": { "mode": "unknown", "linkedWorktree": true, "clean": true, "namedBranch": true, "onBaseBranch": false },
     "expected": "UNRESOLVED"

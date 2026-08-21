@@ -39,7 +39,8 @@ routing precedence and required-execution workspace eligibility.
 2. `brainstorming` — turns a change idea into an agreed approach through dialogue, then recommends an exit (Model B above). In read-only mode, it investigates a codebase or technical question, reports evidence, and stops without forcing implementation. The large change exit saves a spec at `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
 3. `using-git-worktrees` — isolates the workspace. It is required before `writing-plans`
    on the large exit and when `implement` must establish a clean, named, non-base branch;
-   planless paths may decline and work in place. Native worktree tools are preferred.
+   ineligible planless paths offer isolation, and a refusal permits only limited
+   in-place edits with no stage/commit/push/merge/PR closeout. Native worktree tools are preferred.
    The manual fallback writes private Git administration provenance and refuses marker
    collisions; cleanup requires exact kind/path/common-directory matches.
 4. `writing-plans` — produces an implementation plan at `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md` as bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance checkboxes — no line numbers, no code blocks). Preserves the human-approval gate ("Iterate until the user approves; after the user approves, hand off to implement"). No Task-Group / dispatch machinery.

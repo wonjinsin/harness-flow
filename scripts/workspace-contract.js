@@ -4,15 +4,26 @@ const fs = require('node:fs');
 
 function classifyWorkspace(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'UNRESOLVED';
-  if (!['optional', 'required-execution'].includes(input.mode)) return 'UNRESOLVED';
+  if (!['optional', 'required-execution', 'planless'].includes(input.mode)) return 'UNRESOLVED';
   for (const field of ['linkedWorktree', 'clean', 'namedBranch', 'onBaseBranch']) {
     if (typeof input[field] !== 'boolean') return 'UNRESOLVED';
   }
 
+  const eligible = input.clean && input.namedBranch && !input.onBaseBranch;
   if (input.mode === 'required-execution') {
-    return input.clean && input.namedBranch && !input.onBaseBranch
+    return eligible
       ? 'REUSE_CURRENT'
       : 'CREATE_OR_STOP';
+  }
+  if (input.mode === 'planless') {
+    if (!['not-needed', 'undecided', 'accepted', 'declined'].includes(input.isolationDecision)) {
+      return 'UNRESOLVED';
+    }
+    if (eligible) return input.isolationDecision === 'not-needed' ? 'REUSE_CURRENT' : 'UNRESOLVED';
+    if (input.isolationDecision === 'undecided') return 'OFFER_ISOLATION';
+    if (input.isolationDecision === 'accepted') return 'CREATE_AND_REVALIDATE';
+    if (input.isolationDecision === 'declined') return 'LIMITED_IN_PLACE';
+    return 'UNRESOLVED';
   }
   return input.linkedWorktree ? 'REUSE_CURRENT' : 'OFFER_ISOLATION';
 }

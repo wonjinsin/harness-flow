@@ -44,8 +44,19 @@ test('planless feature and bug fixes share one immutable execution preflight', (
   assert.match(brainstorming, /execution-preflight\.md/);
   assert.match(debugging, /execution-preflight\.md/);
   assert.match(preflight, /START_HEAD/);
-  assert.match(preflight, /base branch,? or has pre-existing changes/);
+  assert.match(preflight, /base branch[\s\S]*pre-existing changes/);
   assert.match(preflight, /START_HEAD\.\.HEAD/);
+});
+
+test('planless preflight has one deterministic limited in-place fallback', () => {
+  const preflight = read('skills/using-git-worktrees/execution-preflight.md');
+
+  assert.match(preflight, /ineligible[\s\S]*exactly two choices[\s\S]*isolate[\s\S]*limited in-place/i);
+  assert.match(preflight, /isolation is accepted[\s\S]*re-run[\s\S]*still ineligible[\s\S]*stop/i);
+  assert.match(preflight, /isolation is\s+declined[\s\S]*`LIMITED_IN_PLACE`/i);
+  assert.match(preflight, /overlaps? a pre-existing changed path[\s\S]*stop before editing/i);
+  assert.match(preflight, /must not stage, commit, stash, reset, clean, push, merge, or create a PR/i);
+  assert.match(preflight, /working diff[\s\S]*not an immutable approval[\s\S]*stop without merge\/PR claims/i);
 });
 
 test('report-only debugging stops after diagnosis without entering the fix path', () => {

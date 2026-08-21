@@ -116,7 +116,7 @@ flowchart LR
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
 2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD, then close by the measured diff (trivial → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, followed by focused fix verification only when needed); large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
-   - 2-1. **using-git-worktrees** — isolates the workspace. It is required before `writing-plans` on the large exit and whenever `implement` must establish its mandatory execution workspace; planless paths may decline and work in place. Manual creation records provenance only in private Git administration, never in tracked repository content.
+   - 2-1. **using-git-worktrees** — isolates the workspace. It is required before `writing-plans` on the large exit and whenever `implement` must establish its mandatory execution workspace. An ineligible planless path offers isolation; acceptance creates and revalidates a workspace, while explicit refusal permits only a limited in-place path with no stage/commit/push/merge/PR closeout. Manual creation records provenance only in private Git administration, never in tracked repository content.
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
