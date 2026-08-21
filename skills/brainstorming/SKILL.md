@@ -35,6 +35,10 @@ the gate; there is no separate approval loop.
 
 - Small / clear → "I'll implement this directly with TDD. OK?" → test-driven-development.
   Before editing, follow the shared [execution preflight](../using-git-worktrees/execution-preflight.md).
+  Retain its return state. `STOP` stops before editing. Under `LIMITED_IN_PLACE`, use
+  TDD only within the shared restrictions, report tests, the chain-owned working diff,
+  and exact status, then stop. This path must not commit or request code review, and it
+  never invokes branch finishing. Only `ELIGIBLE` continues below.
   After the last commit, measure the finished `START_HEAD..HEAD` diff and close accordingly:
   - Trivial diff — a few lines in one file, touching no contract, dependency, or
     security surface → self-review it for correctness and scope creep, then finish.

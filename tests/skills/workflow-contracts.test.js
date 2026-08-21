@@ -59,6 +59,14 @@ test('planless preflight has one deterministic limited in-place fallback', () =>
   assert.match(preflight, /overlaps? a pre-existing changed path[\s\S]*stop before editing/i);
   assert.match(preflight, /must not stage, commit, stash, reset, clean, push, merge, or create a PR/i);
   assert.match(preflight, /working diff[\s\S]*not an immutable approval[\s\S]*stop without merge\/PR claims/i);
+  assert.match(preflight, /return exactly one[\s\S]*`ELIGIBLE`[\s\S]*`LIMITED_IN_PLACE`[\s\S]*`STOP`/i);
+});
+
+test('planless callers terminate after limited in-place closeout', () => {
+  const debugging = read('skills/systematic-debugging/SKILL.md');
+  const brainstorming = read('skills/brainstorming/SKILL.md');
+  assert.match(debugging, /`LIMITED_IN_PLACE`[\s\S]*working diff[\s\S]*stop[\s\S]*do not enter `After the fix lands`/i);
+  assert.match(brainstorming, /`LIMITED_IN_PLACE`[\s\S]*working diff[\s\S]*stop[\s\S]*must not commit[\s\S]*request.*review/i);
 });
 
 test('sandbox worktree failure never silently downgrades accepted isolation', () => {

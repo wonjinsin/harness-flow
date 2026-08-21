@@ -55,6 +55,11 @@ Scope / Suggested fix; do not enter the fix path.
 
 Before the first fix edit, follow the shared
 [execution preflight](../using-git-worktrees/execution-preflight.md).
+Retain its return state. On `STOP`, stop before editing. On `LIMITED_IN_PLACE`, apply
+Phase 4 only within the shared restrictions, run applicable tests, report the
+chain-owned working diff plus exact status, then stop. Do not enter `After the fix lands`,
+commit, request review, or invoke branch finishing. Only `ELIGIBLE` may continue to the
+normal post-fix path.
 
 1. **Failing test first** — simplest reproduction, via `test-driven-development`.
 2. **One fix at a time** — address the root cause, no "while I'm here" extras.

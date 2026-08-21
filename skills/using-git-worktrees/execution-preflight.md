@@ -53,3 +53,13 @@ limitations:
 
 Complete when the baseline, workspace decision, and applicable closeout path are
 recorded.
+
+## Return state
+
+Return exactly one state to the caller and retain it for closeout:
+
+- `ELIGIBLE` — edits may use the normal commit, review, and branch-finishing path.
+- `LIMITED_IN_PLACE` — only the restricted working-diff path above may run.
+- `STOP` — no edit may begin or continue.
+
+The caller must branch on this state; later generic instructions never override it.
