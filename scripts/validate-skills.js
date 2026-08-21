@@ -7,18 +7,60 @@ const MAX_NAME_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_LINES = 350;
 
+function invalidScalar(file, errors) {
+  errors.push(`${file}: invalid quoted frontmatter value`);
+  return '';
+}
+
 function unquote(raw, file, errors) {
   if (!raw) return '';
-  if (raw.startsWith('"') && raw.endsWith('"')) {
+  if (raw.startsWith('"')) {
+    let closing = -1;
+    let escaped = false;
+    for (let index = 1; index < raw.length; index += 1) {
+      if (escaped) {
+        escaped = false;
+      } else if (raw[index] === '\\') {
+        escaped = true;
+      } else if (raw[index] === '"') {
+        closing = index;
+        break;
+      }
+    }
+    if (closing === -1) return invalidScalar(file, errors);
+    const suffix = raw.slice(closing + 1).trim();
+    if (suffix && !suffix.startsWith('#')) return invalidScalar(file, errors);
     try {
-      return JSON.parse(raw);
+      return JSON.parse(raw.slice(0, closing + 1));
     } catch {
-      errors.push(`${file}: invalid quoted frontmatter value`);
-      return '';
+      return invalidScalar(file, errors);
     }
   }
-  if (raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1);
-  return raw;
+  if (raw.startsWith("'")) {
+    let closing = -1;
+    for (let index = 1; index < raw.length; index += 1) {
+      if (raw[index] !== "'") continue;
+      if (raw[index + 1] === "'") {
+        index += 1;
+      } else {
+        closing = index;
+        break;
+      }
+    }
+    if (closing === -1) return invalidScalar(file, errors);
+    const suffix = raw.slice(closing + 1).trim();
+    if (suffix && !suffix.startsWith('#')) return invalidScalar(file, errors);
+    return raw.slice(1, closing).replace(/''/g, "'");
+  }
+
+  const comment = raw.search(/(?:^|\s)#/);
+  const value = (comment === -1 ? raw : raw.slice(0, comment)).trimEnd();
+  if (/^(?:~|null|true|false|[-+]?(?:\.inf|\.nan|\d+(?:\.\d+)?))$/i.test(value)
+      || /^[\[{&*!]/.test(value)) {
+    errors.push(`${file}: frontmatter values must be YAML strings`);
+    return '';
+  }
+  return value;
 }
 
 function parseFrontmatter(text, file, errors) {

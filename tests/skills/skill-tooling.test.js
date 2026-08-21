@@ -77,6 +77,34 @@ test('validator enforces metadata length boundaries and a non-empty body', (t) =
   assert.match(output, /body is required/);
 });
 
+test('validator rejects YAML-empty and malformed frontmatter scalars', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-flow-validator-yaml-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fixtures = [
+    ['comment-only', 'description: # YAML comment'],
+    ['unclosed-quote', 'description: "unterminated'],
+    ['unclosed-single', "description: 'unterminated"],
+    ['empty-block', 'description: |\n  '],
+    ['valid-quoted', 'description: "valid # text" # trailing comment'],
+    ['valid-single', "description: 'it''s valid' # trailing comment"],
+  ];
+  for (const [name, description] of fixtures) {
+    const directory = path.join(root, 'skills', name);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+      path.join(directory, 'SKILL.md'),
+      `---\nname: ${name}\n${description}\n---\n\n# Body\n`,
+    );
+  }
+
+  const output = validateSkills(root).errors.join('\n');
+  assert.match(output, /comment-only\/SKILL\.md: description is required/);
+  assert.match(output, /unclosed-quote\/SKILL\.md: invalid quoted frontmatter value/);
+  assert.match(output, /unclosed-single\/SKILL\.md: invalid quoted frontmatter value/);
+  assert.match(output, /empty-block\/SKILL\.md: description is required/);
+  assert.doesNotMatch(output, /valid-(?:quoted|single)\/SKILL\.md/);
+});
+
 test('deterministic workflow fixtures pass against repository skills', () => {
   const result = evaluateFixtures(ROOT, path.join(ROOT, 'tests', 'skills', 'eval-fixtures.json'));
   assert.ok(result.count >= 6);
