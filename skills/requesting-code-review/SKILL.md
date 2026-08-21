@@ -97,15 +97,33 @@ Later verify turns keep only active Critical/Important IDs and carry resolved ID
 unchanged. Each reviewer freezes the changed-file list, reads each diff once, and
 proves `N/N` coverage.
 
-**3. Validate and classify.** After the reviewer returns, repeat every snapshot check
-and classify exactly:
+**3. Validate and classify.** After the reviewer returns, repeat every snapshot check.
+Apply this precedence in order so the five states are mutually exclusive:
+
+1. Any repository mutation → `CONTRACT`.
+2. Timeout or empty transport → `OPERATIONAL`.
+3. Unparseable output, missing fields, or invalid enum values → `MALFORMED`.
+4. Incomplete execution, wrong range, incomplete file coverage, or stale evidence →
+   `CONTRACT`.
+5. Classify the remaining complete tuple by mode:
+
+| Mode | Required tuple | State |
+|---|---|---|
+| full-review | No Critical/Important findings; Minor findings allowed; `Ready to merge: Yes` | `PASS` |
+| full-review | One or more Critical/Important findings; `Ready to merge: No` | `ACTIONABLE` |
+| verify-fix | Every active ID `Resolved`, no new Critical/Important finding; `Fixes verified: Yes` | `PASS` |
+| verify-fix | Any `Unresolved`/`Not-verifiable` ID or new Critical/Important finding; `Fixes verified: No` | `ACTIONABLE` |
+
+Any contradictory tuple is `CONTRACT`, including approval with a blocking finding
+or rejection with no blocking finding. The executable matrix in
+`scripts/review-state-contract.js` is the deterministic interpretation of this table.
 
 | State | Meaning |
 |---|---|
-| `PASS` | Complete report, valid evidence, no Critical/Important findings |
-| `ACTIONABLE` | Complete report with findings for the controller |
+| `PASS` | Complete, internally consistent approval tuple |
+| `ACTIONABLE` | Complete, internally consistent blocking-finding tuple |
 | `OPERATIONAL` | Timeout or empty response only |
-| `CONTRACT` | Scope/coverage/evidence failure |
+| `CONTRACT` | Mutation, scope/coverage/evidence failure, or contradictory tuple |
 | `MALFORMED` | Unparseable report or missing required fields |
 
 Repository mutation is `CONTRACT`: stop, surface it, and never auto-revert. Only

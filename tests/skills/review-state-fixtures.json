@@ -1,0 +1,227 @@
+[
+  {
+    "name": "full review with no blocking findings is pass",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "readyToMerge": "Yes"
+    },
+    "expected": "PASS"
+  },
+  {
+    "name": "minor-only full review is pass only with explicit approval",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": ["Minor"],
+      "readyToMerge": "Yes"
+    },
+    "expected": "PASS"
+  },
+  {
+    "name": "blocking full-review finding is actionable",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": ["Important"],
+      "readyToMerge": "No"
+    },
+    "expected": "ACTIONABLE"
+  },
+  {
+    "name": "blocking finding contradicting approval is contract failure",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": ["Critical"],
+      "readyToMerge": "Yes"
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "clean report contradicting rejection is contract failure",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "readyToMerge": "No"
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "incomplete file coverage is contract failure",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Incomplete",
+      "rangeMatches": true,
+      "filesComplete": false,
+      "evidenceCurrent": true,
+      "findings": [],
+      "readyToMerge": "No"
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "missing report fields are malformed",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": false
+    },
+    "expected": "MALFORMED"
+  },
+  {
+    "name": "timeout is operational",
+    "input": {
+      "mode": "full-review",
+      "transport": "timeout",
+      "snapshot": "unchanged"
+    },
+    "expected": "OPERATIONAL"
+  },
+  {
+    "name": "mutation outranks a simultaneous timeout",
+    "input": {
+      "mode": "full-review",
+      "transport": "timeout",
+      "snapshot": "mutated"
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "verify-fix with every active finding resolved is pass",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "activeStatuses": ["Resolved", "Resolved"],
+      "fixesVerified": "Yes"
+    },
+    "expected": "PASS"
+  },
+  {
+    "name": "verify-fix unresolved finding is actionable",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "activeStatuses": ["Unresolved"],
+      "fixesVerified": "No"
+    },
+    "expected": "ACTIONABLE"
+  },
+  {
+    "name": "verify-fix not-verifiable finding is actionable",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "activeStatuses": ["Not-verifiable"],
+      "fixesVerified": "No"
+    },
+    "expected": "ACTIONABLE"
+  },
+  {
+    "name": "verify-fix new blocking issue is actionable",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": ["Important"],
+      "activeStatuses": ["Resolved"],
+      "fixesVerified": "No"
+    },
+    "expected": "ACTIONABLE"
+  },
+  {
+    "name": "verify-fix unresolved finding contradicting approval is contract failure",
+    "input": {
+      "mode": "verify-fix",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": [],
+      "activeStatuses": ["Unresolved"],
+      "fixesVerified": "Yes"
+    },
+    "expected": "CONTRACT"
+  },
+  {
+    "name": "unknown finding severity is malformed",
+    "input": {
+      "mode": "full-review",
+      "transport": "ok",
+      "snapshot": "unchanged",
+      "schemaComplete": true,
+      "execution": "Complete",
+      "rangeMatches": true,
+      "filesComplete": true,
+      "evidenceCurrent": true,
+      "findings": ["Unknown"],
+      "readyToMerge": "No"
+    },
+    "expected": "MALFORMED"
+  }
+]

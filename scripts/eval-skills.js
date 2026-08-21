@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { evaluateReviewStateFixtures } = require('./review-state-contract.js');
 
 function normalize(value) {
   return value.replace(/\s+/g, ' ').trim();
@@ -52,14 +53,28 @@ function evaluateFixtures(root = process.cwd(), fixturePath = path.join(root, 't
   return { count: fixtures.length, errors };
 }
 
+function evaluateAll(root = process.cwd()) {
+  const workflows = evaluateFixtures(root);
+  const reviewStates = evaluateReviewStateFixtures(
+    path.join(root, 'tests', 'skills', 'review-state-fixtures.json'),
+  );
+  return {
+    workflowCount: workflows.count,
+    reviewStateCount: reviewStates.count,
+    errors: [...workflows.errors, ...reviewStates.errors],
+  };
+}
+
 if (require.main === module) {
-  const result = evaluateFixtures(process.cwd());
+  const result = evaluateAll(process.cwd());
   if (result.errors.length > 0) {
     for (const error of result.errors) console.error(`ERROR: ${error}`);
     process.exitCode = 1;
   } else {
-    console.log(`Evaluated ${result.count} workflow fixtures.`);
+    console.log(
+      `Evaluated ${result.workflowCount} workflow fixtures and ${result.reviewStateCount} review-state fixtures.`,
+    );
   }
 }
 
-module.exports = { evaluateFixtures };
+module.exports = { evaluateAll, evaluateFixtures };

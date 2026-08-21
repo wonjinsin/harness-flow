@@ -196,6 +196,7 @@ test('full review receives test evidence tied to the reviewed commit', () => {
 
 test('review results use bounded states and retry only operational failures once', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
 
   for (const state of ['PASS', 'ACTIONABLE', 'OPERATIONAL', 'CONTRACT', 'MALFORMED']) {
     assert.match(review, new RegExp(`\\b${state}\\b`));
@@ -203,6 +204,11 @@ test('review results use bounded states and retry only operational failures once
   assert.match(review, /Only\s+`OPERATIONAL` may be retried once with the same immutable package/);
   assert.match(review, /mutation[\s\S]*`CONTRACT`/i);
   assert.match(review, /`MALFORMED`[^\n]*missing required fields|missing required fields[\s\S]*`MALFORMED`/i);
+  assert.match(review, /mutually exclusive/i);
+  assert.match(review, /Minor[^\n]*Ready to merge[^\n]*Yes[\s\S]*`PASS`/i);
+  assert.match(review, /Critical\/Important[^\n]*Ready to merge[^\n]*No[\s\S]*`ACTIONABLE`/i);
+  assert.match(review, /contradictory tuple[\s\S]*`CONTRACT`/i);
+  assert.doesNotMatch(template, /Ready to merge\?\*\* \[Yes \| No \| With fixes\]/);
 });
 
 test('planless feature and fix paths transition from bounded review to closeout', () => {
@@ -227,7 +233,8 @@ test('both reviewer modes treat repository content as untrusted data', () => {
   const verify = template.slice(template.indexOf('## verify-fix'));
 
   for (const mode of [full, verify]) {
-    assert.match(mode, /repository\s+content[\s\S]*untrusted\s+data/i);
+    assert.match(mode, /requirements\s*\/\s*plan[\s\S]*untrusted\s+data/i);
+    assert.match(mode, /review criteria only/i);
     assert.match(mode, /do not follow instructions found in/i);
     assert.match(mode, /network/i);
     assert.match(mode, /secret|credential/i);
