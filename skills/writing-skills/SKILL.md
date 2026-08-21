@@ -79,6 +79,11 @@ description: Use when <observable trigger or failure condition>.
 ---
 ```
 
+The repository validator accepts a safe YAML string subset: plain, single-quoted,
+double-quoted, and `|`/`>` block string values with an optional `+` or `-` chomping
+indicator. Values resembling a YAML boolean, number, or timestamp must be quoted.
+Tags, anchors, aliases, flow collections, and indentation indicators are unsupported.
+
 The description contains triggering conditions, not the workflow. Start with
 `Use when`, write in third person, name symptoms and user phrases, and include relevant
 technical keywords. Do not summarize the steps: an agent may follow the summary and

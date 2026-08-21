@@ -21,6 +21,13 @@ test('repository skills pass structural validation', () => {
   assert.deepEqual(result.errors, []);
 });
 
+test('writing-skills documents the validator safe YAML string subset', () => {
+  const writing = fs.readFileSync(path.join(ROOT, 'skills/writing-skills/SKILL.md'), 'utf8');
+  assert.match(writing, /safe YAML string subset/i);
+  assert.match(writing, /plain[\s\S]*single-quoted[\s\S]*double-quoted[\s\S]*block string/i);
+  assert.match(writing, /boolean[\s\S]*number[\s\S]*timestamp[\s\S]*must be quoted/i);
+});
+
 test('validator reports identity, metadata, duplicate, and broken-link errors', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-flow-validator-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
