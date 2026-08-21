@@ -46,12 +46,15 @@ the gate; there is no separate approval loop.
     Resume the same reviewer when supported and allow at most two post-fix
     reviewer turns, counting a scope-expansion `full-review` against that same
     limit, before escalating.
-- Large / ambiguous / spans sessions → "Big enough to write down — I'll save a
-  spec, then a plan. OK?" → write the spec below, then writing-plans.
+- Large / ambiguous / spans sessions → "Big enough to write down — I'll choose
+  the active workspace, then save a spec and plan. OK?" → `using-git-worktrees`.
+  Once the workspace is chosen (or declined), save the spec below there, get its
+  review, then invoke `writing-plans`.
 
 ## Spec (only for the large exit)
 
-Save the agreed design to `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`. Rules:
+Save the agreed design in the active workspace at
+`docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`. Rules:
 
 - Write from the user's perspective — the problem they face, the solution they get.
 - Record decisions, not code — settled interfaces, contracts, schema. Never file

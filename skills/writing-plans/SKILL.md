@@ -13,8 +13,11 @@ every layer it touches, verifiable on its own.
 When the user asks for a plan directly and key decisions are still open, don't
 plan around them — ask the 1–2 questions that settle them first, then plan.
 
-**Context:** work in an isolated workspace — invoke `using-git-worktrees` first if
-not already in one. Save to `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+**Context:** choose the workspace before creating artifacts — invoke
+`using-git-worktrees` if not already isolated. After workspace selection, verify the
+input source exists; recover an ignored source left in another checkout or stop. Do
+not plan from a missing source. Save the plan to
+`docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
 ## Header
 
