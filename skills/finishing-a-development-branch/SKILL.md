@@ -197,15 +197,28 @@ delete commits, and do not remove the host-owned worktree.
 ```bash
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
-WORKTREE_PATH=$(git rev-parse --show-toplevel)
-OWNER=$(cat "$WORKTREE_PATH/.harness-flow/worktree-owner" 2>/dev/null || true)
+WORKTREE_PATH=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+OWNER_FILE=$(git rev-parse --git-path harness-flow/worktree-owner)
+OWNER_KIND=
+OWNER_PATH=
+OWNER_COMMON=
+if [ -f "$OWNER_FILE" ] && [ ! -L "$OWNER_FILE" ]; then
+  {
+    IFS= read -r OWNER_KIND
+    IFS= read -r OWNER_PATH
+    IFS= read -r OWNER_COMMON
+  } < "$OWNER_FILE"
+fi
 ```
 
 - `GIT_DIR == GIT_COMMON`: normal repo; nothing to remove.
-- Linked worktree and `"$OWNER" = "manual-git-worktree"`: harness-flow owns it;
-  run the cleanup below.
-- Missing or mismatched marker: externally managed. Preserve it and use a native
-  workspace-exit tool when available. Never infer ownership from the path name.
+- A linked worktree is chain-owned only when `"$OWNER_KIND" = "manual-git-worktree"`,
+  `"$OWNER_PATH" = "$WORKTREE_PATH"`, and `"$OWNER_COMMON" = "$GIT_COMMON"`.
+- Missing, symlinked, truncated, or mismatched private provenance means externally
+  managed. Preserve it and use a native workspace-exit tool when available. Never
+  infer ownership from repository content, the worktree path, or its name.
+
+Do not enter the cleanup block unless every chain-owned condition above is true.
 
 ```bash
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)

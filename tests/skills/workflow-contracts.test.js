@@ -90,11 +90,70 @@ test('manual worktree location resolves beside the repo from a nested cwd', (t) 
   assert.ok(!location.startsWith(`${repo}${path.sep}`));
 });
 
-test('workspace cleanup requires an exact ownership marker, never a path guess', () => {
+test('manual worktree fallback fails before location selection for an invalid branch', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-worktree-invalid-'));
+  const repo = path.join(tmp, 'project');
+  fs.mkdirSync(repo, { recursive: true });
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = read('skills/using-git-worktrees/SKILL.md');
+  const fallback = skill.slice(skill.indexOf('**1b. Manual git fallback**'));
+  const script = fallback.match(/```bash\n([\s\S]*?)```/)[1];
+
+  assert.throws(() => execFileSync('bash', ['-c', script], {
+    cwd: repo,
+    env: { ...process.env, BRANCH_NAME: 'bad..branch' },
+    encoding: 'utf8',
+    stdio: 'pipe',
+  }));
+});
+
+test('manual worktree fallback stores provenance only in private git administration', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-worktree-owner-'));
+  const repo = path.join(tmp, 'project');
+  fs.mkdirSync(repo, { recursive: true });
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), '# fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Fixture',
+    '-c', 'user.email=fixture@example.invalid',
+    'commit', '--quiet', '-m', 'fixture',
+  ], { cwd: repo });
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = read('skills/using-git-worktrees/SKILL.md');
+  const fallback = skill.slice(skill.indexOf('**1b. Manual git fallback**'));
+  const scripts = [...fallback.matchAll(/```bash\n([\s\S]*?)```/g)].map((match) => match[1]);
+  const output = execFileSync('bash', ['-c', `${scripts[0]}\n${scripts[1]}`], {
+    cwd: repo,
+    env: { ...process.env, BRANCH_NAME: 'feat/owned' },
+    encoding: 'utf8',
+  });
+  const location = output.match(/Worktree: (.+)/)[1].trim();
+  const ownerFile = execFileSync(
+    'git', ['-C', location, 'rev-parse', '--git-path', 'harness-flow/worktree-owner'],
+    { encoding: 'utf8' },
+  ).trim();
+
+  assert.equal(fs.existsSync(path.join(location, '.harness-flow')), false);
+  assert.equal(fs.existsSync(ownerFile), true);
+  assert.deepEqual(fs.readFileSync(ownerFile, 'utf8').trim().split('\n'), [
+    'manual-git-worktree',
+    fs.realpathSync(location),
+    fs.realpathSync(path.join(repo, '.git')),
+  ]);
+});
+
+test('workspace cleanup requires exact private provenance, never a path guess', () => {
   const finishing = read('skills/finishing-a-development-branch/SKILL.md');
 
-  assert.match(finishing, /OWNER=.*worktree-owner/);
-  assert.match(finishing, /"\$OWNER" = "manual-git-worktree"/);
+  assert.match(finishing, /OWNER_FILE=.*git-path harness-flow\/worktree-owner/);
+  assert.match(finishing, /"\$OWNER_KIND" = "manual-git-worktree"/);
+  assert.match(finishing, /"\$OWNER_PATH" = "\$WORKTREE_PATH"/);
+  assert.match(finishing, /"\$OWNER_COMMON" = "\$GIT_COMMON"/);
+  assert.doesNotMatch(finishing, /\.harness-flow\/worktree-owner/);
   assert.doesNotMatch(finishing, /path is under `?\.worktrees/i);
   assert.doesNotMatch(finishing, /or `?worktrees\//i);
 });

@@ -30,15 +30,18 @@
     "required": ["isolation was declined"]
   },
   {
-    "name": "finishing blocks dirty integration and guesses no ownership",
+    "name": "finishing blocks dirty integration and requires private provenance",
     "file": "skills/finishing-a-development-branch/SKILL.md",
     "required": [
       "STATUS=$(git status --short)",
       "Do not present integration options while status is non-empty",
-      "OWNER=$(cat \"$WORKTREE_PATH/.harness-flow/worktree-owner\"",
-      "Missing or mismatched marker: externally managed"
+      "OWNER_FILE=$(git rev-parse --git-path harness-flow/worktree-owner)",
+      "Missing, symlinked, truncated, or mismatched private provenance"
     ],
-    "forbidden": ["or the worktree path is under"]
+    "forbidden": [
+      "or the worktree path is under",
+      ".harness-flow/worktree-owner"
+    ]
   },
   {
     "name": "manual worktree path is repository-root anchored",
@@ -46,9 +49,13 @@
     "required": [
       "REPO_ROOT=$(git rev-parse --show-toplevel)",
       "REPO_PARENT=$(dirname \"$REPO_ROOT\")",
-      ".harness-flow/worktree-owner"
+      "git-path harness-flow/worktree-owner",
+      "worktree provenance collision"
     ],
-    "forbidden": ["$(basename \"$PWD\")"]
+    "forbidden": [
+      "$(basename \"$PWD\")",
+      ".harness-flow/worktree-owner"
+    ]
   },
   {
     "name": "review evidence is current and outcomes are bounded",

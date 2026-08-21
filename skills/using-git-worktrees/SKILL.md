@@ -33,6 +33,7 @@ use it and skip to Step 2 — it handles placement, branch, and cleanup. Using
 **1b. Manual git fallback** — only if no native tool:
 
 ```bash
+set -e
 BRANCH_NAME="${BRANCH_NAME:-feat/short-slug}"       # lowercase ascii, unsafe runs → -
 git check-ref-format --branch "$BRANCH_NAME"         # refuse empty/invalid
 git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" && { echo "exists"; exit 1; }
@@ -49,16 +50,27 @@ printf 'Worktree: %s\n' "$LOCATION"
 The default is always a sibling directory, so do not edit `.gitignore`.
 
 ```bash
+set -e
 git worktree add "$LOCATION" -b "$BRANCH_NAME"
 cd "$LOCATION"
 
-# Explicit ownership marker used by finishing-a-development-branch.
-mkdir -p .harness-flow && printf '*\n' > .harness-flow/.gitignore
-printf 'manual-git-worktree\n' > .harness-flow/worktree-owner
+# Private provenance used by finishing-a-development-branch. Never put this in
+# the tracked workspace, and never overwrite a pre-existing file or symlink.
+WORKTREE_PATH=$(pwd -P)
+GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
+OWNER_FILE=$(git rev-parse --git-path harness-flow/worktree-owner)
+if [ -e "$OWNER_FILE" ] || [ -L "$OWNER_FILE" ]; then
+  echo "worktree provenance collision; preserve the worktree" >&2
+  exit 1
+fi
+mkdir -p "$(dirname "$OWNER_FILE")"
+(umask 077; printf 'manual-git-worktree\n%s\n%s\n' \
+  "$WORKTREE_PATH" "$GIT_COMMON" > "$OWNER_FILE")
 ```
 
 If `git worktree add` fails on a sandbox permission error, tell the user and work
-in the current directory instead.
+in the current directory instead. If provenance creation fails, preserve the new
+worktree, report its path, and stop; do not guess ownership or remove it.
 
 ## Step 2: Setup & baseline
 
