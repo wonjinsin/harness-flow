@@ -131,7 +131,9 @@ test('README and AGENTS describe the current executable workflow contracts', () 
   }
 
   assert.match(readme, /systematic-debugging[\s\S]*full-review[\s\S]*verify-fix/i);
+  assert.match(readme, /scripts\/routing-contract\.js/);
   assert.match(agents, /private Git administration[\s\S]*provenance/i);
+  assert.match(agents, /scripts\/routing-contract\.js/);
   assert.match(agents, /node scripts\/validate-skills\.js[\s\S]*node scripts\/eval-skills\.js[\s\S]*node --test/);
 });
 

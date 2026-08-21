@@ -44,6 +44,8 @@ without an approved design go to `brainstorming`; an approved design or spec goe
 artifact goes to `requesting-code-review`. General-knowledge questions stay outside
 the chain. Each skill remains independently invocable, but it must satisfy its own
 input and workspace preconditions before acting.
+This precedence is executable in `scripts/routing-contract.js`; report tuples use
+the separate review-state matrix.
 
 ```mermaid
 flowchart LR

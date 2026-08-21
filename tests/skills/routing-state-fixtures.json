@@ -1,0 +1,72 @@
+[
+  {
+    "name": "technical issue routes to systematic debugging",
+    "input": { "technicalIssue": true },
+    "expected": "systematic-debugging"
+  },
+  {
+    "name": "technical issue outranks an approved task plan",
+    "input": { "technicalIssue": true, "approvedTaskPlan": true },
+    "expected": "systematic-debugging"
+  },
+  {
+    "name": "explicit review artifact routes to code review",
+    "input": { "reviewArtifact": true },
+    "expected": "requesting-code-review"
+  },
+  {
+    "name": "review artifact outranks an approved task plan",
+    "input": { "reviewArtifact": true, "approvedTaskPlan": true },
+    "expected": "requesting-code-review"
+  },
+  {
+    "name": "approved task plan routes to implement",
+    "input": { "approvedTaskPlan": true },
+    "expected": "implement"
+  },
+  {
+    "name": "approved task plan outranks its approved design",
+    "input": { "approvedTaskPlan": true, "approvedDesignOrSpec": true },
+    "expected": "implement"
+  },
+  {
+    "name": "approved design or spec routes to writing plans",
+    "input": { "approvedDesignOrSpec": true },
+    "expected": "writing-plans"
+  },
+  {
+    "name": "explicit plan request routes to writing plans",
+    "input": { "explicitPlanRequest": true },
+    "expected": "writing-plans"
+  },
+  {
+    "name": "approved design outranks generic change intent",
+    "input": { "approvedDesignOrSpec": true, "changeIntent": true },
+    "expected": "writing-plans"
+  },
+  {
+    "name": "read-only codebase work routes to brainstorming",
+    "input": { "readOnlyCodebase": true },
+    "expected": "brainstorming"
+  },
+  {
+    "name": "change intent without approved artifacts routes to brainstorming",
+    "input": { "changeIntent": true },
+    "expected": "brainstorming"
+  },
+  {
+    "name": "explicit spec request routes to brainstorming",
+    "input": { "explicitSpecRequest": true },
+    "expected": "brainstorming"
+  },
+  {
+    "name": "general knowledge answers directly",
+    "input": { "generalKnowledge": true },
+    "expected": "ANSWER_DIRECTLY"
+  },
+  {
+    "name": "missing state remains unresolved",
+    "input": {},
+    "expected": "UNRESOLVED"
+  }
+]
