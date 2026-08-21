@@ -318,6 +318,30 @@ test('workspace cleanup requires exact private provenance, never a path guess', 
   assert.doesNotMatch(finishing, /or `?worktrees\//i);
 });
 
+test('portable provenance parser accepts exactly three lines', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-owner-record-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
+  const cleanup = finishing.slice(finishing.indexOf('### Step 6: Cleanup Workspace'));
+  const block = cleanup.match(/```bash\n([\s\S]*?)```/)[1];
+  const parser = block.slice(block.indexOf('if ! {'), block.indexOf('if [ "$OWNER_KIND"'));
+
+  for (const [name, record, valid] of [
+    ['valid', 'manual-git-worktree\n/path\n/common\n', true],
+    ['short', 'manual-git-worktree\n/path\n', false],
+    ['long', 'manual-git-worktree\n/path\n/common\nextra\n', false],
+  ]) {
+    const ownerFile = path.join(tmp, name);
+    fs.writeFileSync(ownerFile, record);
+    const run = () => execFileSync('bash', ['-c', parser], {
+      env: { ...process.env, OWNER_FILE: ownerFile },
+      stdio: 'pipe',
+    });
+    if (valid) assert.doesNotThrow(run);
+    else assert.throws(run);
+  }
+});
+
 test('linked-worktree cleanup uses its recorded feature path after leaving it', (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-cleanup-cwd-'));
   const repo = path.join(tmp, 'project');
@@ -346,9 +370,10 @@ test('linked-worktree cleanup uses its recorded feature path after leaving it', 
   const cleanupSection = finishing.slice(finishing.indexOf('### Step 6: Cleanup Workspace'));
   const cleanupScript = cleanupSection.match(/```bash\n([\s\S]*?)```/)[1];
   assert.match(cleanupScript, /git -C "\$FEATURE_WORKTREE_PATH"/);
+  assert.doesNotMatch(cleanupScript, /\bmapfile\b/);
   assert.match(finishing, /before (?:leaving|changing)[^\n]*worktree[\s\S]*FEATURE_WORKTREE_PATH/i);
 
-  execFileSync('bash', ['-c', cleanupScript], {
+  execFileSync('bash', ['-c', `mapfile() { return 127; }\n${cleanupScript}`], {
     cwd: repo,
     env: { ...process.env, FEATURE_WORKTREE_PATH: featurePath },
     stdio: 'pipe',

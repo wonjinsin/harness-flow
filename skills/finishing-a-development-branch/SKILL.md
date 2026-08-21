@@ -238,14 +238,15 @@ if [ -L "$OWNER_DIR" ] || [ ! -d "$OWNER_DIR" ] || [ -L "$OWNER_FILE" ] || [ ! -
   echo "missing or unsafe private provenance; preserve the worktree" >&2
   exit 1
 fi
-mapfile -t OWNER_RECORD < "$OWNER_FILE"
-[ "${#OWNER_RECORD[@]}" -eq 3 ] || {
+if ! {
+  IFS= read -r OWNER_KIND &&
+  IFS= read -r OWNER_PATH &&
+  IFS= read -r OWNER_COMMON &&
+  ! IFS= read -r OWNER_EXTRA
+} < "$OWNER_FILE"; then
   echo "malformed private provenance; preserve the worktree" >&2
   exit 1
-}
-OWNER_KIND=${OWNER_RECORD[0]}
-OWNER_PATH=${OWNER_RECORD[1]}
-OWNER_COMMON=${OWNER_RECORD[2]}
+fi
 if [ "$OWNER_KIND" = "manual-git-worktree" ] \
   && [ "$OWNER_PATH" = "$WORKTREE_PATH" ] \
   && [ "$OWNER_COMMON" = "$GIT_COMMON" ]; then
