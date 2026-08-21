@@ -71,6 +71,33 @@ function unquote(raw, file, errors) {
   return value;
 }
 
+function parseBlockScalar(header, lines, startIndex, file, errors) {
+  const source = [];
+  let index = startIndex + 1;
+  while (index < lines.length && (lines[index] === '' || /^[ \t]/.test(lines[index]))) {
+    source.push(lines[index]);
+    index += 1;
+  }
+
+  const nonBlank = source.filter((line) => !/^ *$/.test(line));
+  if (nonBlank.length === 0) return { value: '', nextIndex: index - 1 };
+  const firstIndent = nonBlank[0].match(/^ +/);
+  const hasUnsupportedIndent = !firstIndent
+    || source.some((line) => line.includes('\t'))
+    || source.some((line) => /^ *$/.test(line))
+    || nonBlank.some((line) => line.match(/^ +/)[0].length !== firstIndent[0].length);
+  if (hasUnsupportedIndent) {
+    errors.push(`${file}: unsupported block scalar indentation`);
+    return { value: '', nextIndex: index - 1 };
+  }
+
+  const indentation = firstIndent[0].length;
+  const separator = header.startsWith('>') ? ' ' : '\n';
+  let value = nonBlank.map((line) => line.slice(indentation)).join(separator);
+  if (!header.endsWith('-')) value += '\n';
+  return { value, nextIndex: index - 1 };
+}
+
 function parseFrontmatter(text, file, errors) {
   const normalized = text.replace(/\r\n/g, '\n');
   if (!normalized.startsWith('---\n')) {
@@ -95,16 +122,13 @@ function parseFrontmatter(text, file, errors) {
     }
     const raw = match[2].trim();
     if (/^[>|]/.test(raw)) {
-      const folded = [];
-      while (index + 1 < lines.length && /^\s+/.test(lines[index + 1])) {
-        folded.push(lines[index + 1].trim());
-        index += 1;
-      }
       if (!/^[>|][+-]?$/.test(raw)) {
         errors.push(`${file}: unsupported block scalar indicator ${JSON.stringify(raw)}`);
         fields[match[1]] = '';
       } else {
-        fields[match[1]] = folded.join(raw.startsWith('>') ? ' ' : '\n');
+        const parsed = parseBlockScalar(raw, lines, index, file, errors);
+        fields[match[1]] = parsed.value;
+        index = parsed.nextIndex;
       }
     } else {
       fields[match[1]] = unquote(raw, file, errors);

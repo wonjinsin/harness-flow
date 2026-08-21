@@ -122,6 +122,33 @@ test('validator rejects YAML-empty and malformed frontmatter scalars', (t) => {
   assert.doesNotMatch(output, /valid-(?:quoted|single)\/SKILL\.md/);
 });
 
+test('validator decodes the exact supported block scalar subset', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-flow-block-scalars-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const writeSkill = (name, description) => {
+    const directory = path.join(root, 'skills', name);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+      path.join(directory, 'SKILL.md'),
+      `---\nname: ${name}\n${description}\n---\n\n# Body\n`,
+    );
+  };
+  writeSkill('valid-literal', `description: |-\n  ${'a'.repeat(1024)}`);
+  writeSkill('valid-folded', `description: >-\n  ${'a'.repeat(512)}\n  ${'b'.repeat(511)}`);
+  writeSkill('too-long-clip', `description: |\n  ${'a'.repeat(1024)}`);
+  writeSkill('too-long-keep', `description: |+\n  ${'a'.repeat(1024)}`);
+  writeSkill('tab-indent', 'description: |\n\tinvalid');
+  writeSkill('relative-indent', 'description: |\n  first\n    second');
+
+  const output = validateSkills(root).errors.join('\n');
+  assert.doesNotMatch(output, /valid-(?:literal|folded)\/SKILL\.md/);
+  assert.match(output, /too-long-clip\/SKILL\.md: description length 1025 exceeds 1024-character limit/);
+  assert.match(output, /too-long-keep\/SKILL\.md: description length 1025 exceeds 1024-character limit/);
+  assert.match(output, /tab-indent\/SKILL\.md: unsupported block scalar indentation/);
+  assert.match(output, /relative-indent\/SKILL\.md: unsupported block scalar indentation/);
+});
+
 test('deterministic workflow fixtures pass against repository skills', () => {
   const result = evaluateFixtures(ROOT, path.join(ROOT, 'tests', 'skills', 'eval-fixtures.json'));
   assert.ok(result.count >= 6);
