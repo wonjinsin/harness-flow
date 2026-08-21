@@ -175,12 +175,14 @@ test('TDD deletion rule preserves pre-existing user code', () => {
   assert.match(tdd, /current TDD cycle/i);
 });
 
-test('manual worktree flow validates names, avoids branch pollution, and records ownership', () => {
+test('manual worktree flow is repo-root anchored and records explicit ownership', () => {
   const worktrees = read('skills/using-git-worktrees/SKILL.md');
   assert.match(worktrees, /git check-ref-format --branch/);
-  assert.match(worktrees, /git check-ignore -q -- "\$LOCATION"/);
+  assert.match(worktrees, /REPO_ROOT=.*git rev-parse --show-toplevel/);
   assert.match(worktrees, /sibling directory/i);
   assert.match(worktrees, /manual-git-worktree/);
+  assert.doesNotMatch(worktrees, /git check-ignore[\s\S]*\|\| true/);
+  assert.doesNotMatch(worktrees, /basename "\$PWD"/);
   assert.doesNotMatch(worktrees, /Add to \.gitignore, commit/i);
 });
 

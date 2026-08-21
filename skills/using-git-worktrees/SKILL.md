@@ -33,22 +33,26 @@ use it and skip to Step 2 — it handles placement, branch, and cleanup. Using
 **1b. Manual git fallback** — only if no native tool:
 
 ```bash
-BRANCH_NAME="feat/short-slug"                    # lowercase ascii, unsafe runs → -
-git check-ref-format --branch "$BRANCH_NAME"     # validate; refuse empty/invalid
+BRANCH_NAME="${BRANCH_NAME:-feat/short-slug}"       # lowercase ascii, unsafe runs → -
+git check-ref-format --branch "$BRANCH_NAME"         # refuse empty/invalid
 git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" && { echo "exists"; exit 1; }
 
-# Default to a sibling directory outside the repo, so no .gitignore edit is needed.
-LOCATION="../$(basename "$PWD")-${BRANCH_NAME//\//-}"
-# If you instead pick a project-local dir, it MUST be ignored — verify, else use
-# the sibling. Never edit/commit .gitignore on the current branch to make room.
-git check-ignore -q -- "$LOCATION" 2>/dev/null || true
-test ! -e "$LOCATION"
+# Anchor to the repository root even when invoked from a nested directory.
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_PARENT=$(dirname "$REPO_ROOT")
+LOCATION="$REPO_PARENT/$(basename "$REPO_ROOT")-${BRANCH_NAME//\//-}"
+case "$LOCATION" in "$REPO_ROOT"|"$REPO_ROOT"/*) echo "location is inside repo" >&2; exit 1;; esac
+test ! -e "$LOCATION" || { echo "location exists" >&2; exit 1; }
+printf 'Worktree: %s\n' "$LOCATION"
+```
 
+The default is always a sibling directory, so do not edit `.gitignore`.
+
+```bash
 git worktree add "$LOCATION" -b "$BRANCH_NAME"
 cd "$LOCATION"
 
-# Ownership marker — finishing-a-development-branch uses it to clean up only the
-# worktrees we created, in a self-ignored dir:
+# Explicit ownership marker used by finishing-a-development-branch.
 mkdir -p .harness-flow && printf '*\n' > .harness-flow/.gitignore
 printf 'manual-git-worktree\n' > .harness-flow/worktree-owner
 ```

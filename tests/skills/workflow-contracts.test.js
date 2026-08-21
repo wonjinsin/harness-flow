@@ -3,7 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -64,4 +66,35 @@ test('instruction revision returns a bounded workspace state', () => {
     assert.match(revise, new RegExp(`\\b${state}\\b`));
   }
   assert.match(revise, /Return exactly one status/);
+});
+
+test('manual worktree location resolves beside the repo from a nested cwd', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-worktree-'));
+  const repo = path.join(tmp, 'project');
+  const nested = path.join(repo, 'skills', 'nested');
+  fs.mkdirSync(nested, { recursive: true });
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = read('skills/using-git-worktrees/SKILL.md');
+  const fallback = skill.slice(skill.indexOf('**1b. Manual git fallback**'));
+  const script = fallback.match(/```bash\n([\s\S]*?)```/)[1];
+  const output = execFileSync('bash', ['-c', script], {
+    cwd: nested,
+    env: { ...process.env, BRANCH_NAME: 'feat/nested' },
+    encoding: 'utf8',
+  });
+  const location = output.match(/Worktree: (.+)/)[1].trim();
+
+  assert.equal(location, path.join(tmp, 'project-feat-nested'));
+  assert.ok(!location.startsWith(`${repo}${path.sep}`));
+});
+
+test('workspace cleanup requires an exact ownership marker, never a path guess', () => {
+  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
+
+  assert.match(finishing, /OWNER=.*worktree-owner/);
+  assert.match(finishing, /"\$OWNER" = "manual-git-worktree"/);
+  assert.doesNotMatch(finishing, /path is under `?\.worktrees/i);
+  assert.doesNotMatch(finishing, /or `?worktrees\//i);
 });

@@ -198,19 +198,18 @@ delete commits, and do not remove the host-owned worktree.
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 WORKTREE_PATH=$(git rev-parse --show-toplevel)
+OWNER=$(cat "$WORKTREE_PATH/.harness-flow/worktree-owner" 2>/dev/null || true)
 ```
 
-**If `GIT_DIR == GIT_COMMON`:** Normal repo, no worktree to clean up. Done.
-
-**If `.harness-flow/worktree-owner` contains `manual-git-worktree`, or the
-worktree path is under `.worktrees/` or `worktrees/`:** harness-flow created
-this worktree — we own cleanup. The marker covers the sibling-directory default.
+- `GIT_DIR == GIT_COMMON`: normal repo; nothing to remove.
+- Linked worktree and `"$OWNER" = "manual-git-worktree"`: harness-flow owns it;
+  run the cleanup below.
+- Missing or mismatched marker: externally managed. Preserve it and use a native
+  workspace-exit tool when available. Never infer ownership from the path name.
 
 ```bash
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 cd "$MAIN_ROOT"
 git worktree remove "$WORKTREE_PATH"
-git worktree prune  # Self-healing: clean up any stale registrations
+git worktree prune
 ```
-
-**Otherwise:** The host environment (harness) owns this workspace. Do NOT remove it. If your platform provides a workspace-exit tool, use it. Otherwise, leave the workspace in place.
