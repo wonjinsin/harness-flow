@@ -54,6 +54,10 @@ This determines which menu to show and how cleanup works:
 | `GIT_DIR != GIT_COMMON`, named branch  | Standard 4 options           | Provenance-based (see Step 6)   |
 | `GIT_DIR != GIT_COMMON`, detached HEAD | Host handoff, 2 options | No cleanup (externally managed) |
 
+Before leaving the feature worktree for Options 1 or 4, record its canonical
+`FEATURE_WORKTREE_PATH`. Step 6 receives this explicit path; it never infers the
+cleanup target from its later CWD.
+
 ### Step 3: Determine Base Branch
 
 ```bash
@@ -106,7 +110,8 @@ Which option?
 Ask merge style if not specified: regular or squash.
 
 ```bash
-# Get main repo root for CWD safety
+# Capture the cleanup target before changing worktree.
+FEATURE_WORKTREE_PATH=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 cd "$MAIN_ROOT"
 
@@ -168,6 +173,7 @@ Wait for exact confirmation.
 If confirmed:
 
 ```bash
+FEATURE_WORKTREE_PATH=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 ```
 
@@ -195,34 +201,58 @@ delete commits, and do not remove the host-owned worktree.
 **Only runs for Options 1 and 4.** Options 2 and 3 always preserve the worktree.
 
 ```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
-WORKTREE_PATH=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
-OWNER_FILE=$(git rev-parse --git-path harness-flow/worktree-owner)
-OWNER_KIND=
-OWNER_PATH=
-OWNER_COMMON=
-if [ -f "$OWNER_FILE" ] && [ ! -L "$OWNER_FILE" ]; then
-  {
-    IFS= read -r OWNER_KIND
-    IFS= read -r OWNER_PATH
-    IFS= read -r OWNER_COMMON
-  } < "$OWNER_FILE"
+set -e
+: "${FEATURE_WORKTREE_PATH:?record feature worktree path before leaving it}"
+FEATURE_WORKTREE_PATH=$(cd "$FEATURE_WORKTREE_PATH" && pwd -P)
+
+resolve_git_dir() {
+  case "$1" in
+    /*) (cd "$1" && pwd -P) ;;
+    *) (cd "$FEATURE_WORKTREE_PATH/$1" && pwd -P) ;;
+  esac
+}
+GIT_DIR=$(resolve_git_dir "$(git -C "$FEATURE_WORKTREE_PATH" rev-parse --git-dir)")
+GIT_COMMON=$(resolve_git_dir "$(git -C "$FEATURE_WORKTREE_PATH" rev-parse --git-common-dir)")
+WORKTREE_PATH=$FEATURE_WORKTREE_PATH
+
+if [ "$GIT_DIR" = "$GIT_COMMON" ]; then
+  echo "normal checkout; no linked worktree cleanup"
+  exit 0
 fi
-```
 
-- `GIT_DIR == GIT_COMMON`: normal repo; nothing to remove.
-- A linked worktree is chain-owned only when `"$OWNER_KIND" = "manual-git-worktree"`,
-  `"$OWNER_PATH" = "$WORKTREE_PATH"`, and `"$OWNER_COMMON" = "$GIT_COMMON"`.
-- Missing, symlinked, truncated, or mismatched private provenance means externally
-  managed. Preserve it and use a native workspace-exit tool when available. Never
-  infer ownership from repository content, the worktree path, or its name.
+OWNER_RAW=$(git -C "$FEATURE_WORKTREE_PATH" rev-parse --git-path harness-flow/worktree-owner)
+case "$OWNER_RAW" in
+  /*) OWNER_FILE=$OWNER_RAW ;;
+  *) OWNER_FILE="$FEATURE_WORKTREE_PATH/$OWNER_RAW" ;;
+esac
+OWNER_DIR=$(dirname "$OWNER_FILE")
+if [ -L "$OWNER_DIR" ] || [ ! -d "$OWNER_DIR" ] || [ -L "$OWNER_FILE" ] || [ ! -f "$OWNER_FILE" ]; then
+  echo "missing or unsafe private provenance; preserve the worktree" >&2
+  exit 1
+fi
+mapfile -t OWNER_RECORD < "$OWNER_FILE"
+[ "${#OWNER_RECORD[@]}" -eq 3 ] || {
+  echo "malformed private provenance; preserve the worktree" >&2
+  exit 1
+}
+OWNER_KIND=${OWNER_RECORD[0]}
+OWNER_PATH=${OWNER_RECORD[1]}
+OWNER_COMMON=${OWNER_RECORD[2]}
+if [ "$OWNER_KIND" = "manual-git-worktree" ] \
+  && [ "$OWNER_PATH" = "$WORKTREE_PATH" ] \
+  && [ "$OWNER_COMMON" = "$GIT_COMMON" ]; then
+  :
+else
+  echo "private provenance mismatch; preserve the worktree" >&2
+  exit 1
+fi
 
-Do not enter the cleanup block unless every chain-owned condition above is true.
-
-```bash
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+MAIN_ROOT=$(git -C "$GIT_COMMON/.." rev-parse --show-toplevel)
 cd "$MAIN_ROOT"
 git worktree remove "$WORKTREE_PATH"
 git worktree prune
 ```
+
+Missing, symlinked, malformed, or mismatched provenance is externally managed.
+Preserve it and use a native workspace-exit tool when available. Never infer
+ownership from repository content, the worktree path, or its name.

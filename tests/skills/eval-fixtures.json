@@ -35,8 +35,8 @@
     "required": [
       "STATUS=$(git status --short)",
       "Do not present integration options while status is non-empty",
-      "OWNER_FILE=$(git rev-parse --git-path harness-flow/worktree-owner)",
-      "Missing, symlinked, truncated, or mismatched private provenance"
+      "OWNER_RAW=$(git -C \"$FEATURE_WORKTREE_PATH\" rev-parse --git-path harness-flow/worktree-owner)",
+      "Missing, symlinked, malformed, or mismatched provenance"
     ],
     "forbidden": [
       "or the worktree path is under",

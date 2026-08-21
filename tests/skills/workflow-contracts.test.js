@@ -212,13 +212,58 @@ test('manual provenance creation is atomic and refuses file or symlink collision
 test('workspace cleanup requires exact private provenance, never a path guess', () => {
   const finishing = read('skills/finishing-a-development-branch/SKILL.md');
 
-  assert.match(finishing, /OWNER_FILE=.*git-path harness-flow\/worktree-owner/);
+  assert.match(finishing, /OWNER_RAW=.*git -C "\$FEATURE_WORKTREE_PATH" rev-parse --git-path harness-flow\/worktree-owner/);
+  assert.match(finishing, /OWNER_FILE=/);
   assert.match(finishing, /"\$OWNER_KIND" = "manual-git-worktree"/);
   assert.match(finishing, /"\$OWNER_PATH" = "\$WORKTREE_PATH"/);
   assert.match(finishing, /"\$OWNER_COMMON" = "\$GIT_COMMON"/);
   assert.doesNotMatch(finishing, /\.harness-flow\/worktree-owner/);
   assert.doesNotMatch(finishing, /path is under `?\.worktrees/i);
   assert.doesNotMatch(finishing, /or `?worktrees\//i);
+});
+
+test('linked-worktree cleanup uses its recorded feature path after leaving it', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-cleanup-cwd-'));
+  const repo = path.join(tmp, 'project');
+  fs.mkdirSync(repo);
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), '# fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+    'commit', '--quiet', '-m', 'fixture',
+  ], { cwd: repo });
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const worktreeSkill = read('skills/using-git-worktrees/SKILL.md');
+  const fallback = worktreeSkill.slice(worktreeSkill.indexOf('**1b. Manual git fallback**'));
+  const createScripts = [...fallback.matchAll(/```bash\n([\s\S]*?)```/g)]
+    .map((match) => match[1]);
+  const createOutput = execFileSync('bash', ['-c', `${createScripts[0]}\n${createScripts[1]}`], {
+    cwd: repo,
+    env: { ...process.env, BRANCH_NAME: 'feat/cleanup' },
+    encoding: 'utf8',
+  });
+  const featurePath = createOutput.match(/Worktree: (.+)/)[1].trim();
+
+  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
+  const cleanupSection = finishing.slice(finishing.indexOf('### Step 6: Cleanup Workspace'));
+  const cleanupScript = cleanupSection.match(/```bash\n([\s\S]*?)```/)[1];
+  assert.match(cleanupScript, /git -C "\$FEATURE_WORKTREE_PATH"/);
+  assert.match(finishing, /before (?:leaving|changing)[^\n]*worktree[\s\S]*FEATURE_WORKTREE_PATH/i);
+
+  execFileSync('bash', ['-c', cleanupScript], {
+    cwd: repo,
+    env: { ...process.env, FEATURE_WORKTREE_PATH: featurePath },
+    stdio: 'pipe',
+  });
+
+  assert.equal(fs.existsSync(featurePath), false);
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: repo,
+    encoding: 'utf8',
+  });
+  assert.doesNotMatch(listed, new RegExp(featurePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('entry routing distinguishes intent, design, plan, bug, and review states', () => {
