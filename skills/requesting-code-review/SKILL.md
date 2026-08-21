@@ -73,9 +73,11 @@ git remote -v | git hash-object --stdin
 
 The snapshot covers current commit, symbolic/detached HEAD, worktree/index plus
 index flags, untracked and ignored path membership, refs, local repository
-config, and remote configuration. Tool-level read-only protection is mandatory,
-not optional. Use native deny/restriction controls when the harness can enforce
-them. If it cannot enforce them, dispatch in an isolated disposable checkout
+config, and remote configuration. Tool-level read-only protection is mandatory.
+The tool policy must deny writes, network, secret/credential reads, and agent
+dispatch while allowing bounded repository inspection. Use native restrictions
+when the harness can enforce them. If it cannot enforce them, dispatch in an
+isolated disposable checkout
 that has no write-capable access to the active checkout, its refs, or remotes;
 do not dispatch against the active checkout with prompt-only protection. The
 caller owns setup and cleanup of that isolation. Prompt rules remain mandatory

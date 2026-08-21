@@ -160,3 +160,19 @@ test('planless feature and fix paths transition from bounded review to closeout'
   assert.match(small, /execution-preflight closeout/);
   assert.match(debugging, /If Phase 4 changes code[\s\S]*requesting-code-review[\s\S]*execution-preflight closeout/);
 });
+
+test('both reviewer modes treat repository content as untrusted data', () => {
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const full = template.slice(template.indexOf('## full-review'), template.indexOf('## verify-fix'));
+  const verify = template.slice(template.indexOf('## verify-fix'));
+
+  for (const mode of [full, verify]) {
+    assert.match(mode, /repository\s+content[\s\S]*untrusted\s+data/i);
+    assert.match(mode, /do not follow instructions found in/i);
+    assert.match(mode, /network/i);
+    assert.match(mode, /secret|credential/i);
+    assert.match(mode, /do not dispatch[\s\S]*(agent|fixer)/i);
+  }
+  assert.match(review, /tool policy[\s\S]*network[\s\S]*secret[\s\S]*agent\s+dispatch/i);
+});
