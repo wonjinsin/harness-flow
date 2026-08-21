@@ -17,9 +17,17 @@ So the same checkout can be installed locally as a plugin for testing.
 
 ## The Skill Chain (architectural backbone)
 
-Skills under `skills/` are designed to be invoked **in order**. A new Claude instance must understand this chain before touching skill content — editing one link affects the whole flow.
+Skills under `skills/` form a state-routed workflow. A new agent must understand the
+handoffs before touching skill content — editing one link affects the whole flow.
 
-**Routing (by request type, no tier system).** `using-harness-flow` routes every request before the chain starts: code work (feature/refactor/script), or read-only research, investigation, comparison, analysis, or reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test-failure/unexpected-behavior → `systematic-debugging` (the parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. **Dual-mode principle:** every chain skill is also independently invocable — the chain is the default route, and a skill's preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first) rather than bouncing the user back through the chain. There is no trivial/standard tier classifier — a "small" middle tier and the trivial/standard split were both built, A/B-evaled, and removed (see `design/2026-07-10-size-classifier-retrospective.md` before re-attempting).
+**Routing (by current state, no tier system).** `using-harness-flow` sends a bug or
+test failure to `systematic-debugging`; read-only codebase research and change intent
+without an approved design to `brainstorming`; an approved design or spec to
+`writing-plans`; an approved task plan to `implement`; and an explicit review artifact
+to `requesting-code-review`. General knowledge stays outside the chain. Skills remain
+independently invocable, but their input and workspace preconditions are mandatory.
+There is no trivial/standard tier classifier — a "small" middle tier and the split
+were A/B-evaluated and removed (see the size-classifier retrospective before retrying).
 
 **Spec is optional (Model B).** `brainstorming` recommends an exit and the user picks: **small/clear** → implement directly with `test-driven-development`, then close by the measured diff (trivial — a few lines in one file, no contract/dependency/security surface → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, with controller-owned fixes followed by focused verification); **large/ambiguous** → save a spec, then a plan. No `<HARD-GATE>`, no forced spec file, no separate approval loop.
 
@@ -27,19 +35,40 @@ Skills under `skills/` are designed to be invoked **in order**. A new Claude ins
 
 1. `using-harness-flow` — bootstrap, injected at SessionStart. Enforces "invoke a skill before any response, even 1% applicability." Routes by request type (above).
 2. `brainstorming` — turns a change idea into an agreed approach through dialogue, then recommends an exit (Model B above). In read-only mode, it investigates a codebase or technical question, reports evidence, and stops without forcing implementation. The large change exit saves a spec at `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
-3. `using-git-worktrees` — isolates the workspace. Not spec-gated: required before `writing-plans` on the large exit, optional on any other path (asks before creating; declining means working in place). Step 0 detects existing isolation (linked worktree, submodule guard); Step 1a defers to native worktree tools (`EnterWorktree` etc.); Step 1b is the manual `git worktree add` fallback (sibling directory default).
+3. `using-git-worktrees` — isolates the workspace. It is required before `writing-plans`
+   on the large exit and when `implement` must establish a clean, named, non-base branch;
+   planless paths may decline and work in place. Native worktree tools are preferred.
+   The manual fallback writes private Git administration provenance and refuses marker
+   collisions; cleanup requires exact kind/path/common-directory matches.
 4. `writing-plans` — produces an implementation plan at `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md` as bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance checkboxes — no line numbers, no code blocks). Preserves the human-approval gate ("Iterate until the user approves; after the user approves, hand off to implement"). No Task-Group / dispatch machinery.
-5. `implement` — executes an approved plan/spec **inline** in the current session on the session's model (one commit per task, TDD). Optionally isolates a single task in ONE sequential general-purpose subagent (never for parallelism; set the model tier explicitly on that dispatch). Before the final review, runs a **completeness check** (each plan task's declared Touches actually changed) so an inline run can't silently drop a task. **Always** ends with one report-only fresh-context whole-branch review via `requesting-code-review` on a mid-tier model. Plan/spec errors and incomplete reviews escalate; the controller batches implementation fixes, tests and commits them, then runs at most two focused post-fix reviewer turns over fix deltas. Semantic contract expansion promotes a post-fix turn to whole-branch review but consumes the same limit. Replaces the former `subagent-driven-development` (dispatch/ledger/scripts machinery all removed).
+5. `implement` — executes only an approved task plan **inline** in the current session
+   (one commit per task, TDD). Its mandatory preflight captures the plan across any
+   workspace transition and refuses to edit outside a clean, named, non-base branch.
+   It may isolate one task in one sequential subagent, never in parallel. A completeness
+   check precedes the final whole-branch review. The controller batches implementation
+   fixes, tests and commits them, then allows at most two post-fix reviewer turns.
 6. `test-driven-development` — sub-skill each implementer (inline or subagent) follows (Red → Verify red → Green → Verify green → Refactor).
-7. `requesting-code-review` — dispatches exactly one report-only `general-purpose` reviewer turn on a **mid-tier model** and returns its report; it never owns fixes or loops. Tool-level read-only isolation is mandatory. Its `full-review` template is used for `implement`'s final whole-branch review and `brainstorming`'s non-trivial small exit; its `verify-fix` template checks only a committed fix delta, re-evaluates only active finding IDs, and carries resolved IDs forward unchanged, preferably by resuming the same reviewer. Both modes read each changed-file diff separately and prove `N/N` coverage to avoid aggregate-output truncation. The template keeps the measured severity floor and output caps with no finding-count or confidence suppression. Controllers may run at most two focused post-fix turns before escalation.
+7. `requesting-code-review` — dispatches one report-only reviewer turn and never owns
+   fixes. One same-package retry is allowed only for `OPERATIONAL`. Tool-level read-only
+   isolation is mandatory. Both modes prove exact range, current evidence, and `N/N`
+   file coverage. Classification is mutually exclusive and ordered:
+   `PASS`, `ACTIONABLE`, `OPERATIONAL`, `CONTRACT`, `MALFORMED`. Full review and
+   focused `verify-fix` use the executable state matrix under `scripts/`. Controllers
+   may run at most two focused post-fix reviewer turns before escalation.
 8. `llm-md-revise` — invoked **after the final code review** in `implement` (default ON), and **conditionally after a verified `systematic-debugging` fix** — in both cases *before* `finishing-a-development-branch`, so approved edits land in the branch. Surfaces session-derived knowledge (user corrections, "always/never" rules, project facts, anti-patterns, external-system references) and applies it as per-candidate diffs to the **active harness's** project instruction surface (Codex → `AGENTS.md`, Claude Code → `CLAUDE.md`; following an `@import` stub to the real file) or a project `rules/*.md`. Reads user-scope files (`~/.claude/CLAUDE.md`, `~/.claude/rules/*.md`) for de-duplication only, never writes to them — surfaces a proposal instead.
-9. `finishing-a-development-branch` — Step 1: verify tests. Steps 2–3: detect environment & base branch. Step 4: present a 4-option menu (merge locally / push & PR / keep / discard). Steps 5–6: execute & cleanup. Cleanup depends on whether harness-flow created the worktree.
+9. `finishing-a-development-branch` — Step 0 requires clean status before tests or
+   integration choices. It then detects environment/base, presents merge locally /
+   push & PR / keep / discard, and executes the choice. Linked-worktree cleanup is
+   allowed only with matching private provenance; host-managed detached worktrees are
+   handed back without cleanup.
 
 The chain ends when `finishing-a-development-branch` completes.
 
 `pr-creator` is a helper skill for Option 2 of `finishing-a-development-branch` (create a PR).
 
-**Worktree/subagent gotcha:** when `implement` isolates a task in a subagent from inside a git worktree, the dispatched subagent may execute in the **main repo checkout** (on the base branch), not the worktree — so its `git commit` lands on the wrong branch. After the subagent reports DONE, verify the commit is on the feature branch (`git log` in the worktree); if it landed on the main checkout, cherry-pick it onto the feature branch and `git reset` the main checkout back.
+**Worktree/subagent gotcha:** verify that a delegated task's commit landed on the
+feature branch before continuing. If it landed in another checkout, stop and surface
+the mismatch; do not mutate or reset another checkout automatically.
 
 ## Parallel Track: Bug Fixing
 
@@ -50,7 +79,10 @@ orthogonal entry point for bug/test-failure/unexpected-behavior tasks.
 - Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
 - Four phases: Root Cause → Pattern Analysis → Hypothesis → Implementation
 - Joins the main chain only at Phase 4 Step 1, where it invokes
-  `harness-flow:test-driven-development` to write the failing test before fixing
+  `test-driven-development` to write the failing test before fixing
+- After the fix commit, requests `full-review`. `PASS` closes out; `ACTIONABLE`
+  implementation findings enter TDD fix commits and focused `verify-fix`; `OPERATIONAL`,
+  `CONTRACT`, or `MALFORMED` stops. The shared post-fix review budget is two turns.
 - Supporting files: `root-cause-tracing.md`, `defense-in-depth.md`,
   `condition-based-waiting.md`
 
@@ -145,10 +177,15 @@ Skills use Claude Code tool names (`Task`/`Agent`, `TodoWrite`, `Skill`) only wh
 
 ## Common Operations
 
-- **Add a skill**: create `skills/<name>/SKILL.md` with frontmatter `name:` and `description:`. The `description` is the auto-invocation trigger — write it as a precise activation condition (when to use, not what it does), matching the tone of existing skills.
+- **Add a skill**: create `skills/<name>/SKILL.md` with a non-empty body and frontmatter
+  `name:` (maximum 64 characters) and `description:` (maximum 1024 characters). The
+  description is the auto-invocation trigger: state when to use it, not its workflow.
 - **Edit a skill**: invoke `harness-flow:writing-skills` first — it applies to `SKILL.md` files and skill prompt templates (e.g. `*-prompt.md`). Do not break the chain order above; keep cross-references (e.g. `harness-flow:writing-plans`) stable.
 - **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
-- **Run tests**: `node --test` (Node 18+ built-in runner; hook unit/smoke tests, manifest/runtime-contract tests, and skill-script tests).
+- **Run validation**: `node scripts/validate-skills.js`, then
+  `node scripts/eval-skills.js`, then `node --test`. The evaluator runs deterministic
+  workflow fixtures plus executable review-state matrices; the test command covers
+  hooks, manifests/runtime contracts, and skill tooling.
 - **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add a smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
 - **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array). Add match + non-match cases in the matching `tests/hooks/*.test.js`.
 

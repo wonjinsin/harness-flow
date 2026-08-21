@@ -118,6 +118,23 @@ test('CI runs validation, deterministic evals, and the complete test suite', () 
   assert.match(workflow, /node --test/);
 });
 
+test('README and AGENTS describe the current executable workflow contracts', () => {
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const agents = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+
+  for (const document of [readme, agents]) {
+    assert.match(document, /approved design or spec[\s\S]*`writing-plans`/i);
+    assert.match(document, /approved task plan[\s\S]*`implement`/i);
+    assert.match(document, /clean, named, non-base branch/i);
+    assert.match(document, /`PASS`[\s\S]*`ACTIONABLE`[\s\S]*`OPERATIONAL`[\s\S]*`CONTRACT`[\s\S]*`MALFORMED`/i);
+    assert.doesNotMatch(document, /approved plan\/spec|implements? (?:the )?plan\/spec/i);
+  }
+
+  assert.match(readme, /systematic-debugging[\s\S]*full-review[\s\S]*verify-fix/i);
+  assert.match(agents, /private Git administration[\s\S]*provenance/i);
+  assert.match(agents, /node scripts\/validate-skills\.js[\s\S]*node scripts\/eval-skills\.js[\s\S]*node --test/);
+});
+
 test('writing-skills stays compact while preserving the authoring contract', () => {
   const skill = fs.readFileSync(path.join(ROOT, 'skills', 'writing-skills', 'SKILL.md'), 'utf8');
   const lineCount = skill.trimEnd().split('\n').length;

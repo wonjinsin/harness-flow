@@ -2,7 +2,7 @@
 
 ## Overview
 
-> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work follows design → isolation → planning → TDD → final review → wrap-up; bug fixing follows root-cause investigation → regression test → minimal fix.
+> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work follows design → isolation → planning → TDD → final review → wrap-up; bug fixing follows root-cause investigation → regression test → minimal fix → bounded review and verification.
 
 ### Problems it solves
 
@@ -37,7 +37,13 @@ After analyzing peer Claude Code harnesses ([`design/2026-05-05-comparison.md`](
 
 ## Skill chain — the order work flows in
 
-The chain routes by request type (no tier classifier): code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+The entry skill routes by current state, not keywords or size tiers. A bug or test
+failure goes to `systematic-debugging`; read-only codebase research and change intent
+without an approved design go to `brainstorming`; an approved design or spec goes to
+`writing-plans`; an approved task plan goes to `implement`; and an explicit review
+artifact goes to `requesting-code-review`. General-knowledge questions stay outside
+the chain. Each skill remains independently invocable, but it must satisfy its own
+input and workspace preconditions before acting.
 
 ```mermaid
 flowchart LR
@@ -75,6 +81,9 @@ flowchart LR
     UHF -- "feature / refactor" --> BS
     UHF -- "codebase research /<br/>technical report" --> BS
     UHF -- "bug / test failure" --> SD(["systematic-debugging"])
+    UHF -- "approved design / spec" --> WP
+    UHF -- "approved task plan" --> IMPL
+    UHF -- "review artifact" --> RCR_FULL
 
     BS -- "read-only evidence report" --> REPORT(["report & stop"])
     BS -- "small / clear" --> TDD
@@ -105,22 +114,21 @@ flowchart LR
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
 2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD, then close by the measured diff (trivial → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, followed by focused fix verification only when needed); large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
-   - 2-1. **using-git-worktrees** — isolates the workspace. Not tied to the spec: required before `writing-plans` on the large exit, optional on any other path (asks before creating; declining means working in place). Detects existing isolation → prefers native tools → falls back to manual `git worktree add`.
+   - 2-1. **using-git-worktrees** — isolates the workspace. It is required before `writing-plans` on the large exit and whenever `implement` must establish its mandatory execution workspace; planless paths may decline and work in place. Manual creation records provenance only in private Git administration, never in tracked repository content.
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check, requests one fresh-context whole-branch report, then batches fixes and allows at most two post-fix reviewer turns.
+4. **implement** — accepts only an approved task plan. Before reading it as execution input or editing code, its mandatory workspace preflight requires a clean, named, non-base branch and preserves the plan across any worktree transition. It then implements inline with TDD in the current session (delegating one task sequentially only when clean isolation is worth it), runs a completeness check, requests one fresh-context whole-branch report, and allows at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
+   - 4-2. **requesting-code-review** — read-only-isolated, report-only reviewer templates: `full-review` freezes the changed-file list and reads each file diff once; focused `verify-fix` checks only the committed fix delta and active finding IDs. Results are mutually exclusive: `PASS`, `ACTIONABLE`, `OPERATIONAL`, `CONTRACT`, or `MALFORMED`. Only `OPERATIONAL` permits one same-package retry; the caller owns fixes and loop limits.
    - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
-5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
+5. **finishing-a-development-branch** — first requires a clean status, then presents merge locally / push & PR / keep / discard. It removes a linked worktree only when its private provenance kind, canonical worktree path, and common Git directory all match.
 
-> **The chain is a convention, not an enforced gate.** When a request leaves no
-> decisions open — e.g. a behavior-preserving restructure like moving folders or
-> renaming files — the agent may skip `brainstorming` and TDD and execute
-> directly. This is intended: forcing dialogue and Red→Green onto mechanical
-> work only burns tokens.
+> **Artifacts are lazy; routing and safety preconditions are not.** Small work can
+> stay in one session without a spec or plan, while approved artifacts route directly
+> to their consumer. Workspace, TDD, review, and closeout rules still come from the
+> selected skill.
 
 ### Output locations
 
@@ -135,7 +143,7 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Parallel track — bug fixing
 
-**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). Joins the main chain only at Phase 4, where it uses `test-driven-development` to write the failing test before fixing. After a verified fix it conditionally surfaces `llm-md-revise` candidates (debugging sessions often reveal anti-patterns), then hands off to `finishing-a-development-branch`.
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. It enforces root-cause investigation before any fix attempt, then uses `test-driven-development` for the regression test and minimal fix. A committed fix receives a report-only `full-review`; actionable findings use bounded fix commits and `verify-fix` turns before `llm-md-revise` and branch closeout.
 
 ---
 
