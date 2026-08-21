@@ -12,6 +12,11 @@ function invalidScalar(file, errors) {
   return '';
 }
 
+function hasValidQuotedSuffix(raw, closing) {
+  const suffix = raw.slice(closing + 1);
+  return suffix === '' || /^\s+(?:#.*)?$/.test(suffix);
+}
+
 function unquote(raw, file, errors) {
   if (!raw) return '';
   if (raw.startsWith('"')) {
@@ -28,8 +33,7 @@ function unquote(raw, file, errors) {
       }
     }
     if (closing === -1) return invalidScalar(file, errors);
-    const suffix = raw.slice(closing + 1).trim();
-    if (suffix && !suffix.startsWith('#')) return invalidScalar(file, errors);
+    if (!hasValidQuotedSuffix(raw, closing)) return invalidScalar(file, errors);
     try {
       return JSON.parse(raw.slice(0, closing + 1));
     } catch {
@@ -48,15 +52,19 @@ function unquote(raw, file, errors) {
       }
     }
     if (closing === -1) return invalidScalar(file, errors);
-    const suffix = raw.slice(closing + 1).trim();
-    if (suffix && !suffix.startsWith('#')) return invalidScalar(file, errors);
+    if (!hasValidQuotedSuffix(raw, closing)) return invalidScalar(file, errors);
     return raw.slice(1, closing).replace(/''/g, "'");
   }
 
   const comment = raw.search(/(?:^|\s)#/);
   const value = (comment === -1 ? raw : raw.slice(0, comment)).trimEnd();
-  if (/^(?:~|null|true|false|[-+]?(?:\.inf|\.nan|\d+(?:\.\d+)?))$/i.test(value)
-      || /^[\[{&*!]/.test(value)) {
+  const yamlNumber = /^[-+]?(?:(?:0b[01_]+|0o[0-7_]+|0x[\da-f_]+)|(?:(?:\d[\d_]*)(?:\.[\d_]*)?|\.[\d_]+)(?:e[-+]?\d[\d_]*)?|\.(?:inf|nan))$/i;
+  const yamlTimestamp = /^\d{4}-\d{2}-\d{2}(?:$|[Tt ]\d{2}:\d{2})/;
+  const unsafePlain = /^(?:[\[{&*!%@`]|[-?](?:$|\s))/.test(value) || /:\s|:$/.test(value);
+  if (/^(?:~|null|true|false)$/i.test(value)
+      || yamlNumber.test(value)
+      || yamlTimestamp.test(value)
+      || unsafePlain) {
     errors.push(`${file}: frontmatter values must be YAML strings`);
     return '';
   }
@@ -86,13 +94,18 @@ function parseFrontmatter(text, file, errors) {
       continue;
     }
     const raw = match[2].trim();
-    if (/^[>|][+-]?$/.test(raw)) {
+    if (/^[>|]/.test(raw)) {
       const folded = [];
       while (index + 1 < lines.length && /^\s+/.test(lines[index + 1])) {
         folded.push(lines[index + 1].trim());
         index += 1;
       }
-      fields[match[1]] = folded.join(raw.startsWith('>') ? ' ' : '\n');
+      if (!/^[>|][+-]?$/.test(raw)) {
+        errors.push(`${file}: unsupported block scalar indicator ${JSON.stringify(raw)}`);
+        fields[match[1]] = '';
+      } else {
+        fields[match[1]] = folded.join(raw.startsWith('>') ? ' ' : '\n');
+      }
     } else {
       fields[match[1]] = unquote(raw, file, errors);
     }

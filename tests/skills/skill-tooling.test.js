@@ -85,6 +85,11 @@ test('validator rejects YAML-empty and malformed frontmatter scalars', (t) => {
     ['unclosed-quote', 'description: "unterminated'],
     ['unclosed-single', "description: 'unterminated"],
     ['empty-block', 'description: |\n  '],
+    ['block-indent', 'description: |2\n  '],
+    ['exponent-number', 'description: 1e3'],
+    ['radix-number', 'description: 0x10'],
+    ['timestamp-value', 'description: 2026-08-21'],
+    ['bad-comment-boundary', 'description: "valid"#comment'],
     ['valid-quoted', 'description: "valid # text" # trailing comment'],
     ['valid-single', "description: 'it''s valid' # trailing comment"],
   ];
@@ -102,6 +107,11 @@ test('validator rejects YAML-empty and malformed frontmatter scalars', (t) => {
   assert.match(output, /unclosed-quote\/SKILL\.md: invalid quoted frontmatter value/);
   assert.match(output, /unclosed-single\/SKILL\.md: invalid quoted frontmatter value/);
   assert.match(output, /empty-block\/SKILL\.md: description is required/);
+  assert.match(output, /block-indent\/SKILL\.md: unsupported block scalar indicator/);
+  assert.match(output, /exponent-number\/SKILL\.md: frontmatter values must be YAML strings/);
+  assert.match(output, /radix-number\/SKILL\.md: frontmatter values must be YAML strings/);
+  assert.match(output, /timestamp-value\/SKILL\.md: frontmatter values must be YAML strings/);
+  assert.match(output, /bad-comment-boundary\/SKILL\.md: invalid quoted frontmatter value/);
   assert.doesNotMatch(output, /valid-(?:quoted|single)\/SKILL\.md/);
 });
 
