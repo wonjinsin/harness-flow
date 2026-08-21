@@ -113,6 +113,14 @@ Ask merge style if not specified: regular or squash.
 # Capture the cleanup target before changing worktree.
 FEATURE_WORKTREE_PATH=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
 MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+if ! MAIN_STATUS=$(git -C "$MAIN_ROOT" status --porcelain); then
+  echo "cannot inspect integration target; preserve both worktrees" >&2
+  exit 1
+fi
+if [ -n "$MAIN_STATUS" ]; then
+  echo "integration target is dirty; preserve user changes and stop" >&2
+  exit 1
+fi
 cd "$MAIN_ROOT"
 
 # Merge first — verify success before removing anything

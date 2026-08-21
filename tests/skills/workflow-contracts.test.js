@@ -9,6 +9,15 @@ const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+const bashBlocks = (content) => [...content.matchAll(/```bash\n([\s\S]*?)\n```/g)].map((match) => match[1]);
+const initRepository = (repository) => {
+  execFileSync('git', ['init', '-q'], { cwd: repository });
+  execFileSync('git', ['config', 'user.name', 'Harness Test'], { cwd: repository });
+  execFileSync('git', ['config', 'user.email', 'harness@example.invalid'], { cwd: repository });
+  fs.writeFileSync(path.join(repository, 'README.md'), 'initial\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repository });
+  execFileSync('git', ['commit', '-q', '-m', 'initial'], { cwd: repository });
+};
 
 test('large design selects the workspace before saving its ignored spec', () => {
   const brainstorming = read('skills/brainstorming/SKILL.md');
@@ -109,6 +118,33 @@ test('branch finishing refuses integration menus until the workspace is clean', 
   assert.ok(cleanGate < tests, 'clean-state gate must precede tests and options');
   assert.match(finishing, /PENDING_COMMIT/);
   assert.match(finishing, /Do not present integration options while status is non-empty/);
+});
+
+test('local integration refuses a dirty main checkout before merge or pull', (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-flow-main-dirty-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const repository = path.join(temp, 'repository');
+  const feature = path.join(temp, 'feature');
+  fs.mkdirSync(repository);
+  initRepository(repository);
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'feature', feature], { cwd: repository });
+  const userFile = path.join(repository, 'user-change.txt');
+  fs.writeFileSync(userFile, 'preserve me\n');
+
+  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
+  const optionOne = finishing.slice(
+    finishing.indexOf('### Option 1: Merge Locally'),
+    finishing.indexOf('### Option 2: Push and Create PR'),
+  );
+  const integrationBlocks = bashBlocks(optionOne);
+  assert.equal(integrationBlocks.length, 2, 'integration and branch deletion blocks must remain separate');
+
+  const integration = integrationBlocks[0];
+  const beforeCheckout = integration.slice(0, integration.indexOf('cd "$MAIN_ROOT"'));
+  assert.match(beforeCheckout, /git -C "\$MAIN_ROOT" status --porcelain/);
+  assert.match(integration, /git merge <feature-branch>[\s\S]*git merge --squash <feature-branch>/);
+  assert.throws(() => execFileSync('bash', ['-c', beforeCheckout], { cwd: feature, stdio: 'pipe' }));
+  assert.equal(fs.readFileSync(userFile, 'utf8'), 'preserve me\n');
 });
 
 test('instruction revision returns a bounded workspace state', () => {
