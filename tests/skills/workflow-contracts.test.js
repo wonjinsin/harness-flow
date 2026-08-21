@@ -54,6 +54,8 @@ test('planless preflight has one deterministic limited in-place fallback', () =>
   assert.match(preflight, /ineligible[\s\S]*exactly two choices[\s\S]*isolate[\s\S]*limited in-place/i);
   assert.match(preflight, /isolation is accepted[\s\S]*re-run[\s\S]*still ineligible[\s\S]*stop/i);
   assert.match(preflight, /isolation is\s+declined[\s\S]*`LIMITED_IN_PLACE`/i);
+  assert.match(preflight, /declines isolation[\s\S]*separately accepts[\s\S]*restrictions/i);
+  assert.match(preflight, /until[\s\S]*restrictions[\s\S]*accepted[\s\S]*do not edit/i);
   assert.match(preflight, /overlaps? a pre-existing changed path[\s\S]*stop before editing/i);
   assert.match(preflight, /must not stage, commit, stash, reset, clean, push, merge, or create a PR/i);
   assert.match(preflight, /working diff[\s\S]*not an immutable approval[\s\S]*stop without merge\/PR claims/i);

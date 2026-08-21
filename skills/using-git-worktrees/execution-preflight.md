@@ -19,8 +19,12 @@ is **ineligible**. Before editing, present exactly two choices:
 2. **Limited in-place** execution with the restrictions below.
 
 If isolation is accepted, create the workspace and re-run this preflight there. If
-the new workspace is still ineligible, stop before editing. If isolation is
-declined, enter `LIMITED_IN_PLACE`; do not interpret refusal as normal eligibility.
+the new workspace is still ineligible, stop before editing. If isolation is declined,
+enter `AWAIT_RESTRICTION_ACCEPTANCE`, not `LIMITED_IN_PLACE`. Ask whether the user
+accepts every restriction below as a separate decision. Until all restrictions are
+accepted, do not edit. Only after the user declines isolation and separately accepts
+the restrictions may the state enter `LIMITED_IN_PLACE`; do not interpret refusal as
+normal eligibility.
 
 The `planless` rows in `scripts/workspace-contract.js` are the executable decision
 matrix for these transitions.

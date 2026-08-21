@@ -36,23 +36,33 @@
   },
   {
     "name": "planless eligible workspace proceeds normally",
-    "input": { "mode": "planless", "linkedWorktree": false, "clean": true, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "not-needed" },
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": true, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "not-needed", "restrictionsAccepted": false },
     "expected": "REUSE_CURRENT"
   },
   {
     "name": "planless ineligible workspace offers isolation before editing",
-    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "undecided" },
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "undecided", "restrictionsAccepted": false },
     "expected": "OFFER_ISOLATION"
   },
   {
     "name": "planless accepted isolation must create and revalidate",
-    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "accepted" },
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "accepted", "restrictionsAccepted": false },
     "expected": "CREATE_AND_REVALIDATE"
   },
   {
     "name": "planless declined isolation uses limited in-place contract",
-    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "declined" },
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "declined", "restrictionsAccepted": true },
     "expected": "LIMITED_IN_PLACE"
+  },
+  {
+    "name": "planless declined isolation waits for restriction acceptance",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "declined", "restrictionsAccepted": false },
+    "expected": "AWAIT_RESTRICTION_ACCEPTANCE"
+  },
+  {
+    "name": "planless missing restriction decision fails closed",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "declined" },
+    "expected": "UNRESOLVED"
   },
   {
     "name": "required execution stops after sandbox creation failure",
@@ -61,7 +71,7 @@
   },
   {
     "name": "planless accepted isolation stops after sandbox creation failure",
-    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "accepted", "creationResult": "sandbox-failure" },
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "accepted", "restrictionsAccepted": false, "creationResult": "sandbox-failure" },
     "expected": "STOP"
   },
   {

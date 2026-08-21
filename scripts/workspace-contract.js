@@ -8,6 +8,13 @@ function classifyWorkspace(input) {
   for (const field of ['linkedWorktree', 'clean', 'namedBranch', 'onBaseBranch']) {
     if (typeof input[field] !== 'boolean') return 'UNRESOLVED';
   }
+  if (input.mode === 'planless') {
+    if (!['not-needed', 'undecided', 'accepted', 'declined'].includes(input.isolationDecision)) {
+      return 'UNRESOLVED';
+    }
+    if (typeof input.restrictionsAccepted !== 'boolean') return 'UNRESOLVED';
+    if (input.restrictionsAccepted && input.isolationDecision !== 'declined') return 'UNRESOLVED';
+  }
   const creationResult = input.creationResult || 'not-attempted';
   if (!['not-attempted', 'sandbox-failure'].includes(creationResult)) return 'UNRESOLVED';
   if (creationResult === 'sandbox-failure') {
@@ -22,13 +29,12 @@ function classifyWorkspace(input) {
       : 'CREATE_OR_STOP';
   }
   if (input.mode === 'planless') {
-    if (!['not-needed', 'undecided', 'accepted', 'declined'].includes(input.isolationDecision)) {
-      return 'UNRESOLVED';
-    }
     if (eligible) return input.isolationDecision === 'not-needed' ? 'REUSE_CURRENT' : 'UNRESOLVED';
     if (input.isolationDecision === 'undecided') return 'OFFER_ISOLATION';
     if (input.isolationDecision === 'accepted') return 'CREATE_AND_REVALIDATE';
-    if (input.isolationDecision === 'declined') return 'LIMITED_IN_PLACE';
+    if (input.isolationDecision === 'declined') {
+      return input.restrictionsAccepted ? 'LIMITED_IN_PLACE' : 'AWAIT_RESTRICTION_ACCEPTANCE';
+    }
     return 'UNRESOLVED';
   }
   return input.linkedWorktree ? 'REUSE_CURRENT' : 'OFFER_ISOLATION';
