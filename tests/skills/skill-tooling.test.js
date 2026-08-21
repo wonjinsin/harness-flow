@@ -7,7 +7,12 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const { MAX_SKILL_LINES, validateSkills } = require('../../scripts/validate-skills.js');
+const {
+  MAX_DESCRIPTION_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_SKILL_LINES,
+  validateSkills,
+} = require('../../scripts/validate-skills.js');
 const { evaluateFixtures } = require('../../scripts/eval-skills.js');
 
 test('repository skills pass structural validation', () => {
@@ -37,6 +42,39 @@ test('validator reports identity, metadata, duplicate, and broken-link errors', 
   assert.match(output, /does not match directory beta/);
   assert.match(output, /duplicate skill name alpha/);
   assert.match(output, /broken link missing\.md/);
+});
+
+test('validator enforces metadata length boundaries and a non-empty body', (t) => {
+  const validRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-flow-validator-valid-'));
+  const invalidRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-flow-validator-invalid-'));
+  t.after(() => fs.rmSync(validRoot, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(invalidRoot, { recursive: true, force: true }));
+
+  const validName = 'a'.repeat(64);
+  fs.mkdirSync(path.join(validRoot, 'skills', validName), { recursive: true });
+  fs.writeFileSync(
+    path.join(validRoot, 'skills', validName, 'SKILL.md'),
+    `---\nname: ${validName}\ndescription: ${'d'.repeat(1024)}\n---\n\n# Valid\n`,
+  );
+  assert.equal(MAX_NAME_LENGTH, 64);
+  assert.equal(MAX_DESCRIPTION_LENGTH, 1024);
+  assert.deepEqual(validateSkills(validRoot).errors, []);
+
+  const tooLongName = 'b'.repeat(65);
+  const invalidSkills = [
+    [tooLongName, `---\nname: ${tooLongName}\ndescription: valid\n---\n\n# Body\n`],
+    ['long-description', `---\nname: long-description\ndescription: ${'d'.repeat(1025)}\n---\n\n# Body\n`],
+    ['empty-body', '---\nname: empty-body\ndescription: valid\n---\n'],
+  ];
+  for (const [directory, content] of invalidSkills) {
+    fs.mkdirSync(path.join(invalidRoot, 'skills', directory), { recursive: true });
+    fs.writeFileSync(path.join(invalidRoot, 'skills', directory, 'SKILL.md'), content);
+  }
+
+  const output = validateSkills(invalidRoot).errors.join('\n');
+  assert.match(output, /name length 65 exceeds 64-character limit/);
+  assert.match(output, /description length 1025 exceeds 1024-character limit/);
+  assert.match(output, /body is required/);
 });
 
 test('deterministic workflow fixtures pass against repository skills', () => {

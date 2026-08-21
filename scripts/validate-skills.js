@@ -3,6 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const MAX_NAME_LENGTH = 64;
+const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_LINES = 350;
 
 function unquote(raw, file, errors) {
@@ -100,6 +102,19 @@ function validateSkills(root = process.cwd()) {
 
     if (!name) errors.push(`${displayFile}: name is required`);
     if (!description.trim()) errors.push(`${displayFile}: description is required`);
+    const nameLength = Array.from(name).length;
+    const descriptionLength = Array.from(description).length;
+    if (nameLength > MAX_NAME_LENGTH) {
+      errors.push(
+        `${displayFile}: name length ${nameLength} exceeds ${MAX_NAME_LENGTH}-character limit`,
+      );
+    }
+    if (descriptionLength > MAX_DESCRIPTION_LENGTH) {
+      errors.push(
+        `${displayFile}: description length ${descriptionLength} exceeds ${MAX_DESCRIPTION_LENGTH}-character limit`,
+      );
+    }
+    if (!body.trim()) errors.push(`${displayFile}: body is required`);
     if (name && name !== directory) {
       errors.push(`${displayFile}: name ${name} does not match directory ${directory}`);
     }
@@ -131,4 +146,9 @@ if (require.main === module) {
   }
 }
 
-module.exports = { MAX_SKILL_LINES, validateSkills };
+module.exports = {
+  MAX_DESCRIPTION_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_SKILL_LINES,
+  validateSkills,
+};
