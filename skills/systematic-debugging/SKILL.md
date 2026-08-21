@@ -48,7 +48,13 @@ State one hypothesis: "X is the root cause because Y." Test it with the *smalles
 change, one variable at a time. Confirmed → Phase 4. Wrong → form a new
 hypothesis; don't stack fixes. When you don't understand something, say so and dig.
 
+**Diagnosis-only request:** stop here with Root cause / Evidence / Reproduction /
+Scope / Suggested fix; do not enter the fix path.
+
 ## Phase 4 — Fix
+
+Before the first fix edit, follow the shared
+[execution preflight](../using-git-worktrees/execution-preflight.md).
 
 1. **Failing test first** — simplest reproduction, via `test-driven-development`.
 2. **One fix at a time** — address the root cause, no "while I'm here" extras.
