@@ -89,5 +89,16 @@
       "clean, named, non-base branch",
       "stop before editing"
     ]
+  },
+  {
+    "name": "debugging routes all review outcomes with a bounded fix loop",
+    "file": "skills/systematic-debugging/SKILL.md",
+    "required": [
+      "`OPERATIONAL`, `CONTRACT`, or `MALFORMED`",
+      "`ACTIONABLE` with any `plan-escalate`",
+      "`ACTIONABLE` `impl-fix`",
+      "at most two post-fix reviewer turns",
+      "`verify-fix`"
+    ]
   }
 ]

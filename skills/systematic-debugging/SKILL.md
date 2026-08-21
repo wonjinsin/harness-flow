@@ -71,8 +71,24 @@ bug structurally impossible — see `defense-in-depth.md`.
 
 If Phase 4 changes code, surface reusable `llm-md-revise` candidates before the
 final commit so approved edits land with the fix. Commit only chain-owned paths,
-record test evidence, and invoke `requesting-code-review`; after `PASS`, follow the
-shared [execution-preflight closeout](../using-git-worktrees/execution-preflight.md).
+record test evidence, then invoke `requesting-code-review` over the immutable
+`START_HEAD..HEAD` range. Route the returned state before taking any other action:
+
+- `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and surface the report; do not
+  change code or retry outside the review skill's one operational retry.
+- `PASS` → follow the shared
+  [execution-preflight closeout](../using-git-worktrees/execution-preflight.md).
+- `ACTIONABLE` with any `plan-escalate` → stop and escalate to the human.
+- `ACTIONABLE` `impl-fix` → batch every Critical/Important finding, use TDD, run
+  targeted checks plus the full suite, and create one fix commit. Minor findings
+  remain optional. Request `verify-fix` over `REVIEWED_HEAD..FIXED_HEAD` with the
+  prior report and current test evidence.
+
+Maintain the active/resolved Finding ID ledger from `requesting-code-review`. Allow
+at most two post-fix reviewer turns. If verification is `ACTIONABLE` and budget
+remains, advance `REVIEWED_HEAD` to the commit just reviewed, batch the remaining
+fixes, and create the next `FIXED_HEAD`. `PASS` closes out; any other state or an
+exhausted budget stops and escalates. Never restart an unbounded whole-branch loop.
 Skip memory revision when no reusable lesson surfaced.
 
 ## Supporting techniques

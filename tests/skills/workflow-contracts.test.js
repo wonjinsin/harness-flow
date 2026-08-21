@@ -48,6 +48,20 @@ test('report-only debugging stops after diagnosis without entering the fix path'
   assert.ok(stop < fix, 'diagnosis-only exit must precede the fix phase');
 });
 
+test('bug-fix review routes every non-pass state with a bounded verification loop', () => {
+  const debug = read('skills/systematic-debugging/SKILL.md');
+  const afterFix = debug.slice(debug.indexOf('## After the fix lands'));
+
+  assert.match(afterFix, /`PASS`[\s\S]*execution-preflight closeout/i);
+  assert.match(afterFix, /`OPERATIONAL`[\s\S]*stop/i);
+  assert.match(afterFix, /`CONTRACT`[\s\S]*stop/i);
+  assert.match(afterFix, /`MALFORMED`[\s\S]*stop/i);
+  assert.match(afterFix, /`ACTIONABLE`[\s\S]*`plan-escalate`[\s\S]*stop/i);
+  assert.match(afterFix, /`ACTIONABLE`[\s\S]*`impl-fix`[\s\S]*TDD[\s\S]*fix commit[\s\S]*`verify-fix`/i);
+  assert.match(afterFix, /at most two post-fix reviewer turns/i);
+  assert.match(afterFix, /advance `REVIEWED_HEAD`[\s\S]*`FIXED_HEAD`/i);
+});
+
 test('branch finishing refuses integration menus until the workspace is clean', () => {
   const finishing = read('skills/finishing-a-development-branch/SKILL.md');
   const cleanGate = finishing.indexOf('### Step 0: Require a Clean State');
