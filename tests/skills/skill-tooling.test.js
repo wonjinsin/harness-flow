@@ -141,6 +141,8 @@ test('evaluator reports missing, forbidden, and out-of-order contracts', (t) => 
 test('CI runs validation, deterministic evals, and the complete test suite', () => {
   const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
   assert.match(workflow, /permissions:\s*\n\s*contents: read/);
+  assert.match(workflow, /node-version:\s*\[18, 22\]/);
+  assert.match(workflow, /node-version:\s*\$\{\{ matrix\.node-version \}\}/);
   assert.match(workflow, /node scripts\/validate-skills\.js/);
   assert.match(workflow, /node scripts\/eval-skills\.js/);
   assert.match(workflow, /node --test/);
