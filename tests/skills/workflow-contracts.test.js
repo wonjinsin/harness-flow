@@ -85,6 +85,21 @@ test('bug-fix review routes every non-pass state with a bounded verification loo
   assert.ok(revise < closeout, 'instruction revision must precede execution closeout');
 });
 
+test('instruction revision is PASS-only inside implementation chains', () => {
+  const revision = read('skills/llm-md-revise/SKILL.md');
+  const implement = read('skills/implement/SKILL.md');
+
+  assert.match(
+    revision,
+    /within `implement` and `systematic-debugging` chains[\s\S]*only after[\s\S]*final\s+reviewer state is `PASS`/i,
+  );
+  assert.match(revision, /independent[\s\S]*remember this[\s\S]*direct trigger/i);
+  assert.match(
+    implement,
+    /Only after the final reviewer state is `PASS`[\s\S]*`llm-md-revise`[\s\S]*`finishing-a-development-branch`/i,
+  );
+});
+
 test('branch finishing refuses integration menus until the workspace is clean', () => {
   const finishing = read('skills/finishing-a-development-branch/SKILL.md');
   const cleanGate = finishing.indexOf('### Step 0: Require a Clean State');

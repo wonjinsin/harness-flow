@@ -119,5 +119,6 @@ unbounded whole-branch loop.
 
 ## Then
 
-Surface `llm-md-revise` candidates if the session produced durable learnings,
-then use `finishing-a-development-branch`.
+Only after the final reviewer state is `PASS`, surface `llm-md-revise` candidates
+if the session produced durable learnings, then use
+`finishing-a-development-branch`.

@@ -1,6 +1,6 @@
 ---
 name: llm-md-revise
-description: Use when finishing a development branch and the session produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
+description: Use after final review PASS when finishing code work that produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use for a direct user request to remember or update project instructions, or a repeated correction. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # llm-md-revise
@@ -25,9 +25,11 @@ Codex project or vice versa.
 
 ## When to use
 
-- Implementation or a bug fix just completed (final review passed, or
-  `systematic-debugging` Phase 4 verified) and the session had real corrections,
-  conventions, or external constraints — surface candidates *before* finalizing the branch.
+- Within `implement` and `systematic-debugging` chains, run only after the final
+  reviewer state is `PASS` and the session had real corrections, conventions, or
+  external constraints. Surface candidates before finalizing the branch.
+- An independent user request such as "remember this" remains a direct trigger and
+  does not require a development-chain review.
 - User said "remember this" / "add to project memory" / "persist this in CLAUDE.md".
 - User repeated the same correction 2+ times (a real rule, not a one-off).
 - A non-obvious external fact came up (deadline, owner, deprecated path, external system).

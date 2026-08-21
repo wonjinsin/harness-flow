@@ -123,7 +123,7 @@ flowchart LR
 4. **implement** — accepts only an approved task plan. Before reading it as execution input or editing code, its mandatory workspace preflight requires a clean, named, non-base branch and preserves the plan across any worktree transition. It then implements inline with TDD in the current session (delegating one task sequentially only when clean isolation is worth it), runs a completeness check, requests one fresh-context whole-branch report, and allows at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
    - 4-2. **requesting-code-review** — read-only-isolated, report-only reviewer templates: `full-review` freezes the changed-file list and reads each file diff once; focused `verify-fix` checks only the committed fix delta and active finding IDs. Results are mutually exclusive: `PASS`, `ACTIONABLE`, `OPERATIONAL`, `CONTRACT`, or `MALFORMED`. Only `OPERATIONAL` permits one same-package retry; the caller owns fixes and loop limits.
-   - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
+   - 4-3. **llm-md-revise** — only after the final review returns `PASS`, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
 5. **finishing-a-development-branch** — first requires a clean status, then presents merge locally / push & PR / keep / discard. It removes a linked worktree only when its private provenance kind, canonical worktree path, and common Git directory all match.
 
@@ -145,7 +145,7 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Parallel track — bug fixing
 
-**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. It enforces root-cause investigation before any fix attempt, then uses `test-driven-development` for the regression test and minimal fix. A committed fix receives a report-only `full-review`; actionable findings use bounded fix commits and `verify-fix` turns before `llm-md-revise` and branch closeout.
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. It enforces root-cause investigation before any fix attempt, then uses `test-driven-development` for the regression test and minimal fix. A committed fix receives a report-only `full-review`; actionable findings use bounded fix commits and `verify-fix` turns, and only a final `PASS` proceeds to `llm-md-revise` and branch closeout.
 
 ---
 
