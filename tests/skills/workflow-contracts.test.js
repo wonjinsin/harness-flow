@@ -67,6 +67,14 @@ test('bug-fix review routes every non-pass state with a bounded verification loo
   assert.match(postFix, /`ACTIONABLE`[\s\S]*`plan-escalate`[\s\S]*stop/i);
   assert.match(postFix, /`ACTIONABLE`[\s\S]*all[^\n]*`impl-fix`[\s\S]*budget[\s\S]*advance `REVIEWED_HEAD`/i);
   assert.match(postFix, /`OPERATIONAL`[\s\S]*`CONTRACT`[\s\S]*`MALFORMED`[\s\S]*stop/i);
+
+  const review = afterFix.indexOf('invoke `requesting-code-review`');
+  const passCloseout = afterFix.indexOf('Only after a `PASS`');
+  const revise = afterFix.indexOf('`llm-md-revise`', passCloseout);
+  const closeout = afterFix.indexOf('execution-preflight closeout', revise);
+  assert.ok(review < passCloseout, 'review must precede PASS-only follow-up');
+  assert.ok(passCloseout < revise, 'instruction revision must require PASS');
+  assert.ok(revise < closeout, 'instruction revision must precede execution closeout');
 });
 
 test('branch finishing refuses integration menus until the workspace is clean', () => {

@@ -69,15 +69,13 @@ bug structurally impossible — see `defense-in-depth.md`.
 
 ## After the fix lands
 
-If Phase 4 changes code, surface reusable `llm-md-revise` candidates before the
-final commit so approved edits land with the fix. Commit only chain-owned paths,
-record test evidence, then invoke `requesting-code-review` over the immutable
-`START_HEAD..HEAD` range. Route the returned state before taking any other action:
+If Phase 4 changes code, commit only chain-owned fix paths and record test evidence.
+Then invoke `requesting-code-review` over the immutable `START_HEAD..HEAD` range.
+Route the returned state before taking any other action:
 
 - `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and surface the report; do not
   change code or retry outside the review skill's one operational retry.
-- `PASS` → follow the shared
-  [execution-preflight closeout](../using-git-worktrees/execution-preflight.md).
+- `PASS` → continue to the PASS-only follow-up below.
 - `ACTIONABLE` with any `plan-escalate` → stop and escalate to the human.
 - `ACTIONABLE` `impl-fix` → batch every Critical/Important finding, use TDD, run
   targeted checks plus the full suite, and create one fix commit. Minor findings
@@ -88,7 +86,7 @@ Maintain the active/resolved Finding ID ledger from `requesting-code-review` and
 allow at most two post-fix reviewer turns. Reclassify every post-fix result before
 changing code:
 
-- `PASS` → use the execution-preflight closeout.
+- `PASS` → continue to the PASS-only follow-up below.
 - `ACTIONABLE` with any `plan-escalate` → stop and escalate to the human.
 - `ACTIONABLE` with all Critical/Important findings classed `impl-fix` and budget
   remaining → advance `REVIEWED_HEAD` to the commit just reviewed, batch the
@@ -96,8 +94,11 @@ changing code:
 - `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and surface the report.
 - Exhausted budget → stop and escalate.
 
-Never restart an unbounded whole-branch loop. Skip memory revision when no reusable
-lesson surfaced.
+Never restart an unbounded whole-branch loop.
+
+Only after a `PASS`, surface reusable `llm-md-revise` candidates. Skip revision when
+no reusable lesson surfaced. Then follow the shared
+[execution-preflight closeout](../using-git-worktrees/execution-preflight.md).
 
 ## Supporting techniques
 
