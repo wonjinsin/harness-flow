@@ -97,9 +97,13 @@ try {
 NODE
 ```
 
-If `git worktree add` fails on a sandbox permission error, tell the user and work
-in the current directory instead. If provenance creation fails, preserve the new
-worktree, report its path, and stop; do not guess ownership or remove it.
+If `git worktree add` fails on a sandbox permission error, report it. In
+`required-execution`, stop before editing. After accepted isolation in optional or
+planless mode, also stop before editing; do not reinterpret a sandbox failure as
+isolation declined. `LIMITED_IN_PLACE` is permitted only after the user explicitly
+declined isolation and accepted its restrictions before creation was attempted.
+If provenance creation fails, preserve the new worktree, report its path, and stop;
+do not guess ownership or remove it.
 
 ## Step 2: Setup & baseline
 

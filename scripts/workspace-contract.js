@@ -8,6 +8,12 @@ function classifyWorkspace(input) {
   for (const field of ['linkedWorktree', 'clean', 'namedBranch', 'onBaseBranch']) {
     if (typeof input[field] !== 'boolean') return 'UNRESOLVED';
   }
+  const creationResult = input.creationResult || 'not-attempted';
+  if (!['not-attempted', 'sandbox-failure'].includes(creationResult)) return 'UNRESOLVED';
+  if (creationResult === 'sandbox-failure') {
+    if (input.mode === 'planless' && input.isolationDecision !== 'accepted') return 'UNRESOLVED';
+    return 'STOP';
+  }
 
   const eligible = input.clean && input.namedBranch && !input.onBaseBranch;
   if (input.mode === 'required-execution') {

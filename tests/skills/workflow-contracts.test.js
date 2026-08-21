@@ -59,6 +59,17 @@ test('planless preflight has one deterministic limited in-place fallback', () =>
   assert.match(preflight, /working diff[\s\S]*not an immutable approval[\s\S]*stop without merge\/PR claims/i);
 });
 
+test('sandbox worktree failure never silently downgrades accepted isolation', () => {
+  const worktrees = read('skills/using-git-worktrees/SKILL.md');
+  const failure = worktrees.slice(worktrees.indexOf('If `git worktree add` fails'));
+
+  assert.match(failure, /`required-execution`[\s\S]*stop before editing/i);
+  assert.match(failure, /accepted isolation[\s\S]*stop before editing/i);
+  assert.match(failure, /not[\s\S]*reinterpret[\s\S]*declined/i);
+  assert.match(failure, /`LIMITED_IN_PLACE`[\s\S]*explicitly\s+declined isolation/i);
+  assert.doesNotMatch(failure, /work\s+in the current directory instead/i);
+});
+
 test('report-only debugging stops after diagnosis without entering the fix path', () => {
   const debugging = read('skills/systematic-debugging/SKILL.md');
   const stop = debugging.indexOf('Diagnosis-only request');

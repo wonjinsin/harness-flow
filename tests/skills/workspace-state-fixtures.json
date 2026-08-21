@@ -55,6 +55,21 @@
     "expected": "LIMITED_IN_PLACE"
   },
   {
+    "name": "required execution stops after sandbox creation failure",
+    "input": { "mode": "required-execution", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "creationResult": "sandbox-failure" },
+    "expected": "STOP"
+  },
+  {
+    "name": "planless accepted isolation stops after sandbox creation failure",
+    "input": { "mode": "planless", "linkedWorktree": false, "clean": false, "namedBranch": true, "onBaseBranch": false, "isolationDecision": "accepted", "creationResult": "sandbox-failure" },
+    "expected": "STOP"
+  },
+  {
+    "name": "optional accepted isolation stops after sandbox creation failure",
+    "input": { "mode": "optional", "linkedWorktree": false, "clean": true, "namedBranch": true, "onBaseBranch": false, "creationResult": "sandbox-failure" },
+    "expected": "STOP"
+  },
+  {
     "name": "invalid mode fails closed",
     "input": { "mode": "unknown", "linkedWorktree": true, "clean": true, "namedBranch": true, "onBaseBranch": false },
     "expected": "UNRESOLVED"
