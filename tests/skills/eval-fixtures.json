@@ -99,6 +99,8 @@
       "`ACTIONABLE` `impl-fix`",
       "at most two post-fix reviewer turns",
       "Reclassify every post-fix result",
+      "request another `verify-fix`",
+      "second post-fix reviewer turn",
       "`verify-fix`"
     ],
     "ordered": [

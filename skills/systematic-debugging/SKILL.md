@@ -93,6 +93,9 @@ changing code:
 - `ACTIONABLE` with all Critical/Important findings classed `impl-fix` and budget
   remaining → advance `REVIEWED_HEAD` to the commit just reviewed, batch the
   remaining fixes, test, and create the next `FIXED_HEAD`.
+  Then request another `verify-fix` over `REVIEWED_HEAD..FIXED_HEAD`.
+  Count the second post-fix reviewer turn here, then reclassify its returned state
+  with this same table.
 - `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and surface the report.
 - Exhausted budget → stop and escalate.
 

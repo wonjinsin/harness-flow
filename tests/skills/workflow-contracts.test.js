@@ -71,6 +71,10 @@ test('bug-fix review routes every non-pass state with a bounded verification loo
   assert.match(postFix, /`ACTIONABLE`[\s\S]*`plan-escalate`[\s\S]*stop/i);
   assert.match(postFix, /`ACTIONABLE`[\s\S]*all[^\n]*`impl-fix`[\s\S]*budget[\s\S]*advance `REVIEWED_HEAD`/i);
   assert.match(postFix, /`OPERATIONAL`[\s\S]*`CONTRACT`[\s\S]*`MALFORMED`[\s\S]*stop/i);
+  assert.match(
+    postFix,
+    /create the next `FIXED_HEAD`[\s\S]*request another `verify-fix`[\s\S]*`REVIEWED_HEAD\.\.FIXED_HEAD`[\s\S]*second post-fix reviewer turn[\s\S]*reclassify/i,
+  );
 
   const review = afterFix.indexOf('invoke `requesting-code-review`');
   const passCloseout = afterFix.indexOf('Only after a `PASS`');
