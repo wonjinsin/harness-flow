@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const MAX_SKILL_LINES = 750;
+const MAX_SKILL_LINES = 350;
 
 function unquote(raw, file, errors) {
   if (!raw) return '';

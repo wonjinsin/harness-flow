@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const { validateSkills } = require('../../scripts/validate-skills.js');
+const { MAX_SKILL_LINES, validateSkills } = require('../../scripts/validate-skills.js');
 const { evaluateFixtures } = require('../../scripts/eval-skills.js');
 
 test('repository skills pass structural validation', () => {
@@ -78,4 +78,31 @@ test('CI runs validation, deterministic evals, and the complete test suite', () 
   assert.match(workflow, /node scripts\/validate-skills\.js/);
   assert.match(workflow, /node scripts\/eval-skills\.js/);
   assert.match(workflow, /node --test/);
+});
+
+test('writing-skills stays compact while preserving the authoring contract', () => {
+  const skill = fs.readFileSync(path.join(ROOT, 'skills', 'writing-skills', 'SKILL.md'), 'utf8');
+  const lineCount = skill.trimEnd().split('\n').length;
+
+  assert.ok(MAX_SKILL_LINES <= 350, `skill limit is still ${MAX_SKILL_LINES}`);
+  assert.ok(lineCount <= MAX_SKILL_LINES, `writing-skills is ${lineCount} lines`);
+  assert.match(skill, /Never create or revise a skill without first observing a baseline failure/);
+  assert.match(skill, /RED[\s\S]*GREEN[\s\S]*REFACTOR/);
+  assert.match(skill, /description[\s\S]*triggering conditions[\s\S]*not the workflow/i);
+  assert.match(skill, /testing-skills-with-subagents\.md/);
+  assert.match(skill, /node scripts\/validate-skills\.js/);
+  assert.match(skill, /node scripts\/eval-skills\.js/);
+});
+
+test('upstream authoring reference is condensed and marks local overrides', () => {
+  const reference = fs.readFileSync(
+    path.join(ROOT, 'skills', 'writing-skills', 'anthropic-best-practices.md'),
+    'utf8',
+  );
+  const lineCount = reference.trimEnd().split('\n').length;
+
+  assert.ok(lineCount <= 200, `anthropic reference is ${lineCount} lines`);
+  assert.match(reference, /Local repository overrides/);
+  assert.match(reference, /350-line/);
+  assert.match(reference, /platform\.claude\.com\/docs/);
 });
