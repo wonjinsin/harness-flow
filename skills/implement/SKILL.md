@@ -1,12 +1,16 @@
 ---
 name: implement
-description: Use when executing an approved implementation plan or spec in the current session. Triggers on "execute/run this plan", "implement the plan/spec", or a plan file being handed over for execution.
+description: Use when executing an approved task plan in the current session. Triggers on "execute/run this plan", "implement the plan", or a plan file with task contracts being handed over for execution.
 ---
 
 # Implement
 
-Execute a plan or spec **inline**, then get **one fresh-context review**. Dispatch
-a subagent for a task only when clean isolation clearly helps — never for parallelism.
+Execute an approved task plan **inline**, then get **one fresh-context review**.
+Dispatch a subagent only when clean isolation helps — never for parallelism.
+
+**Required input: an approved task plan** whose tasks state Delivers, Touches,
+Blocked by, and acceptance criteria. A spec or design is not executable input;
+invoke `writing-plans` to normalize it before continuing.
 
 ## Before you start
 
@@ -39,18 +43,9 @@ general-purpose subagent for that task:
   message, not in code."
 - When it returns, verify its commit landed on the feature branch before continuing.
 
-**Pick a model tier for the dispatch — and set it explicitly.** Use the least
-powerful model that fits, to conserve cost and speed:
-
-- Mechanical task (isolated function, clear spec, 1–2 files) → cheap/fast model.
-- Integration or judgment task (multi-file coordination, pattern matching,
-  debugging) → standard model.
-- Architecture or broad design task → the most capable model.
-
-An omitted tier inherits the session default, which is usually the most expensive
-model — always name the tier on dispatch. But the cheapest models routinely take
-2–3× the turns on multi-step work and can cost more overall, so use a standard tier
-as the floor for anything non-trivial.
+**Choose and state an explicit model tier:** cheap for mechanical 1–2-file work,
+standard for non-trivial integration/debugging, and most capable for broad
+architecture. Never omit the tier; standard is the floor for non-trivial work.
 
 This is the only isolation on the build path — optional and sequential.
 

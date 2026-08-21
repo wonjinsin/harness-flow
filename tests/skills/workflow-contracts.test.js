@@ -98,3 +98,25 @@ test('workspace cleanup requires an exact ownership marker, never a path guess',
   assert.doesNotMatch(finishing, /path is under `?\.worktrees/i);
   assert.doesNotMatch(finishing, /or `?worktrees\//i);
 });
+
+test('entry routing distinguishes intent, design, plan, bug, and review states', () => {
+  const entry = read('skills/using-harness-flow/SKILL.md');
+
+  assert.match(entry, /Bug, test failure, or unexpected behavior[\s\S]*`systematic-debugging`/);
+  assert.match(entry, /Read-only codebase research[\s\S]*`brainstorming` read-only exit/);
+  assert.match(entry, /Approved design or spec[\s\S]*`writing-plans`/);
+  assert.match(entry, /Approved task plan[\s\S]*`implement`/);
+  assert.match(entry, /Explicit code-review artifact[\s\S]*`requesting-code-review`/);
+});
+
+test('implement accepts only an approved task plan and normalizes specs through planning', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const frontmatter = implement.match(/^---[\s\S]*?---/)[0];
+
+  assert.doesNotMatch(frontmatter, /plan or spec/i);
+  assert.match(implement, /Required input: an approved task plan/);
+  assert.match(implement, /A spec or design is not executable input[\s\S]*`writing-plans`/);
+  for (const field of ['Delivers', 'Touches', 'Blocked by', 'acceptance']) {
+    assert.match(implement, new RegExp(field, 'i'));
+  }
+});

@@ -15,18 +15,19 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
 
 ## Routing
 
-- Build / feature / refactor / script → brainstorming
-- Stated intent or desire to change code, or investigating whether code should
-  change ("check if X needs updating", "compare to decide") → brainstorming
-- Bug / test failure / unexpected behavior → systematic-debugging
-- Read-only research, investigation, comparison, analysis, or report requests
-  about the in-scope codebase, repository, or technical artifact, even without
-  change intent ("investigate and report", "research this codebase")
-  → brainstorming. General-knowledge questions stay direct; bug, test-failure,
-  and unexpected-behavior requests follow systematic-debugging above
-- Explicit ask for a specific artifact (an implementation plan — "write/make a
-  plan", a spec, a code review) → that skill directly; never draft the artifact
-  ad-hoc without the skill. It recovers its own missing inputs
+Route by current state, not by keywords alone:
+
+| Current state or intent | Route |
+|---|---|
+| Bug, test failure, or unexpected behavior | `systematic-debugging` |
+| Read-only codebase research or report | `brainstorming` read-only exit |
+| Change intent without an approved design | `brainstorming` |
+| Approved design or spec, or explicit plan artifact | `writing-plans` |
+| Approved task plan | `implement` |
+| Explicit code-review artifact | `requesting-code-review` |
+| General-knowledge question | Answer directly |
+
+Artifact skills recover their own missing inputs; never draft an artifact ad hoc.
 
 Skills use harness-neutral wording — map any generic mechanism (skill loading,
 task tracking, subagent dispatch) to your harness's native tool.

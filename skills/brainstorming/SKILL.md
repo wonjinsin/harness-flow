@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "Use BEFORE writing or changing code for a feature, fix, refactor, or script, and when the user asks to research, investigate, compare, analyze, or report on an in-scope codebase, repository, or technical artifact, even without requesting a change. Do NOT use for general-knowledge questions, diagnosing bugs or test failures (use systematic-debugging), or when an approved spec/plan already exists (use writing-plans)."
+description: "Use BEFORE writing or changing code for a feature, fix, refactor, or script, and for read-only research on an in-scope codebase or technical artifact. Do NOT use for general knowledge, bug diagnosis (use systematic-debugging), an approved design/spec (use writing-plans), or an approved task plan (use implement)."
 ---
 
 # Brainstorming
