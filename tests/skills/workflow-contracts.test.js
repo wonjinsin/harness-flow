@@ -49,9 +49,13 @@ test('report-only debugging stops after diagnosis without entering the fix path'
 });
 
 test('bug-fix review routes every non-pass state with a bounded verification loop', () => {
-  const debug = read('skills/systematic-debugging/SKILL.md');
-  const afterFix = debug.slice(debug.indexOf('## After the fix lands'));
-
+  const debugging = read('skills/systematic-debugging/SKILL.md');
+  const afterFix = debugging.slice(debugging.indexOf('## After the fix lands'));
+  assert.match(
+    afterFix,
+    /REVIEWED_HEAD=\$\(git rev-parse --verify 'HEAD\^\{commit\}'\)[\s\S]*`START_HEAD\.\.REVIEWED_HEAD`/i,
+  );
+  assert.match(afterFix, /`OPERATIONAL`, `CONTRACT`, or `MALFORMED`[\s\S]*stop[\s\S]*do not[\s\S]*retry/i);
   assert.match(afterFix, /`PASS`[\s\S]*execution-preflight closeout/i);
   assert.match(afterFix, /`OPERATIONAL`[\s\S]*stop/i);
   assert.match(afterFix, /`CONTRACT`[\s\S]*stop/i);

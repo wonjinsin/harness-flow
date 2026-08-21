@@ -70,8 +70,10 @@ bug structurally impossible — see `defense-in-depth.md`.
 ## After the fix lands
 
 If Phase 4 changes code, commit only chain-owned fix paths and record test evidence.
-Then invoke `requesting-code-review` over the immutable `START_HEAD..HEAD` range.
-Route the returned state before taking any other action:
+Pin `REVIEWED_HEAD=$(git rev-parse --verify 'HEAD^{commit}')`, require a clean
+worktree, then invoke `requesting-code-review` over the immutable
+`START_HEAD..REVIEWED_HEAD` range. Keep that exact `REVIEWED_HEAD` as the base for
+the first `verify-fix`. Route the returned state before taking any other action:
 
 - `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and surface the report; do not
   change code or retry outside the review skill's one operational retry.

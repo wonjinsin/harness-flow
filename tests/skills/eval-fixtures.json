@@ -102,6 +102,7 @@
       "`verify-fix`"
     ],
     "ordered": [
+      "REVIEWED_HEAD=$(git rev-parse --verify 'HEAD^{commit}')",
       "invoke `requesting-code-review`",
       "Only after a `PASS`",
       "`llm-md-revise`",
