@@ -345,6 +345,38 @@ test('portable provenance parser accepts exactly three lines', (t) => {
   }
 });
 
+test('feature clean gates stop when git status cannot be inspected', (t) => {
+  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
+  const statusCommands = finishing.match(/git status --short/g) || [];
+  const guardedStatusCommands = finishing.match(/if ! STATUS=\$\(git status --short\); then/g) || [];
+  assert.equal(statusCommands.length, 3);
+  assert.equal(guardedStatusCommands.length, statusCommands.length);
+
+  const normalCheckout = finishing.slice(finishing.indexOf('If this is a normal checkout'));
+  const discardScript = bashBlocks(normalCheckout)[0];
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-status-failure-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const bin = path.join(tmp, 'bin');
+  const log = path.join(tmp, 'git.log');
+  fs.mkdirSync(bin);
+  const fakeGit = path.join(bin, 'git');
+  fs.writeFileSync(fakeGit, [
+    '#!/bin/sh',
+    'printf "%s\\n" "$*" >> "$GIT_LOG"',
+    'if [ "$1" = status ]; then exit 7; fi',
+    'exit 0',
+    '',
+  ].join('\n'));
+  fs.chmodSync(fakeGit, 0o755);
+
+  assert.throws(() => execFileSync('bash', ['-c', discardScript], {
+    cwd: tmp,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GIT_LOG: log, MAIN_ROOT: tmp },
+    stdio: 'pipe',
+  }));
+  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), ['status --short']);
+});
+
 test('linked-worktree cleanup uses its recorded feature path after leaving it', (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-cleanup-cwd-'));
   const repo = path.join(tmp, 'project');

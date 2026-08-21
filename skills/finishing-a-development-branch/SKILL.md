@@ -12,7 +12,10 @@ Verify tests → detect environment → present options → execute choice → c
 ### Step 0: Require a Clean State
 
 ```bash
-STATUS=$(git status --short)
+if ! STATUS=$(git status --short); then
+  echo "cannot inspect feature workspace; preserve it and stop" >&2
+  exit 1
+fi
 ```
 
 If status is non-empty, separate chain-owned paths from pre-existing user changes.
@@ -43,7 +46,10 @@ options remain unavailable until the suite passes.
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
-STATUS=$(git status --short)
+if ! STATUS=$(git status --short); then
+  echo "cannot inspect feature workspace; preserve it and stop" >&2
+  exit 1
+fi
 ```
 
 This determines which menu to show and how cleanup works:
@@ -190,7 +196,11 @@ feature branch. If this is a normal checkout, first verify status is clean and
 switch to the resolved base branch before deleting the old branch:
 
 ```bash
-test -z "$(git status --short)" || { echo "working tree is dirty" >&2; exit 1; }
+if ! STATUS=$(git status --short); then
+  echo "cannot inspect feature workspace; preserve it and stop" >&2
+  exit 1
+fi
+[ -z "$STATUS" ] || { echo "working tree is dirty" >&2; exit 1; }
 cd "$MAIN_ROOT"
 git switch <base-branch>  # normal checkout only
 git branch -D <feature-branch>
