@@ -145,3 +145,18 @@ test('review results use bounded states and retry only operational failures once
   assert.match(review, /mutation[\s\S]*`CONTRACT`/i);
   assert.match(review, /`MALFORMED`[^\n]*missing required fields|missing required fields[\s\S]*`MALFORMED`/i);
 });
+
+test('planless feature and fix paths transition from bounded review to closeout', () => {
+  const preflight = read('skills/using-git-worktrees/execution-preflight.md');
+  const brainstorming = read('skills/brainstorming/SKILL.md');
+  const debugging = read('skills/systematic-debugging/SKILL.md');
+  const small = brainstorming.slice(
+    brainstorming.indexOf('- Small / clear'),
+    brainstorming.indexOf('- Large / ambiguous'),
+  );
+
+  assert.match(preflight, /review(?:er)? state is `PASS`[\s\S]*`finishing-a-development-branch`/);
+  assert.match(preflight, /isolation was declined[\s\S]*stop without merge\/PR claims/i);
+  assert.match(small, /execution-preflight closeout/);
+  assert.match(debugging, /If Phase 4 changes code[\s\S]*requesting-code-review[\s\S]*execution-preflight closeout/);
+});

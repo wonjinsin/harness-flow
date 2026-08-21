@@ -69,10 +69,11 @@ bug structurally impossible — see `defense-in-depth.md`.
 
 ## After the fix lands
 
-If the session surfaced a reusable lesson — a correction, an anti-pattern, a rule,
-a non-obvious external fact — surface `llm-md-revise` candidates before finishing
-so any approved edit lands with the fix (debugging is a common anti-pattern source;
-skip when nothing's worth persisting). Then use `finishing-a-development-branch`.
+If Phase 4 changes code, surface reusable `llm-md-revise` candidates before the
+final commit so approved edits land with the fix. Commit only chain-owned paths,
+record test evidence, and invoke `requesting-code-review`; after `PASS`, follow the
+shared [execution-preflight closeout](../using-git-worktrees/execution-preflight.md).
+Skip memory revision when no reusable lesson surfaced.
 
 ## Supporting techniques
 

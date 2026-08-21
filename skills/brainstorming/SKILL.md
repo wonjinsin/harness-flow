@@ -40,12 +40,13 @@ the gate; there is no separate approval loop.
     security surface → self-review it for correctness and scope creep, then finish.
   - Anything larger → request one report-only `full-review` via
     requesting-code-review over the branch (mid-tier model). The current session
-    owns any fixes: escalate `plan-escalate` or Incomplete reports; otherwise
-    batch Critical/Important `impl-fix` findings, use TDD, run relevant checks
-    and the full suite, make one fix commit, and request a focused `verify-fix`.
+    owns any fixes: escalate non-`ACTIONABLE` failures or `plan-escalate`; otherwise
+    batch Critical/Important `impl-fix` findings, use TDD, run relevant checks and
+    the full suite, make one fix commit, and request a focused `verify-fix`.
     Resume the same reviewer when supported and allow at most two post-fix
     reviewer turns, counting a scope-expansion `full-review` against that same
     limit, before escalating.
+  - After either successful path, follow the shared execution-preflight closeout.
 - Large / ambiguous / spans sessions → "Big enough to write down — I'll choose
   the active workspace, then save a spec and plan. OK?" → `using-git-worktrees`.
   Once the workspace is chosen (or declined), save the spec below there, get its
