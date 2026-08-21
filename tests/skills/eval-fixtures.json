@@ -98,6 +98,7 @@
       "`ACTIONABLE` with any `plan-escalate`",
       "`ACTIONABLE` `impl-fix`",
       "at most two post-fix reviewer turns",
+      "Reclassify every post-fix result",
       "`verify-fix`"
     ]
   }

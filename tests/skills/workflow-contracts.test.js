@@ -60,6 +60,13 @@ test('bug-fix review routes every non-pass state with a bounded verification loo
   assert.match(afterFix, /`ACTIONABLE`[\s\S]*`impl-fix`[\s\S]*TDD[\s\S]*fix commit[\s\S]*`verify-fix`/i);
   assert.match(afterFix, /at most two post-fix reviewer turns/i);
   assert.match(afterFix, /advance `REVIEWED_HEAD`[\s\S]*`FIXED_HEAD`/i);
+
+  const postFix = afterFix.slice(afterFix.indexOf('Maintain the active/resolved'));
+  assert.match(postFix, /Reclassify every post-fix result/i);
+  assert.match(postFix, /`PASS`[\s\S]*closeout/i);
+  assert.match(postFix, /`ACTIONABLE`[\s\S]*`plan-escalate`[\s\S]*stop/i);
+  assert.match(postFix, /`ACTIONABLE`[\s\S]*all[^\n]*`impl-fix`[\s\S]*budget[\s\S]*advance `REVIEWED_HEAD`/i);
+  assert.match(postFix, /`OPERATIONAL`[\s\S]*`CONTRACT`[\s\S]*`MALFORMED`[\s\S]*stop/i);
 });
 
 test('branch finishing refuses integration menus until the workspace is clean', () => {

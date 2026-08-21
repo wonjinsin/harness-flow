@@ -84,12 +84,20 @@ record test evidence, then invoke `requesting-code-review` over the immutable
   remain optional. Request `verify-fix` over `REVIEWED_HEAD..FIXED_HEAD` with the
   prior report and current test evidence.
 
-Maintain the active/resolved Finding ID ledger from `requesting-code-review`. Allow
-at most two post-fix reviewer turns. If verification is `ACTIONABLE` and budget
-remains, advance `REVIEWED_HEAD` to the commit just reviewed, batch the remaining
-fixes, and create the next `FIXED_HEAD`. `PASS` closes out; any other state or an
-exhausted budget stops and escalates. Never restart an unbounded whole-branch loop.
-Skip memory revision when no reusable lesson surfaced.
+Maintain the active/resolved Finding ID ledger from `requesting-code-review` and
+allow at most two post-fix reviewer turns. Reclassify every post-fix result before
+changing code:
+
+- `PASS` → use the execution-preflight closeout.
+- `ACTIONABLE` with any `plan-escalate` → stop and escalate to the human.
+- `ACTIONABLE` with all Critical/Important findings classed `impl-fix` and budget
+  remaining → advance `REVIEWED_HEAD` to the commit just reviewed, batch the
+  remaining fixes, test, and create the next `FIXED_HEAD`.
+- `OPERATIONAL`, `CONTRACT`, or `MALFORMED` → stop and surface the report.
+- Exhausted budget → stop and escalate.
+
+Never restart an unbounded whole-branch loop. Skip memory revision when no reusable
+lesson surfaced.
 
 ## Supporting techniques
 
