@@ -160,6 +160,55 @@ test('manual worktree fallback stores provenance only in private git administrat
   ]);
 });
 
+test('manual provenance creation is atomic and refuses file or symlink collisions', (t) => {
+  const skill = read('skills/using-git-worktrees/SKILL.md');
+  const nodeBlock = skill.match(/node - "\$OWNER_FILE"[\s\S]*?<<'NODE'\n([\s\S]*?)\nNODE/);
+
+  assert.match(skill, /O_EXCL[\s\S]*O_NOFOLLOW/);
+  assert.match(skill, /lstatSync/);
+  assert.doesNotMatch(skill, /> "\$OWNER_FILE"/);
+  assert.ok(nodeBlock, 'skill must contain the exclusive provenance writer');
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-owner-collision-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const common = path.join(tmp, 'common');
+  const worktree = path.join(tmp, 'worktree');
+  fs.mkdirSync(common);
+  fs.mkdirSync(worktree);
+
+  const existingDir = path.join(tmp, 'existing-parent');
+  const existingOwner = path.join(existingDir, 'worktree-owner');
+  fs.mkdirSync(existingDir);
+  fs.writeFileSync(existingOwner, 'preserve-me\n');
+  assert.throws(() => execFileSync(
+    'node', ['-', existingOwner, worktree, common],
+    { input: nodeBlock[1], stdio: ['pipe', 'pipe', 'pipe'] },
+  ));
+  assert.equal(fs.readFileSync(existingOwner, 'utf8'), 'preserve-me\n');
+
+  const linkDir = path.join(tmp, 'link-parent');
+  const linkOwner = path.join(linkDir, 'worktree-owner');
+  const linkTarget = path.join(tmp, 'link-target');
+  fs.mkdirSync(linkDir);
+  fs.writeFileSync(linkTarget, 'target-stays\n');
+  fs.symlinkSync(linkTarget, linkOwner);
+  assert.throws(() => execFileSync(
+    'node', ['-', linkOwner, worktree, common],
+    { input: nodeBlock[1], stdio: ['pipe', 'pipe', 'pipe'] },
+  ));
+  assert.equal(fs.readFileSync(linkTarget, 'utf8'), 'target-stays\n');
+
+  const parentTarget = path.join(tmp, 'parent-target');
+  const parentLink = path.join(tmp, 'parent-link');
+  fs.mkdirSync(parentTarget);
+  fs.symlinkSync(parentTarget, parentLink);
+  assert.throws(() => execFileSync(
+    'node', ['-', path.join(parentLink, 'worktree-owner'), worktree, common],
+    { input: nodeBlock[1], stdio: ['pipe', 'pipe', 'pipe'] },
+  ));
+  assert.equal(fs.existsSync(path.join(parentTarget, 'worktree-owner')), false);
+});
+
 test('workspace cleanup requires exact private provenance, never a path guess', () => {
   const finishing = read('skills/finishing-a-development-branch/SKILL.md');
 

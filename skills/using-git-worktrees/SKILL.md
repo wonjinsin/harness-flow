@@ -59,13 +59,34 @@ cd "$LOCATION"
 WORKTREE_PATH=$(pwd -P)
 GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
 OWNER_FILE=$(git rev-parse --git-path harness-flow/worktree-owner)
-if [ -e "$OWNER_FILE" ] || [ -L "$OWNER_FILE" ]; then
-  echo "worktree provenance collision; preserve the worktree" >&2
+OWNER_DIR=$(dirname "$OWNER_FILE")
+if [ -L "$OWNER_DIR" ] || { [ -e "$OWNER_DIR" ] && [ ! -d "$OWNER_DIR" ]; }; then
+  echo "worktree provenance collision: unsafe parent; preserve the worktree" >&2
   exit 1
 fi
-mkdir -p "$(dirname "$OWNER_FILE")"
-(umask 077; printf 'manual-git-worktree\n%s\n%s\n' \
-  "$WORKTREE_PATH" "$GIT_COMMON" > "$OWNER_FILE")
+if [ ! -e "$OWNER_DIR" ]; then
+  mkdir -m 700 "$OWNER_DIR" # atomic: a concurrent entry makes mkdir fail under set -e
+fi
+node - "$OWNER_FILE" "$WORKTREE_PATH" "$GIT_COMMON" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const [ownerFile, worktreePath, gitCommon] = process.argv.slice(2);
+const parent = fs.lstatSync(path.dirname(ownerFile));
+if (parent.isSymbolicLink() || !parent.isDirectory()) {
+  throw new Error('worktree provenance parent is not a real directory');
+}
+const { O_WRONLY, O_CREAT, O_EXCL, O_NOFOLLOW } = fs.constants;
+if (!Number.isInteger(O_NOFOLLOW)) {
+  throw new Error('safe no-follow creation is unsupported');
+}
+const fd = fs.openSync(ownerFile, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600);
+try {
+  fs.writeFileSync(fd, `manual-git-worktree\n${worktreePath}\n${gitCommon}\n`);
+  fs.fsyncSync(fd);
+} finally {
+  fs.closeSync(fd);
+}
+NODE
 ```
 
 If `git worktree add` fails on a sandbox permission error, tell the user and work
