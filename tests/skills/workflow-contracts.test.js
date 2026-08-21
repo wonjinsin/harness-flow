@@ -45,3 +45,23 @@ test('report-only debugging stops after diagnosis without entering the fix path'
   assert.notEqual(stop, -1);
   assert.ok(stop < fix, 'diagnosis-only exit must precede the fix phase');
 });
+
+test('branch finishing refuses integration menus until the workspace is clean', () => {
+  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
+  const cleanGate = finishing.indexOf('### Step 0: Require a Clean State');
+  const tests = finishing.indexOf('### Step 1: Verify Tests');
+
+  assert.notEqual(cleanGate, -1);
+  assert.ok(cleanGate < tests, 'clean-state gate must precede tests and options');
+  assert.match(finishing, /PENDING_COMMIT/);
+  assert.match(finishing, /Do not present integration options while status is non-empty/);
+});
+
+test('instruction revision returns a bounded workspace state', () => {
+  const revise = read('skills/llm-md-revise/SKILL.md');
+
+  for (const state of ['NO_CHANGES', 'APPLIED_CLEAN', 'PENDING_COMMIT']) {
+    assert.match(revise, new RegExp(`\\b${state}\\b`));
+  }
+  assert.match(revise, /Return exactly one status/);
+});

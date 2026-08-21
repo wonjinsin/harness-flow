@@ -125,19 +125,18 @@ Step 4. **Never bulk-approve** multiple candidates in one prompt: one decision e
 **(e)dit is not approval** — apply the requested change, re-show the revised diff, and
 get an explicit (a)pprove before writing.
 
-### Step 6 — Apply and suggest commit
+### Step 6 — Apply and return state
 
-Edit per approved candidate (create the target file if absent). Then summarize and suggest:
+Edit each approved candidate, then show the resulting diff. Return exactly one status
+with the touched paths:
 
-```
-Project instructions updated with N entries. Suggested commit:
-  git add <files>
-  git commit -m "docs: persist session learnings"
+- `NO_CHANGES` — no candidate was applied and status is unchanged.
+- `PENDING_COMMIT` — approved edits exist but the workspace is dirty.
+- `APPLIED_CLEAN` — approved edits were committed on explicit user request and status
+  is clean.
 
-Run now, or bundle with other work?
-```
-
-Do NOT auto-run the commit — the commit decision is the user's.
+Ask whether to commit or bundle `PENDING_COMMIT` changes. Do not auto-run a commit and
+do not infer cleanliness; check `git status --short` before returning the state.
 
 ## Guardrails
 

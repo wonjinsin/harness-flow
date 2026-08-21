@@ -9,6 +9,18 @@ Verify tests → detect environment → present options → execute choice → c
 
 ## The Process
 
+### Step 0: Require a Clean State
+
+```bash
+STATUS=$(git status --short)
+```
+
+If status is non-empty, separate chain-owned paths from pre-existing user changes.
+`PENDING_COMMIT` from `llm-md-revise` identifies candidate paths, not permission to
+commit them. Ask whether to commit only reviewed chain-owned changes or preserve the
+workspace and stop; never stash, delete, or bundle user changes. Re-run status after
+any commit. **Do not present integration options while status is non-empty.**
+
 ### Step 1: Verify Tests
 
 **Before presenting options, verify tests pass:**
@@ -18,17 +30,8 @@ Verify tests → detect environment → present options → execute choice → c
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:**
-
-```
-Tests failing (<N> failures). Must fix before completing:
-
-[Show failures]
-
-Cannot proceed with merge/PR until tests pass.
-```
-
-Stop. Don't proceed to Step 2.
+**If tests fail:** report the failure count and relevant output, then stop. Merge/PR
+options remain unavailable until the suite passes.
 
 **If tests pass:** Continue to Step 2.
 
