@@ -97,6 +97,8 @@ test('validator rejects YAML-empty and malformed frontmatter scalars', (t) => {
     ['radix-number', 'description: 0x10'],
     ['timestamp-value', 'description: 2026-08-21'],
     ['bad-comment-boundary', 'description: "valid"#comment'],
+    ['duplicate-name', 'name: other-name\ndescription: valid'],
+    ['duplicate-description', 'description: first\ndescription: second'],
     ['valid-quoted', 'description: "valid # text" # trailing comment'],
     ['valid-single', "description: 'it''s valid' # trailing comment"],
   ];
@@ -119,6 +121,8 @@ test('validator rejects YAML-empty and malformed frontmatter scalars', (t) => {
   assert.match(output, /radix-number\/SKILL\.md: frontmatter values must be YAML strings/);
   assert.match(output, /timestamp-value\/SKILL\.md: frontmatter values must be YAML strings/);
   assert.match(output, /bad-comment-boundary\/SKILL\.md: invalid quoted frontmatter value/);
+  assert.match(output, /duplicate-name\/SKILL\.md: duplicate frontmatter key "name"/);
+  assert.match(output, /duplicate-description\/SKILL\.md: duplicate frontmatter key "description"/);
   assert.doesNotMatch(output, /valid-(?:quoted|single)\/SKILL\.md/);
 });
 

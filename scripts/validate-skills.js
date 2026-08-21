@@ -112,6 +112,7 @@ function parseFrontmatter(text, file, errors) {
   }
 
   const fields = {};
+  const seenKeys = new Set();
   const lines = normalized.slice(4, end).split('\n');
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -120,19 +121,29 @@ function parseFrontmatter(text, file, errors) {
       errors.push(`${file}: malformed frontmatter line ${JSON.stringify(line)}`);
       continue;
     }
+    const key = match[1];
+    const duplicate = seenKeys.has(key);
+    if (duplicate) {
+      errors.push(`${file}: duplicate frontmatter key ${JSON.stringify(key)}`);
+    } else {
+      seenKeys.add(key);
+    }
+
     const raw = match[2].trim();
+    let value;
     if (/^[>|]/.test(raw)) {
       if (!/^[>|][+-]?$/.test(raw)) {
         errors.push(`${file}: unsupported block scalar indicator ${JSON.stringify(raw)}`);
-        fields[match[1]] = '';
+        value = '';
       } else {
         const parsed = parseBlockScalar(raw, lines, index, file, errors);
-        fields[match[1]] = parsed.value;
+        value = parsed.value;
         index = parsed.nextIndex;
       }
     } else {
-      fields[match[1]] = unquote(raw, file, errors);
+      value = unquote(raw, file, errors);
     }
+    if (!duplicate) fields[key] = value;
   }
   return { fields, body: normalized.slice(end + 5) };
 }
