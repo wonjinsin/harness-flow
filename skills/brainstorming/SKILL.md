@@ -46,7 +46,10 @@ the gate; there is no separate approval loop.
     requesting-code-review over the branch (mid-tier model). The current session
     owns any fixes: escalate non-`ACTIONABLE` failures or `plan-escalate`; otherwise
     batch Critical/Important `impl-fix` findings, use TDD, run relevant checks and
-    the full suite, make one fix commit, and request a focused `verify-fix`.
+    the full suite, and make one fix commit. After the fix commit, resolve `FIXED_HEAD`.
+    After the commit, require a clean tree and re-run relevant checks plus the full suite;
+    record fresh evidence whose tested SHA must equal `FIXED_HEAD`, then request
+    a focused `verify-fix`.
     Resume the same reviewer when supported and allow at most two post-fix
     reviewer turns, counting a scope-expansion `full-review` against that same
     limit, before escalating.

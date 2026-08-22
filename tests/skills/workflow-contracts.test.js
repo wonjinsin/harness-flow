@@ -69,6 +69,17 @@ test('planless callers terminate after limited in-place closeout', () => {
   assert.match(brainstorming, /`LIMITED_IN_PLACE`[\s\S]*working diff[\s\S]*stop[\s\S]*must not commit[\s\S]*request.*review/i);
 });
 
+test('every fix commit refreshes evidence at the exact FIXED_HEAD', () => {
+  for (const skill of [
+    'skills/implement/SKILL.md',
+    'skills/systematic-debugging/SKILL.md',
+    'skills/brainstorming/SKILL.md',
+  ]) {
+    const content = read(skill);
+    assert.match(content, /fix commit[\s\S]*resolve `FIXED_HEAD`[\s\S]*after the commit[\s\S]*re-run[\s\S]*full suite[\s\S]*tested SHA[\s\S]*equal `FIXED_HEAD`/i, skill);
+  }
+});
+
 test('sandbox worktree failure never silently downgrades accepted isolation', () => {
   const worktrees = read('skills/using-git-worktrees/SKILL.md');
   const failure = worktrees.slice(worktrees.indexOf('If `git worktree add` fails'));

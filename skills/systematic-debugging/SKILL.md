@@ -74,8 +74,11 @@ bug structurally impossible — see `defense-in-depth.md`.
 
 ## After the fix lands
 
-If Phase 4 changes code, commit only chain-owned fix paths and record test evidence.
-Pin `REVIEWED_HEAD=$(git rev-parse --verify 'HEAD^{commit}')`, require a clean
+If Phase 4 changes code, commit only chain-owned fix paths. Pin
+`REVIEWED_HEAD=$(git rev-parse --verify 'HEAD^{commit}')`, require a clean tree, then
+re-run the target checks and full suite without changing files. Record fresh test
+evidence whose tested SHA equals `REVIEWED_HEAD`. A failure or generated change stops
+review dispatch until fixed, recommitted, and re-tested at the new HEAD. Require a clean
 worktree, then invoke `requesting-code-review` over the immutable
 `START_HEAD..REVIEWED_HEAD` range. Keep that exact `REVIEWED_HEAD` as the base for
 the first `verify-fix`. Route the returned state before taking any other action:
@@ -86,7 +89,10 @@ the first `verify-fix`. Route the returned state before taking any other action:
 - `ACTIONABLE` with any `plan-escalate` → stop and escalate to the human.
 - `ACTIONABLE` `impl-fix` → batch every Critical/Important finding, use TDD, run
   targeted checks plus the full suite, and create one fix commit. Minor findings
-  remain optional. Request `verify-fix` over `REVIEWED_HEAD..FIXED_HEAD` with the
+  remain optional. After the fix commit, resolve `FIXED_HEAD`. After the commit,
+  require a clean tree and re-run targeted checks plus the full suite. Record fresh
+  evidence whose tested SHA must equal `FIXED_HEAD`. Request `verify-fix` over
+  `REVIEWED_HEAD..FIXED_HEAD` with the
   prior report and current test evidence.
 
 Maintain the active/resolved Finding ID ledger from `requesting-code-review` and
@@ -98,6 +104,7 @@ changing code:
 - `ACTIONABLE` with all Critical/Important findings classed `impl-fix` and budget
   remaining → advance `REVIEWED_HEAD` to the commit just reviewed, batch the
   remaining fixes, test, and create the next `FIXED_HEAD`.
+  Repeat the post-commit evidence gate at that exact `FIXED_HEAD`.
   Then request another `verify-fix` over `REVIEWED_HEAD..FIXED_HEAD`.
   Count the second post-fix reviewer turn here, then reclassify its returned state
   with this same table.

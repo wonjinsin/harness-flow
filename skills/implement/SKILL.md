@@ -93,6 +93,11 @@ premium buys nothing here). Route the report before changing code:
   TDD, run the relevant checks and full suite, then make one fix commit so
   `FIXED_HEAD` is immutable. Minor findings remain optional.
 
+After the fix commit, resolve `FIXED_HEAD`. After the commit, require a clean tree and
+re-run the relevant checks and full suite without changing files. Record fresh
+`TEST_EVIDENCE`; its tested SHA must equal `FIXED_HEAD`. A failing check or generated
+change stops review dispatch until fixed, recommitted, and re-tested at the new HEAD.
+
 After an `impl-fix` batch, request a focused `verify-fix` over
 `REVIEWED_HEAD..FIXED_HEAD`, passing the prior report, unchanged requirements,
 and exact test evidence. Resume the same reviewer when supported; otherwise use
@@ -114,7 +119,8 @@ budget escalate to the human.
 Allow at most two post-fix reviewer turns. Every post-fix dispatch —
 `full-review` or `verify-fix` — counts toward the same limit. For another fix
 round, advance `REVIEWED_HEAD` to the commit just reviewed, batch fixes again,
-test, commit a new `FIXED_HEAD`, and spend the second turn. Never restart an
+test, commit a new `FIXED_HEAD`, then repeat the post-commit evidence gate above and
+spend the second turn. Never restart an
 unbounded whole-branch loop.
 
 ## Then
