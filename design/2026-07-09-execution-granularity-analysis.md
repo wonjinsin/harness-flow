@@ -137,20 +137,6 @@ Compute a wave graph (no file overlap within a wave) and dispatch same-wave grou
 | OMC | many, ≤5 concurrent, tiered | Parallel |
 | ECC | 1 | Serial single session |
 
-# Status — 2026-07-14 (what shipped, what remains)
-
-Reconciling Part 4's recommendations against the tree:
-
-- **① Coarsen to Task Groups — SHIPPED** (`46386f0`). `writing-plans` emits `### Group N`; `subagent-driven-development` dispatches one implementer per group.
-- **③ Inline small plans — SHIPPED** (`46386f0`). SDD Inline Path for ≤3-task plans (`Read` test-driven-development, no dispatch). Plus a **trivial tier** (`a9a6632`) that bypasses the whole chain for mechanical edits.
-- **④ Model tiering — SHIPPED** (`0580096` hook + `46386f0` group tiers: cheap→haiku / standard→sonnet / most-capable→opus). Caveat unchanged: the hook enforces *"you chose a tier,"* not *"you chose cheap"* — real Haiku routing depends on the controller actually picking it.
-- **② Batch to boundaries — PARTIALLY SHIPPED (2026-07-14, branch `worktree-execution-speedup`).** (a) **fmt Stop-batching** (`post-edit.js`/`stop-fmt.js`) was built and A/B-evaled but **subsequently removed from the branch per user request** — the `.go` → `make fmt` hook no longer exists. (b) **review-gating (kept)**: cheap-tier groups skip the dedicated group reviewer (final whole-branch review is the net); the fix→re-review loop now routes by finding class (`plan-escalate` → human immediately) and is capped at 3 re-reviews per group (`reviewCycles` persisted in the ledger). A/B dry-run + real sonnet eval met all gate conditions — see `design/2026-07-14-execution-speedup-retrospective.md`. Adaptive hit-rate gating (gstack) remains unapplied; tier-based gating was chosen instead (zero new metadata).
-- **⑤ Wave parallelism — NOT DONE.** Groups still run strictly serial (`SKILL.md:89`). Blocked on the worktree/subagent commit gotcha → needs worktree-per-agent isolation first.
-
-## Residual bottleneck (why execution still feels slow after ①③④)
-
-The remaining serial cost is **not** dispatch granularity anymore — it's the **review loop at every group boundary + the final whole-branch review**. `subagent-driven-development/SKILL.md:238-241` itself flags that a final-review fix wave can cost *more than all tasks combined*. Parallelism (⑤) does not remove this from the critical path; **gating removes the work outright**, so it's the higher-leverage-per-risk next move.
-
 ## New techniques found 2026-07-14 (re-explored `ouroboros` / `Archon` / `superpowers` / `learn-harness-engineering` — NOT in Part 4's five)
 
 Ranked by portability to a skill/hook harness-flow can adopt without an engine:

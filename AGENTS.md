@@ -19,11 +19,9 @@ So the same checkout can be installed locally as a plugin for testing.
 
 Skills under `skills/` are designed to be invoked **in order**. A new Claude instance must understand this chain before touching skill content — editing one link affects the whole flow.
 
-**Routing (by request type, no tier system).** `using-harness-flow` routes every request before the chain starts: code work (feature/refactor/script), or read-only research, investigation, comparison, analysis, or reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test-failure/unexpected-behavior → `systematic-debugging` (the parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. **Dual-mode principle:** every chain skill is also independently invocable — the chain is the default route, and a skill's preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first) rather than bouncing the user back through the chain. There is no trivial/standard tier classifier — a "small" middle tier and the trivial/standard split were both built, A/B-evaled, and removed (see `design/2026-07-10-size-classifier-retrospective.md` before re-attempting).
+**Routing (by request type, no tier system).** `using-harness-flow` routes every request before the chain starts: code work (feature/refactor/script), or read-only research, investigation, comparison, analysis, or reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test-failure/unexpected-behavior → `systematic-debugging` (the parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. **Dual-mode principle:** every chain skill is also independently invocable — the chain is the default route, and a skill's preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first) rather than bouncing the user back through the chain.
 
 **Spec is optional (Model B).** `brainstorming` recommends an exit and the user picks: **small/clear** → implement directly with `test-driven-development`, then close by the measured diff (trivial — a few lines in one file, no contract/dependency/security surface → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, with controller-owned fixes followed by focused verification); **large/ambiguous** → save a spec, then a plan. No `<HARD-GATE>`, no forced spec file, no separate approval loop.
-
-**Negative-record re-challenges:** a proposal recorded as rejected in a `design/*retrospective*.md` may be re-attempted ONLY with (a) a mechanism that directly defends against the recorded failure mode and (b) a fresh pre-registered eval that passes the original gate — precedent: P5 (streak gating, 6/8 fail) re-challenged same-day as final-only review + severity floor, 6/6 pass (`design/2026-07-16-review-removal-retrospective.md`).
 
 1. `using-harness-flow` — bootstrap, injected at SessionStart. Enforces "invoke a skill before any response, even 1% applicability." Routes by request type (above).
 2. `brainstorming` — turns a change idea into an agreed approach through dialogue, then recommends an exit (Model B above). In read-only mode, it investigates a codebase or technical question, reports evidence, and stops without forcing implementation. The large change exit saves a spec at `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
@@ -141,7 +139,7 @@ Skills use Claude Code tool names (`Task`/`Agent`, `TodoWrite`, `Skill`) only wh
 
 ## No design/ references inside skills
 
-**Never cite `design/*` (retrospectives, analyses, specs) from inside a skill file (`SKILL.md`, `*-prompt.md`, or any skill-shipped doc).** Skills ship to users as runtime instructions; a `design/…retrospective.md §N` pointer is dead weight there — the file may be gitignored, absent from an installed plugin, or just noise the model can't act on. Keep the *rule* in the skill, stated as a rule; keep its *rationale/provenance* in `design/` and in this CLAUDE.md. When porting a rule out of a design doc into a skill, strip the citation. (`grep -rn "design/" skills/` must stay empty.)
+**Never cite `design/*` from inside a skill file (`SKILL.md`, `*-prompt.md`, or any skill-shipped doc).** Skills ship to users as runtime instructions, while `design/` is reserved for cross-harness comparison material. Keep runtime rules self-contained and keep implementation rationale in git history. (`grep -rn "design/" skills/` must stay empty.)
 
 ## Common Operations
 
@@ -159,7 +157,7 @@ Skills produce artifacts lazily inside the active worktree (not the repo root):
 - `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md` (brainstorming large-exit output)
 - `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md` (writing-plans output)
 
-**In this repo `docs/harness-flow/` is gitignored** — specs/plans are per-feature working artifacts and are not committed; durable records (retrospectives, analyses) get promoted to `design/` instead. Do not `git add -f` a spec or plan.
+**In this repo `docs/harness-flow/` is gitignored** — specs/plans are per-feature working artifacts and are not committed. Do not `git add -f` a spec or plan. Keep implementation decisions in git history; reserve `design/` for cross-harness comparative analysis.
 
 ## Licensing
 
