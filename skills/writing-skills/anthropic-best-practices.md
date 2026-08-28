@@ -2,6 +2,11 @@
 
 > Learn how to write effective Skills that Claude can discover and use successfully.
 
+> **Harness-flow override:** In this repository, skill descriptions contain
+> triggering conditions only. That local policy overrides this generic guide's
+> what + when metadata advice; use the remaining guidance for structure,
+> progressive disclosure, and evaluation design.
+
 Good Skills are concise, well-structured, and tested with real usage. This guide provides practical authoring decisions to help you write Skills that Claude can discover and use effectively.
 
 For conceptual background on how Skills work, see the [Skills overview](/en/docs/agents-and-tools/agent-skills/overview).

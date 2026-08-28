@@ -22,6 +22,10 @@ Codex recursively discovers it as a duplicate skill.
 
 **Official guidance:** For Anthropic's official skill authoring best practices, see anthropic-best-practices.md. This document provides additional patterns and guidelines that complement the TDD-focused approach in this skill.
 
+**Local policy overrides the bundled guide's generic what + when metadata advice:**
+in harness-flow, `description` contains triggering conditions only. The skill body
+owns capability and workflow details so metadata cannot become a shortcut.
+
 ## What is a Skill?
 
 A **skill** is a reference guide for proven techniques, patterns, or tools. Skills help future Claude instances find and apply effective approaches.
@@ -661,7 +665,8 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 
 ## Skill Creation Checklist (TDD Adapted)
 
-**IMPORTANT: Use TodoWrite to create todos for EACH checklist item below.**
+**IMPORTANT: Use the current harness's native task-tracking mechanism to track
+EACH checklist item below.**
 
 **RED Phase - Write Failing Test:**
 

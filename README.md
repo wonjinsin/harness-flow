@@ -118,11 +118,10 @@ flowchart LR
 
 5. **Integration decision** — revision과 review가 끝난 뒤 `implement`는 PR 생성 또는 감지된 base branch로의 merge만 묻는다. 선택 실행 직전에 clean 상태와 `HEAD == PASSED_REVIEW_HEAD`를 다시 검증한다. PR 생성은 publish 직전에 local HEAD와 remote branch tip을 모두 같은 SHA로 확인하고, 생성 뒤 PR `headRefOid`도 검증한다. Base merge에는 명시적 사용자 승인이 필요하며 어느 경로도 branch나 worktree를 자동 삭제하지 않는다.
 
-> **The chain is a convention, not an enforced gate.** When a request leaves no
-> decisions open — e.g. a behavior-preserving restructure like moving folders or
-> renaming files — the agent may skip `brainstorming` and TDD and execute
-> directly. This is intended: forcing dialogue and Red→Green onto mechanical
-> work only burns tokens.
+> **Mechanical work is not a routing exception.** Keep `brainstorming` proportional
+> — a behavior-preserving move or rename normally needs only a short agreed brief —
+> then continue through `implement`. Use verification-only instead of Red→Green
+> only after explicit user approval under TDD's ask-first exception.
 
 ### Output locations
 

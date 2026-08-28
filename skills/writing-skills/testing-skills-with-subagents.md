@@ -22,10 +22,10 @@ Test skills that:
 - Could be rationalized away ("just this once")
 - Contradict immediate goals (speed over quality)
 
-Don't test:
-- Pure reference skills (API docs, syntax guides)
-- Skills without rules to violate
-- Skills agents have no incentive to bypass
+Don't pressure-test skills that have no compliance behavior to violate.
+Pure reference skills still need retrieval, application, and gap evaluations;
+they do not need rationalization-pressure scenarios. Match the test form to the
+failure.
 
 ## TDD Mapping for Skill Testing
 

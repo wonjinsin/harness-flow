@@ -33,7 +33,7 @@ Skills under `skills/` are designed to be invoked **in order**. A new Claude ins
 
 After revision and review settle, `implement` asks only whether to create a PR or merge into the detected base branch (`origin` default, then `main`, then `master`). 선택 실행 직전에 clean 상태와 `HEAD == PASSED_REVIEW_HEAD`를 다시 검증한다. PR 경로는 같은 SHA를 `pr-creator`에 넘기며, publish 직전에 local HEAD와 remote branch tip을 모두 재검증하고 생성된 PR의 `headRefOid`도 확인한다. The PR choice invokes `pr-creator`; the merge choice performs the explicit user-approved local merge. 어느 경로도 기존 branch나 외부에서 만든 worktree를 자동 삭제하지 않는다.
 
-**External worktree/subagent gotcha:** when a session starts inside an externally managed git worktree and `implement` isolates a task in a subagent, the dispatched subagent may execute in the **main repo checkout** (on the base branch), not the session checkout — so its `git commit` lands on the wrong branch. After the subagent reports DONE, verify the commit is on the current session branch; if it landed on the main checkout, cherry-pick it onto the session branch and `git reset` the main checkout back.
+**External worktree/subagent gotcha:** when a session starts inside an externally managed git worktree and `implement` isolates a task in a subagent, the dispatched subagent may execute in the **main repo checkout** (on the base branch), not the session checkout. Pass and verify the session checkout identity before the subagent edits. On any mismatch, stop. If a wrong checkout commit still occurs, report both checkout identities and the commit SHA, then wait for user direction; do not repair or rewrite either checkout automatically.
 
 ## Parallel Track: Bug Fixing
 

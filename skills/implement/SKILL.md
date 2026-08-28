@@ -30,14 +30,20 @@ Before the first code change:
    any pre-existing uncommitted user changes, preserve them exactly and stop for
    user direction. Continue only after `git status --porcelain` is empty; never
    stash, reset, clean, stage, commit, or discard the user's work yourself.
-2. Detect `BASE_REF` from `origin`'s default branch; fall back to `main`, then
+2. Record checkout identity with `git rev-parse --show-toplevel`,
+   `git rev-parse --git-dir`, `git symbolic-ref -q --short HEAD`, and
+   `git rev-parse --verify 'HEAD^{commit}'`. If the branch query is empty, a
+   detached HEAD is detected. Before the first code change, the controller must stop
+   and require user direction. Reuse the recorded top-level path, git dir, branch,
+   and starting commit for any subagent identity check.
+3. Detect `BASE_REF` from `origin`'s default branch; fall back to `main`, then
    `master`. Pin its immutable merge-base as `BASE_SHA` **before the first code
    change**, verify it resolves to a commit, and reuse that SHA for completeness
    checks and final review. If the current branch is already the base branch, say
    **before editing** that the final PR/base-merge choice will be unavailable.
    Continue only when the user already chose the current checkout or confirms it.
    Do not create or switch a branch or worktree.
-3. Prepare dependencies when needed and run the project's existing baseline suite.
+4. Prepare dependencies when needed and run the project's existing baseline suite.
    A failure already named by a confirmed bug-fix brief is expected evidence; any
    unexpected baseline failure must stop implementation. Report the evidence and
    return to `harness-flow:systematic-debugging` before proceeding.
@@ -48,9 +54,18 @@ Work the input in the current session, on the session's model:
 
 1. Load `test-driven-development` and implement each logical task Red → Green → Refactor.
    For a confirmed bug-fix brief, turn its reproducer into the first failing test.
-2. For a plan, commit each task separately. For a small-change or bug-fix brief,
-   commit once its acceptance checks pass.
-3. After the last task, run the full suite + formatter/typecheck once.
+2. Run the formatter before each task or brief commit when applicable, inspect its
+   writes, and confirm they remain inside the settled boundaries. Run the targeted
+   tests after formatting. For a plan, commit each task separately; for a
+   small-change or bug-fix brief, commit once its acceptance checks pass.
+3. After the last task, run the full suite + format check + typecheck once. The
+   final format check must not write files. When the project exposes only a
+   mutating formatter, run it before the relevant commit and use the clean-tree
+   check as final format verification.
+4. If a formatter writes after the intended commit, inspect that delta immediately,
+   rerun the relevant test, include it in task or brief finalization, commit it,
+   rerun the final checks, and require a clean worktree. Unknown or user-owned
+   writes stop the workflow for user direction.
 
 Do not pause between tasks to check in — execute the whole input. Stop only for a
 blocker you cannot resolve or genuine ambiguity.
@@ -63,11 +78,19 @@ general-purpose subagent for that task:
 
 - Pass the current work item's settled input as its prompt inline (no extra brief
   files, no ledger).
+- Pass the recorded checkout identity. Before editing, the subagent must run
+  `git rev-parse --show-toplevel`, `git rev-parse --git-dir`,
+  `git symbolic-ref -q --short HEAD`, and resolve HEAD, then compare every value.
+  A checkout identity mismatch must stop before any edit or commit and report the
+  observed values.
 - Give it the files to touch and the interfaces it must honor (derive these from
   the input and codebase), plus "TDD, one commit;
   comments state only what the code cannot — design history belongs in the commit
   message, not in code."
-- When it returns, verify its commit landed on the current session branch before continuing.
+- When it returns, verify its commit landed on the current session branch before
+  continuing. If a wrong-checkout commit still occurred, stop, report both checkout
+  identities and the commit SHA, and wait for user direction. Never mutate the
+  other checkout as an automatic repair.
 
 **Pick a model tier for the dispatch — and set it explicitly.** Use the least
 powerful model that fits, to conserve cost and speed:

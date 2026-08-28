@@ -308,3 +308,75 @@ test('project memory is platform-aware', () => {
   // never persist secrets/credentials/PII into instruction files
   assert.match(memory, /never persist a secret|Secret \/ PII/i);
 });
+
+test('mechanical changes stay on canonical routing', () => {
+  const readme = read('README.md');
+  const entry = read('skills/using-harness-flow/SKILL.md');
+  const tdd = read('skills/test-driven-development/SKILL.md');
+
+  assert.doesNotMatch(readme, /agent may skip `brainstorming` and TDD/i);
+  assert.match(readme, /mechanical work is not a routing exception/i);
+  assert.match(readme, /explicit user approval/i);
+  assert.match(entry, /skip a skill's workflow only when the user explicitly tells you to/i);
+  assert.match(tdd, /behavior-preserving[\s\S]*(?:move|rename)[\s\S]*ask first/i);
+});
+
+test('implementation reaches review with a named branch and clean committed output', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const detachedGuard = implement.indexOf('git symbolic-ref -q --short HEAD');
+  const firstChange = implement.indexOf('## Default: implement inline');
+
+  assert.notEqual(detachedGuard, -1, 'detached-HEAD preflight must exist');
+  assert.ok(detachedGuard < firstChange, 'detached-HEAD preflight must run before editing');
+  assert.match(implement, /detached HEAD[\s\S]*before the first code change[\s\S]*stop/i);
+  assert.match(implement, /formatter[\s\S]*before[\s\S]*(?:task|brief)[\s\S]*commit/i);
+  assert.match(implement, /full suite[\s\S]*format check[\s\S]*typecheck/i);
+  assert.match(implement, /formatter[\s\S]*writes[\s\S]*test[\s\S]*commit[\s\S]*clean/i);
+});
+
+test('subagent checkout mismatch fails closed without automatic repair', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const agents = read('AGENTS.md');
+
+  assert.match(implement, /git rev-parse --show-toplevel/);
+  assert.match(implement, /git rev-parse --git-dir/);
+  assert.match(implement, /checkout identity[\s\S]*mismatch[\s\S]*stop/i);
+  assert.doesNotMatch(agents, /cherry-pick[\s\S]*git reset/i);
+  assert.match(agents, /wrong checkout[\s\S]*report[\s\S]*user direction/i);
+});
+
+test('project-memory candidates use available routes and source-aware evidence', () => {
+  const memory = read('skills/llm-md-revise/SKILL.md');
+  const placement = read('skills/llm-md-revise/references/placement-decision.md');
+
+  for (const text of [memory, placement]) {
+    assert.doesNotMatch(text, /claude-md-improver/i);
+  }
+  assert.match(memory, /Evidence source:[\s\S]*user[\s\S]*diff[\s\S]*external/i);
+  assert.match(memory, /diff[\s\S]*path[\s\S]*durable/i);
+  assert.doesNotMatch(memory, /systematic-debugging`? Phase 4 verified/i);
+});
+
+test('writing-skills has one cross-harness authoring contract', () => {
+  const writing = read('skills/writing-skills/SKILL.md');
+  const official = read('skills/writing-skills/anthropic-best-practices.md');
+  const testing = read('skills/writing-skills/testing-skills-with-subagents.md');
+  const persuasion = read('skills/writing-skills/persuasion-principles.md');
+
+  assert.match(writing, /local policy[\s\S]*overrides[\s\S]*what \+ when/i);
+  assert.match(official, /harness-flow override[\s\S]*triggering conditions only/i);
+  assert.doesNotMatch(testing, /Don't test:\s*\n- Pure reference skills/i);
+  assert.match(testing, /pure reference skills[\s\S]*retrieval[\s\S]*application[\s\S]*gap/i);
+  for (const text of [writing, persuasion]) {
+    assert.doesNotMatch(text, /TodoWrite/);
+    assert.match(text, /native task-tracking/i);
+  }
+});
+
+test('caveman lite keeps articles while stronger modes may drop them', () => {
+  const caveman = read('skills/caveman/SKILL.md');
+
+  assert.doesNotMatch(caveman, /Drop: articles/);
+  assert.match(caveman, /lite[^\n]*Keep articles/i);
+  assert.match(caveman, /full[^\n]*Drop articles/i);
+});

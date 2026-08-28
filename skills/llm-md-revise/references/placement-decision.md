@@ -69,7 +69,7 @@ Trigger a spill **only** when *this session's new additions* push root `CLAUDE.m
 
 1. Create `.claude/rules/<topic>.md` containing **only your new additions**. Add `paths:` frontmatter only if the rule is path-scoped; for an always-live project-wide rule, omit `paths:` (it then auto-loads at launch).
 2. Add one reference line in root pointing to it.
-3. Never reformat, reorder, or relocate pre-existing root content — that is `claude-md-improver`'s job and is out of scope here.
+3. Never reformat, reorder, or relocate pre-existing root content — whole-file cleanup is outside this skill's session-derived scope.
 
 Do not proactively refactor a root file that is already over 200 lines for reasons unrelated to your additions.
 

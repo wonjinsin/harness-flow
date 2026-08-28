@@ -1,6 +1,6 @@
 ---
 name: llm-md-revise
-description: Use before the final code review when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
+description: Use before the final code review when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole, nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # llm-md-revise
@@ -32,10 +32,10 @@ Codex project or vice versa.
 - User repeated the same correction 2+ times (a real rule, not a one-off).
 - A non-obvious external fact came up (deadline, owner, deprecated path, external system).
 
-**Not for:** auditing/fixing a whole CLAUDE.md (→ `claude-md-improver`); code
-conventions visible in the code; anything `git log`/`git blame` shows; one-off task
-state; personal preferences unrelated to the project (those → `~/.claude/CLAUDE.md`:
-propose, don't write).
+**Not for:** auditing/fixing a whole CLAUDE.md or AGENTS.md — return that request
+to normal routing; code conventions visible in the code; anything `git log`/`git
+blame` shows; one-off task state; personal preferences unrelated to the project
+(those → `~/.claude/CLAUDE.md`: propose, don't write).
 
 ## The process
 
@@ -104,13 +104,18 @@ rules/import fork and 200-line spill.
 
 **The 200-line split is REACTIVE:** trigger only when *this session's additions*
 push root past 200 lines, and relocate only your own additions — never reformat,
-reorder, or move pre-existing root content (that's `claude-md-improver`'s job).
+reorder, or move pre-existing root content. Whole-file cleanup is outside this
+skill's session-derived scope.
 
 ### Step 5 — Present diffs one-by-one
 
 ```
 [N/M] <Category> · confidence <high|medium|low>
-Evidence: "<verbatim user quote>"
+Evidence source: <user | diff | external>
+Evidence: <matching form below>
+  user — "<verbatim user quote>"
+  diff — <path>: <why this implies a durable rule, fact, or constraint>
+  external — <stable source reference>: <relevant fact>
 Target: <file path> · reason: <why this scope + load style, one clause>
 
 Proposed edit:
@@ -119,6 +124,9 @@ Proposed edit:
 
 Apply? (a)pprove / (e)dit / (r)eject / (d)efer
 ```
+
+Use exactly one evidence form per candidate. A diff-only candidate uses its path
+and durable rationale; never fabricate a user quote that did not occur.
 
 The `reason:` clause is annotation, not a second question — placement was decided in
 Step 4. **Never bulk-approve** multiple candidates in one prompt: one decision each.

@@ -22,6 +22,11 @@ instead. "Delete" means only current-cycle, agent-authored code.
 **Exceptions (ask first):** throwaway prototypes, generated code, and pure
 configuration files may skip TDD — confirm with the user rather than deciding it yourself.
 
+**Behavior-preserving moves/renames:** when only file or path identity changes,
+public behavior, API, and schema stay fixed, and the existing suite can verify
+preservation, ask first before using a verification-only flow instead of Red →
+Green. A mechanical label is not permission to skip this approval.
+
 ## The Loop
 
 1. **RED** — write one failing test for the next small behavior.
