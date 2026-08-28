@@ -268,16 +268,16 @@ test('instruction revision is included in the final whole-branch review', () => 
   assert.match(implement, /do\s+not invoke `llm-md-revise` again/i);
   assert.match(implement, /after the user selects[\s\S]*immediately before[\s\S]*`HEAD`[\s\S]*`PASSED_REVIEW_HEAD`/i);
   assert.match(implement, /pr-creator[\s\S]*passing[\s\S]*`PASSED_REVIEW_HEAD`/i);
-  assert.match(prCreator, /managed handoff[\s\S]*`PASSED_REVIEW_HEAD`[\s\S]*immediately before[\s\S]*push/i);
+  assert.match(prCreator, /managed handoff[\s\S]*`PASSED_REVIEW_HEAD`[\s\S]*`PUBLISH_HEAD`[\s\S]*immediately before[\s\S]*push/i);
   assert.match(
     prCreator,
-    /immediately before any push and again immediately before\s*`gh pr create`, repeat `git status --short` and resolve `HEAD`\. Stop if the tree\s*is dirty or `HEAD` differs from `PASSED_REVIEW_HEAD`/i,
+    /immediately before any push and again immediately before `gh pr create`, repeat\s*`git status --short` and resolve `HEAD`\. Stop if the tree is dirty or `HEAD`\s*differs from `PUBLISH_HEAD`/i,
   );
   assert.match(prCreator, /git ls-remote/i);
-  assert.match(prCreator, /remote branch tip[\s\S]*equal `PASSED_REVIEW_HEAD`/i);
-  assert.match(prCreator, /after creation[\s\S]*`headRefOid`[\s\S]*same value/i);
+  assert.match(prCreator, /remote branch tip[\s\S]*equal `PUBLISH_HEAD`/i);
+  assert.match(prCreator, /after[\s\S]*creation[\s\S]*`headRefOid`[\s\S]*equal[\s\S]*`PUBLISH_HEAD`/i);
   assert.deepEqual(prCreator.match(/^git push .*$/gm), [
-    'git push -u origin "HEAD:refs/heads/<branch>"',
+    'git push -u origin "$PUBLISH_HEAD:refs/heads/<branch>"',
   ]);
   assert.doesNotMatch(prCreator, /only if the branch isn't already pushed/i);
   assert.match(revision, /before the final (?:code )?review/i);
@@ -321,6 +321,16 @@ test('mechanical changes stay on canonical routing', () => {
   assert.match(tdd, /behavior-preserving[\s\S]*(?:move|rename)[\s\S]*ask first/i);
 });
 
+test('bug requests cannot auto-route through brainstorming', () => {
+  const entry = read('skills/using-harness-flow/SKILL.md');
+  const brainstorming = read('skills/brainstorming/SKILL.md');
+  const description = brainstorming.match(/^description:\s*(.+)$/m)?.[1] ?? '';
+
+  assert.doesNotMatch(description, /\bfix\b/i);
+  assert.match(description, /bugs?[\s\S]*systematic-debugging/i);
+  assert.match(entry, /Bug \/ test failure \/ unexpected behavior[\s\S]*systematic-debugging/i);
+});
+
 test('implementation reaches review with a named branch and clean committed output', () => {
   const implement = read('skills/implement/SKILL.md');
   const detachedGuard = implement.indexOf('git symbolic-ref -q --short HEAD');
@@ -332,6 +342,17 @@ test('implementation reaches review with a named branch and clean committed outp
   assert.match(implement, /formatter[\s\S]*before[\s\S]*(?:task|brief)[\s\S]*commit/i);
   assert.match(implement, /full suite[\s\S]*format check[\s\S]*typecheck/i);
   assert.match(implement, /formatter[\s\S]*writes[\s\S]*test[\s\S]*commit[\s\S]*clean/i);
+});
+
+test('integration and PR publication pin one immutable reviewed SHA', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const pr = read('skills/pr-creator/SKILL.md');
+
+  assert.match(implement, /merge exactly `PASSED_REVIEW_HEAD`/i);
+  assert.match(implement, /merge result[\s\S]*descends from `PASSED_REVIEW_HEAD`/i);
+  assert.match(implement, /conflict[\s\S]*new final review/i);
+  assert.match(pr, /standalone[\s\S]*current `HEAD`[\s\S]*`PUBLISH_HEAD`/i);
+  assert.match(pr, /remote branch tip[\s\S]*`PUBLISH_HEAD`[\s\S]*`headRefOid`[\s\S]*`PUBLISH_HEAD`/i);
 });
 
 test('subagent checkout mismatch fails closed without automatic repair', () => {
@@ -367,6 +388,12 @@ test('writing-skills has one cross-harness authoring contract', () => {
   assert.match(official, /harness-flow override[\s\S]*triggering conditions only/i);
   assert.doesNotMatch(testing, /Don't test:\s*\n- Pure reference skills/i);
   assert.match(testing, /pure reference skills[\s\S]*retrieval[\s\S]*application[\s\S]*gap/i);
+  assert.match(writing, /Reference skill evaluation[\s\S]*retrieval[\s\S]*application[\s\S]*gap/i);
+  assert.match(writing, /future agents/i);
+  assert.doesNotMatch(
+    writing,
+    /future Claude|Claude (?:reads|may|correctly|will)|words Claude/i,
+  );
   for (const text of [writing, persuasion]) {
     assert.doesNotMatch(text, /TodoWrite/);
     assert.match(text, /native task-tracking/i);
@@ -379,4 +406,5 @@ test('caveman lite keeps articles while stronger modes may drop them', () => {
   assert.doesNotMatch(caveman, /Drop: articles/);
   assert.match(caveman, /lite[^\n]*Keep articles/i);
   assert.match(caveman, /full[^\n]*Drop articles/i);
+  assert.match(caveman, /ultra[^\n]*Drop articles/i);
 });

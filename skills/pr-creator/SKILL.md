@@ -24,10 +24,11 @@ git rev-parse --verify 'HEAD^{commit}'
 git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
-- A managed handoff from `implement` includes `PASSED_REVIEW_HEAD`. Require the
-  current commit to equal it; a mismatch stops PR creation and returns control
-  for a new final review. A standalone PR request may omit this value and makes
-  no claim that an earlier managed review covers its HEAD.
+- Resolve the current `HEAD` once and call it `PUBLISH_HEAD`. A managed handoff
+  from `implement` includes `PASSED_REVIEW_HEAD`; require `PUBLISH_HEAD` to equal
+  it, or stop and return control for a new final review. For a standalone PR,
+  the preflight current `HEAD` is `PUBLISH_HEAD`; it makes no claim that an
+  earlier managed review covers that commit.
 - Uncommitted changes exist → stop and ask the user (commit / stash / leave out). A PR is outward-facing; never silently decide what ships.
 - Empty current branch (detached HEAD) → stop. Preserve the HEAD SHA and direct
   Codex App users to **Create branch** or **Hand off to local**; otherwise ask
@@ -69,20 +70,21 @@ The final body is: the template's headings, in the template's order, each filled
 
 ### Step 5: Push and create
 
-For a managed handoff, immediately before any push and again immediately before
-`gh pr create`, repeat `git status --short` and resolve `HEAD`. Stop if the tree
-is dirty or `HEAD` differs from `PASSED_REVIEW_HEAD`.
+Immediately before any push and again immediately before `gh pr create`, repeat
+`git status --short` and resolve `HEAD`. Stop if the tree is dirty or `HEAD`
+differs from `PUBLISH_HEAD`.
 
 Push the local branch every time with a normal, non-forced update. A non-fast-
 forward rejection means the remote branch moved; stop rather than overwrite it.
 Immediately before `gh pr create`, resolve the remote branch tip with
-`git ls-remote` and require it to equal `PASSED_REVIEW_HEAD`. After creation,
-resolve the PR's `headRefOid` and require the same value before reporting success.
+`git ls-remote` and require the remote branch tip to equal `PUBLISH_HEAD`. After
+creation, resolve the PR's `headRefOid` and require `headRefOid` to equal
+`PUBLISH_HEAD` before reporting success.
 Any missing or mismatched value stops the workflow and reports the unsafe PR when
 one was created.
 
 ```bash
-git push -u origin "HEAD:refs/heads/<branch>"
+git push -u origin "$PUBLISH_HEAD:refs/heads/<branch>"
 git ls-remote --exit-code origin "refs/heads/<branch>"
 gh pr create --base <base> --title "<title>" --body-file <tmp-file> --assignee @me
 gh pr view <PR-URL> --json headRefOid --jq .headRefOid

@@ -187,8 +187,12 @@ Before offering integration, require a clean worktree and verify that current
    mismatch stops integration and requires a new final review.
 3. Pull request → invoke `harness-flow:pr-creator`, passing
    `PASSED_REVIEW_HEAD` for its execution-time guard.
-4. Base merge → perform the explicit user-approved local merge, verify its result,
-   and stop. Never delete the source branch or clean up a worktree automatically.
+4. Base merge → merge exactly `PASSED_REVIEW_HEAD` as the immutable source,
+   never the possibly moving source-branch name.
+   Verify the merge result descends from `PASSED_REVIEW_HEAD` before reporting
+   success. A conflict, manual resolution, or any additional content change stops
+   integration and requires a new final review before another merge attempt.
+   Never delete the source branch or clean up a worktree automatically.
 
 If HEAD is detached, the working tree is dirty, or the current branch already is
 the base branch, report that state instead of pretending either integration action
