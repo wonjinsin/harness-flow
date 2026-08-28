@@ -65,13 +65,13 @@ flowchart LR
         CHOICE{"PR or base merge?"}
         PR(["pr-creator"])
         BASE(["merge into detected base"])
-        RCR_FULL -- "pass" --> LMR
+        LMR -- "settled + clean" --> RCR_FULL
+        RCR_FULL -- "pass" --> CHOICE
         RCR_FULL -- "impl-fix" --> FIX
         FIX --> RCR_VERIFY
-        RCR_VERIFY -- "pass" --> LMR
+        RCR_VERIFY -- "pass" --> CHOICE
         RCR_VERIFY -- "remaining fix<br/>shared max 2 post-fix turns" --> FIX
         RCR_VERIFY -- "semantic expansion<br/>shared max 2 post-fix turns" --> RCR_FULL
-        LMR --> CHOICE
         CHOICE -- "create PR" --> PR
         CHOICE -- "merge" --> BASE
     end
@@ -86,7 +86,7 @@ flowchart LR
     WP --> IMPL
     SD -- "confirmed<br/>bug-fix brief" --> IMPL
 
-    IMPL --> RCR_FULL
+    IMPL --> LMR
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -111,12 +111,12 @@ flowchart LR
 
 3. **writing-plans** — decomposes a spec or an agreed conversational design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Plan header의 `Source`는 실제 spec 경로나 현재 대화의 합의된 design을 가리키며, 모든 source requirement는 task의 `Delivers`나 acceptance criterion에 매핑한다. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. Raw spec은 `writing-plans`에서 approved plan으로 바꾼 뒤 받는다. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch/worktree는 생성·전환하지 않는다. Delegates a single task sequentially only when clean subagent context clearly helps — never for parallelism. Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
+4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. Raw spec은 `writing-plans`에서 approved plan으로 바꾼 뒤 받는다. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch나 worktree는 생성·전환하지 않는다. Fresh subagent context가 유리할 때만 한 task를 순차 위임한다. Completeness 확인 뒤 `llm-md-revise`의 승인된 instruction 변경을 먼저 커밋하고, 그 HEAD를 대상으로 fresh-context whole-branch review를 실행한다. 이후 수정 사항은 최대 두 번의 focused reviewer turn으로 검증한다.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
-   - 4-3. **llm-md-revise** — after the final review and before integration, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
+   - 4-2. **llm-md-revise** — 최종 review 전에 session learning을 platform별 project instruction(`AGENTS.md` 또는 `CLAUDE.md`) 후보로 제안하며, 승인된 변경은 review 범위에 포함되도록 먼저 커밋한다.
+   - 4-3. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list after instruction revision and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
 
-5. **Integration decision** — after review and revision settle, `implement` asks only whether to create a PR or merge into the detected base branch. PR creation invokes `pr-creator`; a base merge requires explicit user approval. Neither path automatically deletes branches or worktrees.
+5. **Integration decision** — revision과 review가 끝난 뒤 `implement`는 PR 생성 또는 감지된 base branch로의 merge만 묻는다. 선택 실행 직전에 clean 상태와 `HEAD == PASSED_REVIEW_HEAD`를 다시 검증한다. PR 생성은 publish 직전에 local HEAD와 remote branch tip을 모두 같은 SHA로 확인하고, 생성 뒤 PR `headRefOid`도 검증한다. Base merge에는 명시적 사용자 승인이 필요하며 어느 경로도 branch나 worktree를 자동 삭제하지 않는다.
 
 > **The chain is a convention, not an enforced gate.** When a request leaves no
 > decisions open — e.g. a behavior-preserving restructure like moving folders or

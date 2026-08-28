@@ -20,9 +20,14 @@ Create a GitHub PR whose body follows the repository's own PULL_REQUEST_TEMPLATE
 ```bash
 git status --short              # uncommitted changes?
 git branch --show-current       # current branch
+git rev-parse --verify 'HEAD^{commit}'
 git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
+- A managed handoff from `implement` includes `PASSED_REVIEW_HEAD`. Require the
+  current commit to equal it; a mismatch stops PR creation and returns control
+  for a new final review. A standalone PR request may omit this value and makes
+  no claim that an earlier managed review covers its HEAD.
 - Uncommitted changes exist → stop and ask the user (commit / stash / leave out). A PR is outward-facing; never silently decide what ships.
 - Empty current branch (detached HEAD) → stop. Preserve the HEAD SHA and direct
   Codex App users to **Create branch** or **Hand off to local**; otherwise ask
@@ -64,9 +69,23 @@ The final body is: the template's headings, in the template's order, each filled
 
 ### Step 5: Push and create
 
+For a managed handoff, immediately before any push and again immediately before
+`gh pr create`, repeat `git status --short` and resolve `HEAD`. Stop if the tree
+is dirty or `HEAD` differs from `PASSED_REVIEW_HEAD`.
+
+Push the local branch every time with a normal, non-forced update. A non-fast-
+forward rejection means the remote branch moved; stop rather than overwrite it.
+Immediately before `gh pr create`, resolve the remote branch tip with
+`git ls-remote` and require it to equal `PASSED_REVIEW_HEAD`. After creation,
+resolve the PR's `headRefOid` and require the same value before reporting success.
+Any missing or mismatched value stops the workflow and reports the unsafe PR when
+one was created.
+
 ```bash
-git push -u origin <branch>     # only if the branch isn't already pushed
+git push -u origin "HEAD:refs/heads/<branch>"
+git ls-remote --exit-code origin "refs/heads/<branch>"
 gh pr create --base <base> --title "<title>" --body-file <tmp-file> --assignee @me
+gh pr view <PR-URL> --json headRefOid --jq .headRefOid
 ```
 
 Write the body to a temp file and pass `--body-file` — inline `--body "$(cat <<EOF ...)"` breaks on quoting and is hard to review.
@@ -80,8 +99,10 @@ Report the PR URL to the user. If `gh` is missing, unauthenticated, or there is 
 | Repo template exists | Fill it: same headings, same order, comments replaced |
 | Multiple templates in `.github/PULL_REQUEST_TEMPLATE/` | Pick by change type, ask if unclear |
 | No template anywhere | Use `references/pr-template.md` |
+| Managed reviewed HEAD changed | Stop and require a new final review |
+| Managed remote branch tip changed | Stop; never force-push over it |
 | Uncommitted changes | Ask the user before anything else |
-| Branch not pushed | `git push -u origin <branch>` first |
+| Branch needs publishing | Push with a normal, non-forced update |
 | No remote / no `gh` auth | Report the blocker, stop |
 
 ## Common Mistakes

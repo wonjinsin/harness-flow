@@ -245,11 +245,47 @@ test('spec and plan artifacts have concrete, non-overlapping routes', () => {
   }
 });
 
-test('implement owns review and revision before the integration decision', () => {
+test('instruction revision is included in the final whole-branch review', () => {
   const implement = read('skills/implement/SKILL.md');
+  const revision = read('skills/llm-md-revise/SKILL.md');
+  const agents = read('AGENTS.md');
+  const prCreator = read('skills/pr-creator/SKILL.md');
+  const readme = read('README.md');
 
-  assert.match(implement, /requesting-code-review/);
-  assert.match(implement, /llm-md-revise/);
+  const completeness = implement.indexOf('## Before the final review: completeness check');
+  const revise = implement.indexOf('harness-flow:llm-md-revise');
+  const reviewedHead = implement.indexOf('current `REVIEWED_HEAD`');
+  const integration = implement.indexOf('## Closeout handoff');
+
+  for (const [name, position] of Object.entries({ completeness, revise, reviewedHead, integration })) {
+    assert.notEqual(position, -1, `${name} marker must exist`);
+  }
+  assert.ok(completeness < revise, 'revision must follow the completeness check');
+  assert.ok(revise < reviewedHead, 'revision must precede the reviewed HEAD');
+  assert.ok(reviewedHead < integration, 'review must precede integration');
+  assert.match(implement, /record its reviewed head as `PASSED_REVIEW_HEAD`/i);
+  assert.match(implement, /current[\s\S]*`HEAD` equals `PASSED_REVIEW_HEAD`/i);
+  assert.match(implement, /do\s+not invoke `llm-md-revise` again/i);
+  assert.match(implement, /after the user selects[\s\S]*immediately before[\s\S]*`HEAD`[\s\S]*`PASSED_REVIEW_HEAD`/i);
+  assert.match(implement, /pr-creator[\s\S]*passing[\s\S]*`PASSED_REVIEW_HEAD`/i);
+  assert.match(prCreator, /managed handoff[\s\S]*`PASSED_REVIEW_HEAD`[\s\S]*immediately before[\s\S]*push/i);
+  assert.match(
+    prCreator,
+    /immediately before any push and again immediately before\s*`gh pr create`, repeat `git status --short` and resolve `HEAD`\. Stop if the tree\s*is dirty or `HEAD` differs from `PASSED_REVIEW_HEAD`/i,
+  );
+  assert.match(prCreator, /git ls-remote/i);
+  assert.match(prCreator, /remote branch tip[\s\S]*equal `PASSED_REVIEW_HEAD`/i);
+  assert.match(prCreator, /after creation[\s\S]*`headRefOid`[\s\S]*same value/i);
+  assert.deepEqual(prCreator.match(/^git push .*$/gm), [
+    'git push -u origin "HEAD:refs/heads/<branch>"',
+  ]);
+  assert.doesNotMatch(prCreator, /only if the branch isn't already pushed/i);
+  assert.match(revision, /before the final (?:code )?review/i);
+  assert.doesNotMatch(revision, /after final (?:code )?review/i);
+  assert.match(agents, /llm-md-revise[\s\S]*before[\s\S]*final (?:code )?review/i);
+  assert.match(readme, /IMPL --> LMR/);
+  assert.match(readme, /LMR[^\n]*--> RCR_FULL/);
+  assert.doesNotMatch(readme, /RCR_FULL[^\n]*--> LMR/);
   assert.match(implement, /pull request[\s\S]*base branch/i);
   assert.match(implement, /harness-flow:pr-creator/);
   assert.doesNotMatch(implement, /finishing-a-development-branch/);

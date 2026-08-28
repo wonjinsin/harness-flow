@@ -118,9 +118,10 @@ fix, or request another review.
 
 ## In `implement`
 
-The `implement` chain runs **one final whole-branch review** after all tasks —
-there is no per-task or group-boundary reviewer. The `implement` skill's final-review
-loop owns fixes and decides whether to request a `verify-fix`; this skill still
-dispatches only one report-only reviewer turn per invocation.
+The `implement` chain runs **one final whole-branch review** after all tasks and
+any approved pre-review instruction revision — there is no per-task or
+group-boundary reviewer. The `implement` skill's final-review loop owns fixes and
+decides whether to request a `verify-fix`; this skill still dispatches only one
+report-only reviewer turn per invocation.
 
 See the template: [code-reviewer.md](code-reviewer.md).

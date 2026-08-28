@@ -89,7 +89,6 @@ Claude Code Task/Agent (general-purpose):
     - Tests verify real behavior, not mocks?
     - Edge cases covered?
     - Integration tests where they matter?
-    - All tests passing?
 
     **Production readiness:**
     - Migration strategy if schema changed?

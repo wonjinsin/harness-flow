@@ -100,10 +100,18 @@ Missing work returns to implementation. Failed bug-fix verification returns to
 `harness-flow:systematic-debugging` with the new evidence. Do not request final
 review or offer integration for partial or failing work.
 
+After completeness holds and before pinning the review range, invoke
+`harness-flow:llm-md-revise` when the session produced durable candidates. Settle
+every candidate and any approved edit, including its commit decision. Approved
+instruction edits must be committed so the final review includes them. If the
+user leaves an approved edit uncommitted, stop before review. Skip this step when
+nothing qualifies, and require a clean worktree before continuing.
+
 ## Always: one final review, then focused fix verification
 
-After all tasks are done, reuse the immutable preflight `BASE_SHA` and record the
-current `REVIEWED_HEAD`, then request one fresh-context `full-review` via
+After all tasks and any pre-review instruction revision settle, reuse the
+immutable preflight `BASE_SHA` and record the current `REVIEWED_HEAD`, then
+request one fresh-context `full-review` via
 `requesting-code-review` over that whole range on a mid-tier model (measured:
 with the template's severity floor it holds at large-diff scale — the top-tier
 premium buys nothing here). Route the report before changing code:
@@ -141,18 +149,22 @@ unbounded whole-branch loop.
 
 ## Closeout handoff
 
-Only after final review passes:
+After final review passes, record its reviewed head as `PASSED_REVIEW_HEAD`. Do
+not invoke `llm-md-revise` again or make any file or commit change during closeout.
+Before offering integration, require a clean worktree and verify that current
+`HEAD` equals `PASSED_REVIEW_HEAD`; otherwise stop and require a new final review.
 
-1. Invoke `harness-flow:llm-md-revise` when the session produced durable
-   candidates. Settle every candidate and any approved edit, including its commit
-   decision, before continuing. Skip it when nothing qualifies.
-2. Detect the repository's base branch from `origin`'s default branch; fall back to
+1. Detect the repository's base branch from `origin`'s default branch; fall back to
    `main`, then `master`. Do not guess another branch.
-3. Ask exactly whether to **create a pull request** or **merge into the detected
+2. Ask exactly whether to **create a pull request** or **merge into the detected
    base branch**. Do not add keep, discard, branch deletion, or worktree cleanup
    choices.
-4. Pull request → invoke `harness-flow:pr-creator`.
-5. Base merge → perform the explicit user-approved local merge, verify its result,
+   After the user selects a path and immediately before executing it, repeat the
+   clean-worktree check and verify `HEAD` still equals `PASSED_REVIEW_HEAD`. Any
+   mismatch stops integration and requires a new final review.
+3. Pull request → invoke `harness-flow:pr-creator`, passing
+   `PASSED_REVIEW_HEAD` for its execution-time guard.
+4. Base merge → perform the explicit user-approved local merge, verify its result,
    and stop. Never delete the source branch or clean up a worktree automatically.
 
 If HEAD is detached, the working tree is dirty, or the current branch already is

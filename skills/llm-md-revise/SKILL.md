@@ -1,6 +1,6 @@
 ---
 name: llm-md-revise
-description: Use after final code review but before the integration decision when the session produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
+description: Use before the final code review when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # llm-md-revise
@@ -25,9 +25,9 @@ Codex project or vice versa.
 
 ## When to use
 
-- Implementation or a bug fix just completed (final review passed, or
-  `systematic-debugging` Phase 4 verified) and the session had real corrections,
-  conventions, or external constraints — surface candidates *before* choosing PR or merge.
+- Within `implement`, after completeness is confirmed but before the final code
+  review, when the session had real corrections, conventions, or external
+  constraints. Approved edits enter the branch before its review range is pinned.
 - User said "remember this" / "add to project memory" / "persist this in CLAUDE.md".
 - User repeated the same correction 2+ times (a real rule, not a one-off).
 - A non-obvious external fact came up (deadline, owner, deprecated path, external system).
@@ -133,11 +133,13 @@ Edit per approved candidate (create the target file if absent). Then summarize a
 Project instructions updated with N entries. Suggested commit:
   git add <files>
   git commit -m "docs: persist session learnings"
-
-Run now, or bundle with other work?
 ```
 
-Do NOT auto-run the commit — the commit decision is the user's.
+Do NOT auto-run the commit — the commit decision is the user's. Within an
+`implement` handoff, ask whether to commit now or leave the edit uncommitted and
+stop before final review; integration cannot continue until the approved edit is
+committed and included in that review. For an independent direct request, ask
+whether to run the commit now or bundle it with other work.
 
 ## Guardrails
 
