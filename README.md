@@ -13,7 +13,7 @@
 ### How it solves them
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, no forced gate
-- 구현 전에 현재 checkout의 사용자 변경, base branch, baseline test를 확인하고 branch/worktree를 자동 생성하거나 전환하지 않는다
+- 구현 전에 dirty checkout이면 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch/worktree는 자동 생성하거나 전환하지 않는다
 - 현재 session에서 TDD로 inline 구현하고, fresh subagent context가 유리할 때만 한 task를 순차 위임한다. 이후 report-only whole-branch review와 focused delta review로 수정 사항을 검증한다.
 
 ### Who it's for
@@ -111,7 +111,7 @@ flowchart LR
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan/spec, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. 첫 변경 전에 사용자 변경의 소유권, base branch, baseline test를 확인하며 branch/worktree를 생성·전환하지 않는다. Delegates a single task sequentially only when clean subagent context clearly helps — never for parallelism. Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
+4. **implement** — accepts an agreed small-change brief, approved plan/spec, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch/worktree는 생성·전환하지 않는다. Delegates a single task sequentially only when clean subagent context clearly helps — never for parallelism. Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
    - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
    - 4-3. **llm-md-revise** — after the final review and before integration, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).

@@ -199,8 +199,9 @@ test('implementation preflights the current checkout without creating isolation'
   assert.match(plans, /current checkout/i);
   assert.doesNotMatch(plans, /isolated workspace/i);
   assert.match(implement, /before the first code change[\s\S]*git status/i);
-  assert.match(implement, /uncommitted[\s\S]*user changes/i);
-  assert.match(implement, /baseline[\s\S]*unexpected[\s\S]*failure/i);
+  assert.match(implement, /pre-existing[\s\S]*uncommitted[\s\S]*stop[\s\S]*user direction/i);
+  assert.match(implement, /BASE_SHA[\s\S]*before[\s\S]*first code\s+change/i);
+  assert.match(implement, /unexpected baseline failure[\s\S]*stop[\s\S]*systematic-debugging/i);
   assert.match(implement, /base branch[\s\S]*before[\s\S]*editing/i);
   assert.match(implement, /do not create or switch[\s\S]*branch[\s\S]*worktree/i);
 });

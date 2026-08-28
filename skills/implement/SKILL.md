@@ -26,18 +26,21 @@ do not bounce the user back to an earlier skill. If the input is clean, proceed.
 
 Before the first code change:
 
-1. Run `git status --short --branch`. Identify every staged, unstaged, and
-   untracked path as pre-existing user work or task-owned work. Preserve unrelated
-   uncommitted user changes and stage only task-owned files or hunks. If ownership
-   is unclear or the task overlaps a user change, stop and ask.
-2. Detect the base branch from `origin`'s default branch; fall back to `main`, then
-   `master`. If the current branch is already the base branch, say **before editing**
-   that the final PR/base-merge choice will be unavailable. Continue only when the
-   user already chose the current checkout or confirms it. Do not create or switch
-   a branch or worktree.
+1. Run `git status --short --branch`. If staged, unstaged, or untracked paths contain
+   any pre-existing uncommitted user changes, preserve them exactly and stop for
+   user direction. Continue only after `git status --porcelain` is empty; never
+   stash, reset, clean, stage, commit, or discard the user's work yourself.
+2. Detect `BASE_REF` from `origin`'s default branch; fall back to `main`, then
+   `master`. Pin its immutable merge-base as `BASE_SHA` **before the first code
+   change**, verify it resolves to a commit, and reuse that SHA for completeness
+   checks and final review. If the current branch is already the base branch, say
+   **before editing** that the final PR/base-merge choice will be unavailable.
+   Continue only when the user already chose the current checkout or confirms it.
+   Do not create or switch a branch or worktree.
 3. Prepare dependencies when needed and run the project's existing baseline suite.
    A failure already named by a confirmed bug-fix brief is expected evidence; any
-   unexpected baseline failure must be reported before implementation proceeds.
+   unexpected baseline failure must stop implementation. Report the evidence and
+   return to `harness-flow:systematic-debugging` before proceeding.
 
 ## Default: implement inline
 
@@ -83,7 +86,7 @@ This is the only subagent isolation on the build path — optional and sequentia
 ## Before the final review: completeness check
 
 Inline execution has no external gate against silently dropping work, so verify it
-yourself first against the actual diff (`git diff <base>..HEAD`):
+yourself first against the actual diff (`git diff "$BASE_SHA"..HEAD`):
 
 - Plan → every declared **Touches** file changed and every acceptance box holds.
 - Small-change brief → every acceptance check holds and the diff stays inside its
@@ -97,8 +100,8 @@ review or offer integration for partial or failing work.
 
 ## Always: one final review, then focused fix verification
 
-After all tasks are done, record the branch-point `BASE_SHA` and current
-`REVIEWED_HEAD`, then request one fresh-context `full-review` via
+After all tasks are done, reuse the immutable preflight `BASE_SHA` and record the
+current `REVIEWED_HEAD`, then request one fresh-context `full-review` via
 `requesting-code-review` over that whole range on a mid-tier model (measured:
 with the template's severity floor it holds at large-diff scale — the top-tier
 premium buys nothing here). Route the report before changing code:
