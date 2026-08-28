@@ -1,26 +1,34 @@
 ---
 name: implement
-description: Use when executing an approved implementation plan or spec in the current session. Triggers on "execute/run this plan", "implement the plan/spec", or a plan file being handed over for execution.
+description: Use when executing settled code work in the current session from an agreed small-change brief, an approved implementation plan or spec, or a confirmed bug-fix brief.
 ---
 
 # Implement
 
-Execute a plan or spec **inline**, then get **one fresh-context review**. Dispatch
-a subagent for a task only when clean isolation clearly helps — never for parallelism.
+Execute settled code work **inline**, then get **one fresh-context review** and
+own revisions through the integration decision. Dispatch a subagent for a task
+only when clean isolation clearly helps — never for parallelism.
 
 ## Before you start
 
-Scan the plan once for conflicts — tasks that contradict each other or the
-constraints, or anything the plan mandates that a reviewer would flag (a test that
-asserts nothing, duplicated logic). Raise them as one batched question before
-implementing; if the scan is clean, proceed without comment.
+Accept one of these inputs:
+
+- **Agreed small-change brief** — goal, acceptance checks, and boundaries.
+- **Approved implementation plan or spec** — its tasks or settled requirements.
+- **Confirmed bug-fix brief** — reproducer, root-cause evidence, minimal correction,
+  boundaries, and acceptance checks.
+
+Scan the input once for conflicts, missing acceptance criteria, or anything a
+reviewer would reject. Recover a missing detail with one or two settling questions;
+do not bounce the user back to an earlier skill. If the input is clean, proceed.
 
 ## Default: implement inline
 
-Work the plan in the current session, on the session's model:
+Work the input in the current session, on the session's model:
 
-1. Load `test-driven-development` and implement each task Red → Green → Refactor.
-2. One commit per task, on the feature branch.
+1. Load `test-driven-development` and implement each logical task Red → Green → Refactor.
+   For a confirmed bug-fix brief, turn its reproducer into the first failing test.
+2. Commit each plan task separately. For a brief, commit once its acceptance checks pass.
 3. After the last task, run the full suite + formatter/typecheck once.
 
 Do not pause between tasks to check in — execute the whole plan. Stop only for a
@@ -32,9 +40,10 @@ When a fresh, clean context would clearly help — a long plan is filling your o
 context, or a task benefits from unbiased implementation — dispatch ONE
 general-purpose subagent for that task:
 
-- Pass the plan's task section as its prompt inline (no brief files, no ledger).
-- Give it the files to touch, the interfaces it must honor (derive these from the
-  plan and the codebase — the plan does not pre-compute them), and "TDD, one commit;
+- Pass the current work item's settled input as its prompt inline (no extra brief
+  files, no ledger).
+- Give it the files to touch and the interfaces it must honor (derive these from
+  the input and codebase), plus "TDD, one commit;
   comments state only what the code cannot — design history belongs in the commit
   message, not in code."
 - When it returns, verify its commit landed on the feature branch before continuing.
@@ -56,11 +65,18 @@ This is the only isolation on the build path — optional and sequential.
 
 ## Before the final review: completeness check
 
-Inline execution has no external gate against silently dropping a task, so verify
-it yourself first. For every task in the plan, confirm against the actual diff
-(`git diff <base>..HEAD`) that its declared **Touches** files were changed and its
-**acceptance** boxes hold. A task whose files are untouched was dropped — go back
-and implement it before reviewing. Do not run the final review on a partial branch.
+Inline execution has no external gate against silently dropping work, so verify it
+yourself first against the actual diff (`git diff <base>..HEAD`):
+
+- Plan → every declared **Touches** file changed and every acceptance box holds.
+- Small-change brief → every acceptance check holds and the diff stays inside its
+  boundaries.
+- Bug-fix brief → the reproducer failed for the expected reason before the change,
+  now passes, the root cause is corrected, and every acceptance check holds.
+
+Missing work returns to implementation. Failed bug-fix verification returns to
+`harness-flow:systematic-debugging` with the new evidence. Do not request final
+review or offer integration for partial or failing work.
 
 ## Always: one final review, then focused fix verification
 
@@ -101,7 +117,22 @@ round, advance `REVIEWED_HEAD` to the commit just reviewed, batch fixes again,
 test, commit a new `FIXED_HEAD`, and spend the second turn. Never restart an
 unbounded whole-branch loop.
 
-## Then
+## Closeout handoff
 
-Surface `llm-md-revise` candidates if the session produced durable learnings,
-then use `finishing-a-development-branch`.
+Only after final review passes:
+
+1. Invoke `harness-flow:llm-md-revise` when the session produced durable
+   candidates. Settle every candidate and any approved edit, including its commit
+   decision, before continuing. Skip it when nothing qualifies.
+2. Detect the repository's base branch from `origin`'s default branch; fall back to
+   `main`, then `master`. Do not guess another branch.
+3. Ask exactly whether to **create a pull request** or **merge into the detected
+   base branch**. Do not add keep, discard, branch deletion, or worktree cleanup
+   choices.
+4. Pull request → invoke `harness-flow:pr-creator`.
+5. Base merge → perform the explicit user-approved local merge, verify its result,
+   and stop. Never delete the source branch or clean up a worktree automatically.
+
+If HEAD is detached, the working tree is dirty, or the current branch already is
+the base branch, report that state instead of pretending either integration action
+is valid. Resolve it only with the user's direction.

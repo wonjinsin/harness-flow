@@ -15,6 +15,10 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
 
 ## Routing
 
+- Skill creation, editing, or verification (`SKILL.md` and skill-shipped prompt
+  templates) → `writing-skills` directly. Skill-only work stays outside the
+  brainstorming → implement chain; enter that chain only when product/source code
+  is also in scope
 - Build / feature / refactor / script → brainstorming
 - Stated intent or desire to change code, or investigating whether code should
   change ("check if X needs updating", "compare to decide") → brainstorming

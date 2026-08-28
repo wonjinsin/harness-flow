@@ -1,6 +1,6 @@
 ---
 name: llm-md-revise
-description: Use when finishing a development branch and the session produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
+description: Use after final code review but before the integration decision when the session produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole (that is claude-md-improver), nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # llm-md-revise
@@ -27,7 +27,7 @@ Codex project or vice versa.
 
 - Implementation or a bug fix just completed (final review passed, or
   `systematic-debugging` Phase 4 verified) and the session had real corrections,
-  conventions, or external constraints — surface candidates *before* finalizing the branch.
+  conventions, or external constraints — surface candidates *before* choosing PR or merge.
 - User said "remember this" / "add to project memory" / "persist this in CLAUDE.md".
 - User repeated the same correction 2+ times (a real rule, not a one-off).
 - A non-obvious external fact came up (deadline, owner, deprecated path, external system).

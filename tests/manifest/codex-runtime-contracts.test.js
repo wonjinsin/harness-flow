@@ -39,6 +39,12 @@ test('entry skill uses harness-neutral wording, not Claude-specific tools', () =
   assert.doesNotMatch(entry, /TodoWrite/);
 });
 
+test('skill-only edits route directly to writing-skills', () => {
+  const entry = read('skills/using-harness-flow/SKILL.md');
+  assert.match(entry, /skill creation, editing, or verification[\s\S]*writing-skills[^\n]*directly/i);
+  assert.match(entry, /skill-only work stays outside[\s\S]*brainstorming[^\n]*implement chain/i);
+});
+
 test('caveman starts in lite mode', () => {
   const caveman = read('skills/caveman/SKILL.md');
   assert.match(
@@ -134,8 +140,7 @@ test('managed review loops batch fixes and cap focused verification', () => {
   assert.match(implement, /public API[\s\S]*schema[\s\S]*security[\s\S]*dependencies[\s\S]*full-review/i);
   assert.match(implement, /Incomplete[\s\S]*escalate/i);
   assert.doesNotMatch(implement, /3 re-reviews/i);
-  assert.match(brainstorm, /focused `verify-fix`[\s\S]*two post-fix\s+reviewer turns/i);
-  assert.match(brainstorm, /use TDD[\s\S]*full suite[\s\S]*one fix commit/i);
+  assert.doesNotMatch(brainstorm, /verify-fix|impl-fix|post-fix reviewer/i);
   assert.match(agents, /report-only[\s\S]*two focused post-fix/i);
   assert.match(readme, /report-only[\s\S]*focused `verify-fix`/i);
   assert.match(readme, /RCR_FULL -- "impl-fix" --> FIX/);
@@ -175,22 +180,43 @@ test('TDD deletion rule preserves pre-existing user code', () => {
   assert.match(tdd, /current TDD cycle/i);
 });
 
-test('manual worktree flow validates names, avoids branch pollution, and records ownership', () => {
+test('manual worktree flow validates names without creating cleanup ownership state', () => {
   const worktrees = read('skills/using-git-worktrees/SKILL.md');
   assert.match(worktrees, /git check-ref-format --branch/);
   assert.match(worktrees, /git check-ignore -q -- "\$LOCATION"/);
   assert.match(worktrees, /sibling directory/i);
-  assert.match(worktrees, /manual-git-worktree/);
+  assert.doesNotMatch(worktrees, /worktree-owner|manual-git-worktree/);
   assert.doesNotMatch(worktrees, /Add to \.gitignore, commit/i);
 });
 
-test('branch finishing handles detached hosts and invokes PR creation', () => {
-  const finishing = read('skills/finishing-a-development-branch/SKILL.md');
-  assert.match(finishing, /detached HEAD[\s\S]*exactly these 2 options/i);
-  assert.match(finishing, /Create branch/);
-  assert.match(finishing, /Hand off to local/);
-  assert.match(finishing, /harness-flow:pr-creator/);
-  assert.match(finishing, /git switch <base-branch>/);
+test('small changes and confirmed bug fixes converge on implement', () => {
+  const brainstorming = read('skills/brainstorming/SKILL.md');
+  const debugging = read('skills/systematic-debugging/SKILL.md');
+  const implement = read('skills/implement/SKILL.md');
+
+  assert.match(brainstorming, /small[\s\S]*agreed brief[\s\S]*harness-flow:implement/i);
+  assert.match(debugging, /confirmed fix[\s\S]*harness-flow:implement/i);
+  assert.match(implement, /agreed small-change brief/i);
+  assert.match(implement, /approved (?:implementation )?plan or spec/i);
+  assert.match(implement, /confirmed bug-fix brief/i);
+});
+
+test('implement owns review and revision before the integration decision', () => {
+  const implement = read('skills/implement/SKILL.md');
+
+  assert.match(implement, /requesting-code-review/);
+  assert.match(implement, /llm-md-revise/);
+  assert.match(implement, /pull request[\s\S]*base branch/i);
+  assert.match(implement, /harness-flow:pr-creator/);
+  assert.doesNotMatch(implement, /finishing-a-development-branch/);
+});
+
+test('legacy finishing skill is removed from the runtime workflow', () => {
+  const prCreator = read('skills/pr-creator/SKILL.md');
+  const finishingPath = path.join(ROOT, 'skills/finishing-a-development-branch/SKILL.md');
+
+  assert.equal(fs.existsSync(finishingPath), false);
+  assert.doesNotMatch(prCreator, /finishing-a-development-branch/);
 });
 
 test('project memory is platform-aware', () => {

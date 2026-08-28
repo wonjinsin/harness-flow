@@ -46,11 +46,6 @@ test ! -e "$LOCATION"
 
 git worktree add "$LOCATION" -b "$BRANCH_NAME"
 cd "$LOCATION"
-
-# Ownership marker — finishing-a-development-branch uses it to clean up only the
-# worktrees we created, in a self-ignored dir:
-mkdir -p .harness-flow && printf '*\n' > .harness-flow/.gitignore
-printf 'manual-git-worktree\n' > .harness-flow/worktree-owner
 ```
 
 If `git worktree add` fails on a sandbox permission error, tell the user and work

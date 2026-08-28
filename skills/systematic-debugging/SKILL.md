@@ -48,25 +48,22 @@ State one hypothesis: "X is the root cause because Y." Test it with the *smalles
 change, one variable at a time. Confirmed → Phase 4. Wrong → form a new
 hypothesis; don't stack fixes. When you don't understand something, say so and dig.
 
-## Phase 4 — Fix
+## Phase 4 — Confirmed fix handoff
 
-1. **Failing test first** — simplest reproduction, via `test-driven-development`.
-2. **One fix at a time** — address the root cause, no "while I'm here" extras.
-3. **Verify** — target test passes, nothing else broke, issue actually gone.
-4. **If it doesn't work, stop and count.** <3 fixes → back to Phase 1 with the new
-   information. **≥3 failed fixes = wrong architecture, not a failed hypothesis** —
+1. Capture a **confirmed bug-fix brief**: the reproducer, root-cause evidence,
+   minimal correction, boundaries, and acceptance checks. The reproducer becomes
+   the first failing test during implementation.
+2. Invoke `harness-flow:implement`. It owns TDD, implementation, verification,
+   final review, revisions, and the integration decision. Do not change code in
+   this skill.
+3. **If implementation or verification fails, stop and count.** Return here with
+   the new evidence, then go back to Phase 1. <3 attempted fixes → form a new
+   hypothesis. **≥3 failed fixes = wrong architecture, not a failed hypothesis** —
    each fix surfacing new coupling elsewhere is the tell. Stop guessing and raise
    the design question with the human before any fix #4.
 
 Consider adding validation at each layer the bad value passed through, to make the
 bug structurally impossible — see `defense-in-depth.md`.
-
-## After the fix lands
-
-If the session surfaced a reusable lesson — a correction, an anti-pattern, a rule,
-a non-obvious external fact — surface `llm-md-revise` candidates before finishing
-so any approved edit lands with the fix (debugging is a common anti-pattern source;
-skip when nothing's worth persisting). Then use `finishing-a-development-branch`.
 
 ## Supporting techniques
 
