@@ -7,7 +7,7 @@ description: Use when executing settled code work in the current session from an
 
 Execute settled code work **inline**, then get **one fresh-context review** and
 own revisions through the integration decision. Dispatch a subagent for a task
-only when clean isolation clearly helps — never for parallelism.
+only when a fresh subagent context clearly helps — never for parallelism.
 
 ## Before you start
 
@@ -21,6 +21,23 @@ Accept one of these inputs:
 Scan the input once for conflicts, missing acceptance criteria, or anything a
 reviewer would reject. Recover a missing detail with one or two settling questions;
 do not bounce the user back to an earlier skill. If the input is clean, proceed.
+
+## Current checkout preflight
+
+Before the first code change:
+
+1. Run `git status --short --branch`. Identify every staged, unstaged, and
+   untracked path as pre-existing user work or task-owned work. Preserve unrelated
+   uncommitted user changes and stage only task-owned files or hunks. If ownership
+   is unclear or the task overlaps a user change, stop and ask.
+2. Detect the base branch from `origin`'s default branch; fall back to `main`, then
+   `master`. If the current branch is already the base branch, say **before editing**
+   that the final PR/base-merge choice will be unavailable. Continue only when the
+   user already chose the current checkout or confirms it. Do not create or switch
+   a branch or worktree.
+3. Prepare dependencies when needed and run the project's existing baseline suite.
+   A failure already named by a confirmed bug-fix brief is expected evidence; any
+   unexpected baseline failure must be reported before implementation proceeds.
 
 ## Default: implement inline
 
@@ -46,7 +63,7 @@ general-purpose subagent for that task:
   the input and codebase), plus "TDD, one commit;
   comments state only what the code cannot — design history belongs in the commit
   message, not in code."
-- When it returns, verify its commit landed on the feature branch before continuing.
+- When it returns, verify its commit landed on the current session branch before continuing.
 
 **Pick a model tier for the dispatch — and set it explicitly.** Use the least
 powerful model that fits, to conserve cost and speed:
@@ -61,7 +78,7 @@ model — always name the tier on dispatch. But the cheapest models routinely ta
 2–3× the turns on multi-step work and can cost more overall, so use a standard tier
 as the floor for anything non-trivial.
 
-This is the only isolation on the build path — optional and sequential.
+This is the only subagent isolation on the build path — optional and sequential.
 
 ## Before the final review: completeness check
 

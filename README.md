@@ -2,28 +2,28 @@
 
 ## Overview
 
-> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work follows design → isolation → planning → TDD → final review → wrap-up; bug fixing follows root-cause investigation → regression test → minimal fix.
+> Claude Code와 Codex에서 같은 workflow를 제공하는 cross-harness plugin. Feature 작업은 design → planning → TDD → final review → integration 순서로, bug 수정은 root-cause investigation → regression test → minimal fix 순서로 진행한다.
 
 ### Problems it solves
 
 - Coding starts before the spec is agreed on, piling up code that's hard to redirect
-- Multiple tasks blend into one worktree, making rollback and review painful
+- 기존 사용자 변경과 task 변경이 섞이면 rollback과 review가 어려워진다
 - Code review and cleanup get skipped or vary from person to person
 
 ### How it solves them
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, no forced gate
-- Isolates the work into its own worktree, then forces an explicit merge / PR / keep / discard decision at the end
-- Implements inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is worth it — never for parallelism), then gets one report-only whole-branch review and verifies any fix through a focused delta review.
+- 구현 전에 현재 checkout의 사용자 변경, base branch, baseline test를 확인하고 branch/worktree를 자동 생성하거나 전환하지 않는다
+- 현재 session에서 TDD로 inline 구현하고, fresh subagent context가 유리할 때만 한 task를 순차 위임한다. 이후 report-only whole-branch review와 focused delta review로 수정 사항을 검증한다.
 
 ### Who it's for
 
 - Users who want the agent in Claude Code or Codex to not skip required steps
-- People who want TDD + worktree isolation + a final whole-branch review wired up in one shot
+- TDD + current-checkout 안전 검사 + final whole-branch review를 하나의 흐름으로 원하는 사용자
 
 ### Foundation
 
-After analyzing peer Claude Code harnesses ([`design/2026-05-05-comparison.md`](design/2026-05-05-comparison.md)), [superpowers](https://github.com/obra/superpowers) was adopted as the base because it minimizes complexity and treats simplicity as the top priority. Worktree isolation and finishing flows were added on top.
+여러 Claude Code harness를 비교한 뒤([`design/2026-05-05-comparison.md`](design/2026-05-05-comparison.md)), 단순성을 우선하는 [superpowers](https://github.com/obra/superpowers)를 기반으로 채택했다. 그 위에 현재 checkout에서 동작하는 통합 `implement` controller와 fresh-context review flow를 구성했다.
 
 - [Archon](design/reference/archon.md)
 - [everything-claude-code](design/reference/everything-claude-code.md)
@@ -108,11 +108,10 @@ flowchart LR
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
 2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
-   - 2-1. **using-git-worktrees** — isolates the workspace. Not tied to the spec: required before `writing-plans` on the large exit, optional on any other path (asks before creating; declining means working in place). Detects existing isolation → prefers native tools → falls back to manual `git worktree add`.
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan/spec, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current session (delegating a single task sequentially only when clean isolation clearly helps — never for parallelism). Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
+4. **implement** — accepts an agreed small-change brief, approved plan/spec, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. 첫 변경 전에 사용자 변경의 소유권, base branch, baseline test를 확인하며 branch/worktree를 생성·전환하지 않는다. Delegates a single task sequentially only when clean subagent context clearly helps — never for parallelism. Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
    - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
    - 4-3. **llm-md-revise** — after the final review and before integration, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
@@ -127,7 +126,7 @@ flowchart LR
 
 ### Output locations
 
-Skills create artifacts lazily inside the active worktree (not the repo root):
+Skills는 현재 checkout 안에 산출물을 필요할 때 생성한다:
 
 ```
 docs/harness-flow/specs/YYYY-MM-DD-<topic>.md   # brainstorming large-exit output
@@ -273,7 +272,6 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
 - **implement** — single code-mutation controller: inline TDD, final whole-branch review, revisions, and PR/base-merge handoff
-- **using-git-worktrees** — parallel development branch isolation
 - **pr-creator** — GitHub pull request creation after the user selects the PR path
 
 **Quality assurance**
@@ -300,7 +298,7 @@ Several skills in this repository are derived from MIT-licensed prior work. The 
 copyright notices and the full license text are consolidated in
 [`design/reference/THIRD-PARTY-LICENSES.md`](design/reference/THIRD-PARTY-LICENSES.md) (per-skill `NOTICE` files have been merged into this file).
 
-- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `requesting-code-review`, `implement`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-harness-flow`, `writing-plans`.
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `requesting-code-review`, `implement`, `systematic-debugging`, `test-driven-development`, `using-harness-flow`, `writing-plans`.
 - [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, and `writing-plans` from `to-tickets`.
 - [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT, © 2026 Julius Brussee) — base for `caveman`.
 

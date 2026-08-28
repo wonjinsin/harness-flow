@@ -180,13 +180,29 @@ test('TDD deletion rule preserves pre-existing user code', () => {
   assert.match(tdd, /current TDD cycle/i);
 });
 
-test('manual worktree flow validates names without creating cleanup ownership state', () => {
-  const worktrees = read('skills/using-git-worktrees/SKILL.md');
-  assert.match(worktrees, /git check-ref-format --branch/);
-  assert.match(worktrees, /git check-ignore -q -- "\$LOCATION"/);
-  assert.match(worktrees, /sibling directory/i);
-  assert.doesNotMatch(worktrees, /worktree-owner|manual-git-worktree/);
-  assert.doesNotMatch(worktrees, /Add to \.gitignore, commit/i);
+test('legacy worktree skill is removed from the runtime workflow', () => {
+  const worktreePath = path.join(ROOT, 'skills/using-git-worktrees/SKILL.md');
+  const plans = read('skills/writing-plans/SKILL.md');
+  const agents = read('AGENTS.md');
+  const readme = read('README.md');
+
+  assert.equal(fs.existsSync(worktreePath), false);
+  for (const activeSurface of [plans, agents, readme]) {
+    assert.doesNotMatch(activeSurface, /using-git-worktrees/i);
+  }
+});
+
+test('implementation preflights the current checkout without creating isolation', () => {
+  const plans = read('skills/writing-plans/SKILL.md');
+  const implement = read('skills/implement/SKILL.md');
+
+  assert.match(plans, /current checkout/i);
+  assert.doesNotMatch(plans, /isolated workspace/i);
+  assert.match(implement, /before the first code change[\s\S]*git status/i);
+  assert.match(implement, /uncommitted[\s\S]*user changes/i);
+  assert.match(implement, /baseline[\s\S]*unexpected[\s\S]*failure/i);
+  assert.match(implement, /base branch[\s\S]*before[\s\S]*editing/i);
+  assert.match(implement, /do not create or switch[\s\S]*branch[\s\S]*worktree/i);
 });
 
 test('small changes and confirmed bug fixes converge on implement', () => {

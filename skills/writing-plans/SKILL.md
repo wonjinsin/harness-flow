@@ -13,8 +13,8 @@ every layer it touches, verifiable on its own.
 When the user asks for a plan directly and key decisions are still open, don't
 plan around them — ask the 1–2 questions that settle them first, then plan.
 
-**Context:** work in an isolated workspace — invoke `using-git-worktrees` first if
-not already in one. Save to `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+**Context:** write the plan in the current checkout. Save to
+`docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
 ## Header
 
