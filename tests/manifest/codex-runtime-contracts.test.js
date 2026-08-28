@@ -214,8 +214,35 @@ test('small changes and confirmed bug fixes converge on implement', () => {
   assert.match(brainstorming, /small[\s\S]*agreed brief[\s\S]*harness-flow:implement/i);
   assert.match(debugging, /confirmed fix[\s\S]*harness-flow:implement/i);
   assert.match(implement, /agreed small-change brief/i);
-  assert.match(implement, /approved (?:implementation )?plan or spec/i);
+  assert.match(implement, /approved implementation plan/i);
   assert.match(implement, /confirmed bug-fix brief/i);
+});
+
+test('spec and plan artifacts have concrete, non-overlapping routes', () => {
+  const entry = read('skills/using-harness-flow/SKILL.md');
+  const brainstorming = read('skills/brainstorming/SKILL.md');
+  const plans = read('skills/writing-plans/SKILL.md');
+  const implement = read('skills/implement/SKILL.md');
+  const agents = read('AGENTS.md');
+  const readme = read('README.md');
+
+  assert.match(entry, /explicit spec request[\s\S]*brainstorming/i);
+  assert.match(entry, /explicit implementation plan request[\s\S]*writing-plans/i);
+  assert.match(entry, /approved spec[\s\S]*writing-plans/i);
+  assert.match(entry, /approved plan[\s\S]*implement/i);
+  assert.match(brainstorming, /approved spec[\s\S]*writing-plans[\s\S]*approved plan[\s\S]*implement/i);
+  assert.match(brainstorming, /explicit spec request[\s\S]*save the spec[\s\S]*stop/i);
+  assert.doesNotMatch(brainstorming, /Spec \(only for the large exit\)/i);
+  assert.doesNotMatch(implement, /approved (?:implementation )?plan or spec/i);
+  assert.match(implement, /Plan[\s\S]*source requirements[\s\S]*inherited constraints/i);
+  assert.match(plans, /Source:.*spec path.*Agreed design in current conversation/i);
+  assert.match(plans, /Constraints:.*or "none"/i);
+  assert.match(plans, /every source requirement[\s\S]*maps to[\s\S]*task/i);
+  assert.match(plans, /never invent[\s\S]*spec path/i);
+  assert.doesNotMatch(plans, /^Spec:/m);
+  for (const overview of [agents, readme]) {
+    assert.doesNotMatch(overview, /approved plan\/spec/i);
+  }
 });
 
 test('implement owns review and revision before the integration decision', () => {

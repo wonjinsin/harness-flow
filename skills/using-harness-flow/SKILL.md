@@ -19,6 +19,8 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
   templates) → `writing-skills` directly. Skill-only work stays outside the
   brainstorming → implement chain; enter that chain only when product/source code
   is also in scope
+- Approved spec → `writing-plans`; approved plan, agreed small-change brief, or
+  confirmed bug-fix brief → `implement`
 - Build / feature / refactor / script → brainstorming
 - Stated intent or desire to change code, or investigating whether code should
   change ("check if X needs updating", "compare to decide") → brainstorming
@@ -28,9 +30,9 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
   change intent ("investigate and report", "research this codebase")
   → brainstorming. General-knowledge questions stay direct; bug, test-failure,
   and unexpected-behavior requests follow systematic-debugging above
-- Explicit ask for a specific artifact (an implementation plan — "write/make a
-  plan", a spec, a code review) → that skill directly; never draft the artifact
-  ad-hoc without the skill. It recovers its own missing inputs
+- Explicit spec request → `brainstorming` in its explicit-spec mode
+- Explicit implementation plan request → `writing-plans` directly
+- Explicit code review request → `requesting-code-review` directly
 
 Skills use harness-neutral wording — map any generic mechanism (skill loading,
 task tracking, subagent dispatch) to your harness's native tool.

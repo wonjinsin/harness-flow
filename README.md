@@ -37,14 +37,14 @@
 
 ## Skill chain — the order work flows in
 
-The chain routes by request type (no tier classifier): skill-only creation/edit/verification → `writing-skills` directly, outside this code-mutation chain; code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+The chain routes by request type (no tier classifier): skill-only creation/edit/verification → `writing-skills` directly, outside this code-mutation chain; code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below). 명시적 spec 요청은 `brainstorming`의 explicit-spec mode, 구현 plan 요청은 `writing-plans`, code review 요청은 `requesting-code-review`로 간다. 승인된 spec은 `writing-plans`, 승인된 plan이나 합의된 brief는 `implement`로 간다. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
     subgraph DESIGN [design]
         direction LR
         BS(["brainstorming"])
-        SPEC(["spec"])
+        SPEC[["spec artifact"]]
         WP(["writing-plans"])
         BS -- "large /<br/>ambiguous" --> SPEC --> WP
     end
@@ -107,11 +107,11 @@ flowchart LR
 
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
-2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
+2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. 명시적 spec 요청에서는 spec review까지만 수행하고, 사용자가 후속 진행도 요청하지 않았다면 멈춘다. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
 
-3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+3. **writing-plans** — decomposes a spec or an agreed conversational design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Plan header의 `Source`는 실제 spec 경로나 현재 대화의 합의된 design을 가리키며, 모든 source requirement는 task의 `Delivers`나 acceptance criterion에 매핑한다. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan/spec, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch/worktree는 생성·전환하지 않는다. Delegates a single task sequentially only when clean subagent context clearly helps — never for parallelism. Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
+4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. Raw spec은 `writing-plans`에서 approved plan으로 바꾼 뒤 받는다. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch/worktree는 생성·전환하지 않는다. Delegates a single task sequentially only when clean subagent context clearly helps — never for parallelism. Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
    - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
    - 4-3. **llm-md-revise** — after the final review and before integration, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).

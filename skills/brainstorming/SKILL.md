@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "Use BEFORE writing or changing code for a feature, fix, refactor, or script, and when the user asks to research, investigate, compare, analyze, or report on an in-scope codebase, repository, or technical artifact, even without requesting a change. Do NOT use for general-knowledge questions, diagnosing bugs or test failures (use systematic-debugging), or when an approved spec/plan already exists (use writing-plans)."
+description: "Use BEFORE writing or changing code for a feature, fix, refactor, or script, and when the user asks to research, investigate, compare, analyze, or report on an in-scope codebase, repository, or technical artifact, even without requesting a change. Do NOT use for general-knowledge questions, diagnosing bugs or test failures (use systematic-debugging), an approved spec (use writing-plans), or an approved plan or agreed brief (use implement)."
 ---
 
 # Brainstorming
@@ -28,6 +28,13 @@ implementation, spec, or plan unless the user asks for a change.
 Large request spanning independent subsystems? Say so first and decompose into
 sub-projects before grilling details — each gets its own pass.
 
+## Explicit spec request
+
+When the user explicitly requests a spec artifact, settle its open design decisions,
+save the spec using the rules below, ask the user to review it, then stop. Do not
+classify it into a small/large exit or continue to `writing-plans` unless the user
+also asks to continue beyond the spec.
+
 ## Change exit — recommend, let the user pick
 
 Once the approach is agreed, recommend an exit and confirm. The user's "ok" is
@@ -39,7 +46,7 @@ the gate; there is no separate approval loop.
 - Large / ambiguous / spans sessions → "Big enough to write down — I'll save a
   spec, then a plan. OK?" → write the spec below, then writing-plans.
 
-## Spec (only for the large exit)
+## Spec
 
 Save the agreed design to `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`. Rules:
 

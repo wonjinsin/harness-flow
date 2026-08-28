@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Use when executing settled code work in the current session from an agreed small-change brief, an approved implementation plan or spec, or a confirmed bug-fix brief.
+description: Use when executing settled code work in the current session from an agreed small-change brief, an approved implementation plan, or a confirmed bug-fix brief.
 ---
 
 # Implement
@@ -14,7 +14,7 @@ only when a fresh subagent context clearly helps — never for parallelism.
 Accept one of these inputs:
 
 - **Agreed small-change brief** — goal, acceptance checks, and boundaries.
-- **Approved implementation plan or spec** — its tasks or settled requirements.
+- **Approved implementation plan** — its tasks and settled requirements.
 - **Confirmed bug-fix brief** — reproducer, root-cause evidence, minimal correction,
   boundaries, and acceptance checks.
 
@@ -48,10 +48,11 @@ Work the input in the current session, on the session's model:
 
 1. Load `test-driven-development` and implement each logical task Red → Green → Refactor.
    For a confirmed bug-fix brief, turn its reproducer into the first failing test.
-2. Commit each plan task separately. For a brief, commit once its acceptance checks pass.
+2. For a plan, commit each task separately. For a small-change or bug-fix brief,
+   commit once its acceptance checks pass.
 3. After the last task, run the full suite + formatter/typecheck once.
 
-Do not pause between tasks to check in — execute the whole plan. Stop only for a
+Do not pause between tasks to check in — execute the whole input. Stop only for a
 blocker you cannot resolve or genuine ambiguity.
 
 ## Option: isolate a task in a subagent (sequential, no parallelism)
@@ -88,7 +89,8 @@ This is the only subagent isolation on the build path — optional and sequentia
 Inline execution has no external gate against silently dropping work, so verify it
 yourself first against the actual diff (`git diff "$BASE_SHA"..HEAD`):
 
-- Plan → every declared **Touches** file changed and every acceptance box holds.
+- Plan → every declared **Touches** file changed, every acceptance box holds, and
+  all source requirements and inherited constraints are satisfied.
 - Small-change brief → every acceptance check holds and the diff stays inside its
   boundaries.
 - Bug-fix brief → the reproducer failed for the expected reason before the change,

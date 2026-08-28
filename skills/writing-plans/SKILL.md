@@ -20,12 +20,19 @@ plan around them — ask the 1–2 questions that settle them first, then plan.
 
 ```
 # <Feature> Plan
-Spec: docs/harness-flow/specs/<file>.md   — the source of intent; tasks need not
-      restate decisions it already records. Consult it while implementing.
+Source: <spec path | "Agreed design in current conversation"> — the source of
+        intent; tasks need not restate its decisions. Consult it while implementing.
 Goal: one sentence.
-Constraints: project-wide rules copied verbatim from the spec (version floors,
-      naming, platform) — every task inherits these.
+Constraints: <project-wide rules copied verbatim from the source, or "none"> —
+      every task inherits these.
 ```
+
+Use the spec path when one exists. Otherwise use the exact agreed-design phrase.
+Never invent a spec path or create a spec only to satisfy the plan header.
+
+Before presenting the plan, prove source coverage: every source requirement maps to
+a task's **Delivers** or acceptance criteria. Put source-wide rules in **Constraints**;
+the source pointer cannot stand in for omitted work.
 
 ## Tasks
 
