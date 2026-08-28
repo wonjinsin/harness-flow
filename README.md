@@ -37,7 +37,7 @@ After analyzing peer Claude Code harnesses ([`design/2026-05-05-comparison.md`](
 
 ## Skill chain — the order work flows in
 
-The chain routes by request type (no tier classifier): code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+The chain routes by request type (no tier classifier): skill-only creation/edit/verification → `writing-skills` directly, outside this code-mutation chain; code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below); an explicit ask for a specific artifact (a plan, a spec, a code review) → that skill directly. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
@@ -51,8 +51,9 @@ flowchart LR
 
     subgraph BUILD [build]
         direction LR
-        TDD(["test-driven-development"])
         IMPL(["implement"])
+        TDD(["test-driven-development"])
+        IMPL --> TDD --> IMPL
     end
 
     subgraph SHIP [review & ship]
@@ -61,14 +62,18 @@ flowchart LR
         FIX(["controller<br/>batch fix → test → commit"])
         RCR_VERIFY(["requesting-code-review<br/>verify-fix · report-only"])
         LMR(["llm-md-revise"])
-        FIN(["finishing-a-development-branch"])
+        CHOICE{"PR or base merge?"}
+        PR(["pr-creator"])
+        BASE(["merge into detected base"])
         RCR_FULL -- "pass" --> LMR
         RCR_FULL -- "impl-fix" --> FIX
         FIX --> RCR_VERIFY
         RCR_VERIFY -- "pass" --> LMR
         RCR_VERIFY -- "remaining fix<br/>shared max 2 post-fix turns" --> FIX
         RCR_VERIFY -- "semantic expansion<br/>shared max 2 post-fix turns" --> RCR_FULL
-        LMR --> FIN
+        LMR --> CHOICE
+        CHOICE -- "create PR" --> PR
+        CHOICE -- "merge" --> BASE
     end
 
     REQ(["user request"]) --> UHF(["using-harness-flow"])
@@ -77,13 +82,11 @@ flowchart LR
     UHF -- "bug / test failure" --> SD(["systematic-debugging"])
 
     BS -- "read-only evidence report" --> REPORT(["report & stop"])
-    BS -- "small / clear" --> TDD
+    BS -- "small / clear<br/>agreed brief" --> IMPL
     WP --> IMPL
-    SD -- "root cause →<br/>failing test" --> TDD
+    SD -- "confirmed<br/>bug-fix brief" --> IMPL
 
     IMPL --> RCR_FULL
-    TDD -- "non-trivial diff" --> RCR_FULL
-    TDD -- "trivial diff (self-review)" --> FIN
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -94,7 +97,7 @@ flowchart LR
     class REQ,UHF entry
     class BS,SPEC,WP design
     class TDD,IMPL build
-    class RCR_FULL,FIX,RCR_VERIFY,LMR,FIN ship
+    class RCR_FULL,FIX,RCR_VERIFY,LMR,CHOICE,PR,BASE ship
     class SD debug
 
     style DESIGN fill:none,stroke:#64b5f6,stroke-dasharray:4 4
@@ -104,17 +107,17 @@ flowchart LR
 
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
-2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → implement directly with TDD, then close by the measured diff (trivial → self-review; anything larger → one report-only fresh-context review via `requesting-code-review`, followed by focused fix verification only when needed); large/ambiguous → save a spec, then a plan (no forced gate). Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
+2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
    - 2-1. **using-git-worktrees** — isolates the workspace. Not tied to the spec: required before `writing-plans` on the large exit, optional on any other path (asks before creating; declining means working in place). Detects existing isolation → prefers native tools → falls back to manual `git worktree add`.
 
 3. **writing-plans** — decomposes the design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — implements the plan/spec inline with TDD in the current session (delegating a single task sequentially to a subagent only when clean isolation is clearly worth it — never for parallelism). Runs a completeness check, requests one fresh-context whole-branch report, then batches fixes and allows at most two post-fix reviewer turns.
+4. **implement** — accepts an agreed small-change brief, approved plan/spec, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current session (delegating a single task sequentially only when clean isolation clearly helps — never for parallelism). Runs an input-aware completeness check, requests one fresh-context whole-branch report, then owns batched fixes and at most two post-fix reviewer turns.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
    - 4-2. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
-   - 4-3. **llm-md-revise** — after the final review, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
+   - 4-3. **llm-md-revise** — after the final review and before integration, proposes session learnings as candidates for the platform-appropriate project instruction (`AGENTS.md` or `CLAUDE.md`).
 
-5. **finishing-a-development-branch** — presents four options (merge locally / push & PR / keep / discard) and cleans up the worktree.
+5. **Integration decision** — after review and revision settle, `implement` asks only whether to create a PR or merge into the detected base branch. PR creation invokes `pr-creator`; a base merge requires explicit user approval. Neither path automatically deletes branches or worktrees.
 
 > **The chain is a convention, not an enforced gate.** When a request leaves no
 > decisions open — e.g. a behavior-preserving restructure like moving folders or
@@ -135,7 +138,7 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Parallel track — bug fixing
 
-**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). Joins the main chain only at Phase 4, where it uses `test-driven-development` to write the failing test before fixing. After a verified fix it conditionally surfaces `llm-md-revise` candidates (debugging sessions often reveal anti-patterns), then hands off to `finishing-a-development-branch`.
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). At Phase 4 it sends a confirmed bug-fix brief to `implement`, which owns TDD, review, revision, and integration handoff. Failed implementation or verification returns to root-cause analysis with the new evidence.
 
 ---
 
@@ -269,9 +272,9 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **implement** — inline TDD plus one final whole-branch review and at most two focused post-fix reviewer turns
+- **implement** — single code-mutation controller: inline TDD, final whole-branch review, revisions, and PR/base-merge handoff
 - **using-git-worktrees** — parallel development branch isolation
-- **finishing-a-development-branch** — merge/PR decision workflow
+- **pr-creator** — GitHub pull request creation after the user selects the PR path
 
 **Quality assurance**
 
@@ -297,7 +300,7 @@ Several skills in this repository are derived from MIT-licensed prior work. The 
 copyright notices and the full license text are consolidated in
 [`design/reference/THIRD-PARTY-LICENSES.md`](design/reference/THIRD-PARTY-LICENSES.md) (per-skill `NOTICE` files have been merged into this file).
 
-- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `finishing-a-development-branch`, `requesting-code-review`, `implement`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-harness-flow`, `writing-plans`.
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `requesting-code-review`, `implement`, `systematic-debugging`, `test-driven-development`, `using-git-worktrees`, `using-harness-flow`, `writing-plans`.
 - [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, and `writing-plans` from `to-tickets`.
 - [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT, © 2026 Julius Brussee) — base for `caveman`.
 
