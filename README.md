@@ -2,28 +2,28 @@
 
 ## Overview
 
-> Claude Code와 Codex에서 같은 workflow를 제공하는 cross-harness plugin. Feature 작업은 design → planning → TDD → initial whole-branch review → bounded post-fix review → integration 순서로, bug 수정은 root-cause investigation → regression test → minimal fix 순서로 진행한다.
+> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work proceeds through design → planning → TDD → initial whole-branch review → bounded post-fix review → integration, while bug fixes proceed through root-cause investigation → regression test → minimal fix.
 
 ### Problems it solves
 
 - Coding starts before the spec is agreed on, piling up code that's hard to redirect
-- 기존 사용자 변경과 task 변경이 섞이면 rollback과 review가 어려워진다
+- Mixing pre-existing user changes with task changes makes rollback and review difficult
 - Code review and cleanup get skipped or vary from person to person
 
 ### How it solves them
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, with no forced spec gate
-- 구현 전에 dirty checkout이면 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. 구현·review 중 branch/worktree는 전환하지 않으며, 선택된 base merge만 예외다
-- 현재 session에서 TDD로 inline 구현하고, fresh subagent context가 유리할 때만 한 task를 순차 위임한다. 이후 report-only initial whole-branch review와 bounded post-fix review turns로 수정 사항을 검증한다.
+- Stops before implementation when the checkout is dirty, then confirms an immutable `BASE_SHA`, the base branch, and the baseline test. It does not switch branches or worktrees during implementation or review; the selected base merge is the only exception
+- Implements inline with TDD in the current session and delegates one task sequentially only when a fresh subagent context is beneficial. It then verifies the changes through a report-only initial whole-branch review and bounded post-fix review turns.
 
 ### Who it's for
 
 - Users who want the agent in Claude Code or Codex to not skip required steps
-- TDD + current-checkout 안전 검사 + initial whole-branch review + bounded post-fix review를 하나의 흐름으로 원하는 사용자
+- Users who want TDD, current-checkout safety checks, an initial whole-branch review, and bounded post-fix review in one flow
 
 ### Foundation
 
-여러 Claude Code harness를 비교한 뒤([`design/2026-05-05-comparison.md`](design/2026-05-05-comparison.md)), 단순성을 우선하는 [superpowers](https://github.com/obra/superpowers)를 기반으로 채택했다. 그 위에 현재 checkout에서 동작하는 통합 `implement` controller와 fresh-context review flow를 구성했다.
+After comparing several Claude Code harnesses ([`design/2026-05-05-comparison.md`](design/2026-05-05-comparison.md)), this project adopted the simplicity-first [superpowers](https://github.com/obra/superpowers) as its foundation. On top of that foundation, it adds a unified `implement` controller that operates in the current checkout and a fresh-context review flow.
 
 - [Archon](design/reference/archon.md)
 - [everything-claude-code](design/reference/everything-claude-code.md)
@@ -37,7 +37,7 @@
 
 ## Skill chain — the order work flows in
 
-Routing은 첫 번째 일치 규칙을 적용한다. 승인된 plan·합의된 small-change brief는 `implement`, 승인된 spec은 `writing-plans`로 간다. Skill-only creation/edit/verification는 generic read-only analysis보다 우선해 `writing-skills`로 직접 간다. 아직 원인이 확인되지 않은 bug/test failure/unexpected behavior는 사용자가 구현 plan을 요청했더라도 먼저 `systematic-debugging`으로 가며, root cause 확인 뒤에만 `writing-plans` 또는 `implement`로 이어진다. 명시적 code review는 generic read-only analysis보다 우선해 `requesting-code-review`로 직접 간다. 명시적 spec과 non-bug implementation plan, 그 밖의 code work·codebase investigation은 각각 `brainstorming` 또는 `writing-plans`로 간다. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+Routing applies the first matching rule. An approved plan or agreed small-change brief goes to `implement`, while an approved spec goes to `writing-plans`. Skill-only creation, editing, or verification takes priority over generic read-only analysis and goes directly to `writing-skills`. A bug, test failure, or unexpected behavior without a confirmed root cause goes to `systematic-debugging` first, even when the user requests an implementation plan; it proceeds to `writing-plans` or `implement` only after the root cause is confirmed. An explicit code review takes priority over generic read-only analysis and goes directly to `requesting-code-review`. Explicit specs go to `brainstorming`, non-bug implementation plans go to `writing-plans`, and other code work or codebase investigations go to `brainstorming`. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
@@ -117,16 +117,16 @@ flowchart LR
 
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
 
-2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. 명시적 spec 요청에서는 spec review까지만 수행하고, 사용자가 후속 진행도 요청하지 않았다면 멈춘다. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
+2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. For an explicit spec request, it stops after requesting spec review unless the user also requests follow-on work. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
 
-3. **writing-plans** — decomposes an approved spec, an approved inline design, or a confirmed bug-fix brief with an explicit plan request into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Plan header의 `Source`는 실제 spec 경로, 합의된 결정, 또는 확인된 bug evidence와 correction을 담은 durable summary이며, 모든 source requirement는 task의 `Delivers`나 acceptance criterion에 매핑한다. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+3. **writing-plans** — decomposes an approved spec, an approved inline design, or a confirmed bug-fix brief with an explicit plan request into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. The plan header's `Source` contains the actual spec path, agreed decisions, or a durable summary of confirmed bug evidence and its correction; every source requirement maps to a task's `Delivers` or an acceptance criterion. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. Raw spec은 `writing-plans`에서 approved plan으로 바꾼 뒤 받는다. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. 구현·review 중 branch/worktree는 생성·전환하지 않으며, 사용자가 선택한 local base merge만 예외다. Fresh subagent context가 유리할 때만 한 task를 순차 위임한다. Completeness 확인 뒤 `llm-md-revise`의 승인된 instruction 변경을 먼저 커밋하고, 고정된 `BASE_SHA..REVIEWED_HEAD`를 대상으로 initial fresh-context whole-branch review를 실행한다. 이후 수정 사항은 공유 한도 안에서 최대 두 번의 post-fix reviewer turn으로 검증하며, semantic contract expansion으로 whole-branch review가 필요해져도 같은 한도를 소비한다.
+4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. It accepts a raw spec only after `writing-plans` turns it into an approved plan. Before the first change, it stops for user direction if the checkout is dirty and confirms an immutable `BASE_SHA`, the base branch, and the baseline test. It does not create or switch branches or worktrees during implementation or review; a user-selected local base merge is the only exception. It delegates one task sequentially only when a fresh subagent context is beneficial. After confirming completeness, it first commits any approved instruction changes from `llm-md-revise`, then runs an initial fresh-context whole-branch review over the fixed `BASE_SHA..REVIEWED_HEAD` range. It verifies subsequent fixes with at most two post-fix reviewer turns within the shared limit; a whole-branch review required by semantic contract expansion consumes the same limit.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **llm-md-revise** — durable candidate가 있을 때만 최종 review 전에 platform별 project instruction(`AGENTS.md` 또는 `CLAUDE.md`) 변경을 제안하며, 승인된 변경은 review 범위에 포함되도록 먼저 커밋한다.
-   - 4-3. **requesting-code-review** — report-only mid-tier reviewer templates. Managed review는 controller가 넘긴 정확한 SHA 범위를 유지하고 현재 `HEAD`가 ending SHA와 같은지 검증한다. Native read-only control이 있으면 사용하고, 없으면 bounded before/after snapshot으로 명시된 상태 변경만 탐지한다. 이 fallback은 ignored-file 내용이나 fail-closed isolation을 보장하지 않는다. `full-review`는 whole branch를, `verify-fix`는 committed fix delta만 검토하며, 결과는 `pass | impl-fix | plan-escalate | incomplete` 중 하나의 deterministic `Gate status`로 귀결된다.
+   - 4-2. **llm-md-revise** — only when durable candidates exist, proposes platform-specific project instruction changes (`AGENTS.md` or `CLAUDE.md`) before the final review; approved changes are committed first so the review range includes them.
+   - 4-3. **requesting-code-review** — report-only mid-tier reviewer templates. A managed review preserves the exact SHA range supplied by the controller and verifies that the current `HEAD` matches the ending SHA. It uses native read-only controls when available; otherwise, a bounded before/after snapshot detects only the listed state changes. This fallback does not guarantee the contents of ignored files or fail-closed isolation. `full-review` examines the whole branch, while `verify-fix` examines only the committed fix delta; the result resolves to one deterministic `Gate status`: `pass | impl-fix | plan-escalate | incomplete`.
 
-5. **Integration decision** — revision과 review가 끝난 뒤 `implement`는 PR 생성 또는 감지된 base branch로의 merge만 묻는다. 선택 실행 직전에 clean 상태와 `HEAD == PASSED_REVIEW_HEAD`를 다시 검증한다. PR 생성은 publish 직전에 local HEAD와 remote branch tip을 모두 같은 SHA로 확인하고, 생성 뒤 PR `headRefOid`도 검증한다. Base merge에는 명시적 사용자 승인이 필요하며 어느 경로도 branch나 worktree를 자동 삭제하지 않는다.
+5. **Integration decision** — after revision and review settle, `implement` asks only whether to create a PR or merge into the detected base branch. Immediately before executing the choice, it rechecks the clean state and verifies `HEAD == PASSED_REVIEW_HEAD`. Before publishing a PR, it verifies that both the local HEAD and the remote branch tip match the same SHA, then verifies the PR's `headRefOid` after creation. A base merge requires explicit user approval, and neither path automatically deletes a branch or worktree.
 
 > **Mechanical work is not a routing exception.** Keep `brainstorming` proportional
 > — a behavior-preserving move or rename normally needs only a short agreed brief —
@@ -135,7 +135,7 @@ flowchart LR
 
 ### Output locations
 
-Skills는 현재 checkout 안에 산출물을 필요할 때 생성한다:
+Skills create artifacts inside the current checkout on demand:
 
 ```
 docs/harness-flow/specs/YYYY-MM-DD-<topic>.md   # brainstorming large-exit output
