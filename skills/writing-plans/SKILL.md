@@ -80,6 +80,4 @@ granularity right? are the blocking edges correct? should any merge or split?
 Iterate until the user approves.
 
 There is no group-boundary reviewer and no per-task reviewer.
-After the user approves, hand off to `implement`, which builds inline and starts
-its review gate with one initial whole-branch review. Post-fix review remains
-bounded by `implement`'s shared reviewer-turn limit.
+After the user approves, hand the settled plan to `implement`.

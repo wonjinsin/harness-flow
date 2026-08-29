@@ -1,6 +1,6 @@
 ---
 name: llm-md-revise
-description: Use when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting before implement's one initial whole-branch review; when the user says "remember this" / "add to project memory"; when asked to update AGENTS.md, CLAUDE.md, or project instructions; or when a correction repeats twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole, nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
+description: Use when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting before implementation review; when the user says "remember this" / "add to project memory"; when asked to update AGENTS.md, CLAUDE.md, or project instructions; or when a correction repeats twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole, nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # llm-md-revise
@@ -25,9 +25,9 @@ Codex project or vice versa.
 
 ## When to use
 
-- Within `implement`, after completeness is confirmed but before its one initial
-  whole-branch review, when the session had real corrections, conventions, or external
-  constraints. Approved edits enter the branch before its review range is pinned.
+- Within `implement`, after completeness is confirmed but before its review range
+  is pinned, when the session had real corrections, conventions, or external
+  constraints. Approved edits enter the branch before review.
 - User said "remember this" / "add to project memory" / "persist this in CLAUDE.md".
 - User repeated the same correction 2+ times (a real rule, not a one-off).
 - A non-obvious external fact came up (deadline, owner, deprecated path, external system).
@@ -145,8 +145,8 @@ Project instructions updated with N entries. Suggested commit:
 
 Do NOT auto-run the commit — the commit decision is the user's. Within an
 `implement` handoff, ask whether to commit now or leave the edit uncommitted and
-stop before the initial whole-branch review; integration cannot continue until the approved edit is
-committed and included in that review. For an independent direct request, ask
+stop before review; integration cannot continue until the approved edit is
+committed and included in the review range. For an independent direct request, ask
 whether to run the commit now or bundle it with other work.
 
 ## Guardrails

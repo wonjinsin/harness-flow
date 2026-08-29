@@ -1,23 +1,19 @@
 ---
 name: implement
-description: Use when executing settled code work in the current session from an agreed small-change brief, an approved implementation plan, or a confirmed bug-fix brief.
+description: Use when code changes are ready to execute because requirements and acceptance criteria are settled.
 ---
 
 # Implement
 
-Execute settled code work **inline**, then start the review gate with **one initial
-fresh-context whole-branch review** and own bounded revisions through the integration
-decision. Dispatch a subagent for a task
-only when a fresh subagent context clearly helps — never for parallelism.
+Execute settled code work **inline**, own a bounded review/correction loop, then
+hand the approved commit to finalization. Load optional protocols only when needed.
 
 ## Before you start
 
-Accept one of these inputs:
-
-- **Agreed small-change brief** — goal, acceptance checks, and boundaries.
-- **Approved implementation plan** — its tasks and settled requirements.
-- **Confirmed bug-fix brief** — reproducer, root-cause evidence, minimal correction,
-  boundaries, and acceptance checks.
+Accept one settled implementation input; its source and request classification
+belong to the caller. It contains the desired change, scope and constraints,
+acceptance criteria, optional ordered tasks, and optional reproducer plus confirmed
+root-cause evidence.
 
 Scan the input once for conflicts, missing acceptance criteria, or anything a
 reviewer would reject. Recover a missing detail with one or two settling questions;
@@ -44,88 +40,53 @@ Before the first code change:
    **before editing** that the final PR/base-merge choice will be unavailable.
    Continue only when the user already chose the current checkout or confirms it.
    Before the integration choice, do not create or switch a branch or worktree.
-   The user-selected base merge in Closeout is the sole exception.
+   The user-selected base merge during finalization is the sole exception.
 4. Prepare dependencies when needed and run the project's existing baseline suite.
-   A failure already named by a confirmed bug-fix brief is expected evidence; any
+   A failure already named by the settled reproducer is expected evidence; any
    unexpected baseline failure must stop implementation. Report the evidence and
    return to `harness-flow:systematic-debugging` before proceeding.
-5. For a confirmed bug-fix brief, record current `HEAD` as `ATTEMPT_BASE`
-   immediately before its first Red cycle.
+5. With a reproducer and confirmed root cause, record current `HEAD` as
+   `ATTEMPT_BASE` immediately before its first Red cycle.
 
 ## Default: implement inline
 
 Work the input in the current session, on the session's model:
 
 1. Load `test-driven-development` and implement each logical task Red → Green → Refactor.
-   For a confirmed bug-fix brief, turn its reproducer into the first failing test.
-2. Run the formatter before each task or brief commit when applicable, inspect its
+   When the input includes a reproducer, turn it into the first failing test.
+2. Run the formatter before each task or final commit when applicable, inspect its
    writes, and confirm they remain inside the settled boundaries. Run the targeted
-   tests after formatting. For a plan, commit each task separately; for a
-   small-change or bug-fix brief, commit once its acceptance checks pass.
+   tests after formatting. Commit each ordered task separately; without ordered
+   tasks, commit once the acceptance criteria pass.
 3. After the last task, run the full suite + format check + typecheck once. The
    final format check must not write files. When the project exposes only a
    mutating formatter, run it before the relevant commit and use the clean-tree
    check as final format verification.
 4. If a formatter writes after the intended commit, inspect that delta immediately,
-   rerun the relevant test, include it in task or brief finalization, commit it,
+   rerun the relevant test, include it in task or work finalization, commit it,
    rerun the final checks, and require a clean worktree. Unknown or user-owned
    writes stop the workflow for user direction.
 
 Do not pause between tasks to check in — execute the whole input. Stop only for a
 blocker you cannot resolve or genuine ambiguity.
 
-## Option: isolate a task in a subagent (sequential, no parallelism)
+## Optional task isolation
 
-When a fresh, clean context would clearly help — a long plan is filling your own
-context, or a task benefits from unbiased implementation — dispatch ONE
-general-purpose subagent for that task:
-
-- Pass the current work item's settled input as its prompt inline (no extra brief
-  files, no ledger).
-- Immediately before dispatch, resolve current `HEAD` as `EXPECTED_HEAD` and pass
-  it with the stable checkout identity. Before editing, the subagent must run
-  `git rev-parse --show-toplevel`, `git rev-parse --git-dir`,
-  `git symbolic-ref -q --short HEAD`, and resolve HEAD, then compare every value,
-  including current HEAD against `EXPECTED_HEAD`.
-  A checkout identity mismatch must stop before any edit or commit and report the
-  observed values.
-- Give it the files to touch and the interfaces it must honor (derive these from
-  the input and codebase), plus "TDD, one commit;
-  comments state only what the code cannot — design history belongs in the commit
-  message, not in code."
-- When it returns, verify its commit landed on the current session branch before
-  continuing. If a wrong-checkout commit still occurred, stop, report both checkout
-  identities and the commit SHA, and wait for user direction. Never mutate the
-  other checkout as an automatic repair.
-
-**Pick a model tier for the dispatch — and set it explicitly.** Use the least
-powerful model that fits, to conserve cost and speed:
-
-- Mechanical task (isolated function, clear spec, 1–2 files) → cheap/fast model.
-- Integration or judgment task (multi-file coordination, pattern matching,
-  debugging) → standard model.
-- Architecture or broad design task → the most capable model.
-
-An omitted tier inherits the session default, which is usually the most expensive
-model — always name the tier on dispatch. But the cheapest models routinely take
-2–3× the turns on multi-step work and can cost more overall, so use a standard tier
-as the floor for anything non-trivial.
-
-This is the only subagent isolation on the build path — optional and sequential.
+Only when one task clearly benefits from fresh task isolation, read
+[task-isolation.md](task-isolation.md). Do not load it for ordinary implementation.
 
 ## Before the final review: completeness check
 
-Inline execution has no external gate against silently dropping work, so verify it
-yourself first against the actual diff (`git diff "$BASE_SHA"..HEAD`):
+Verify completeness against the actual diff (`git diff "$BASE_SHA"..HEAD`):
 
-- Plan → every declared **Touches** file changed, every acceptance box holds, and
-  all source requirements and inherited constraints are satisfied.
-- Small-change brief → every acceptance check holds and the diff stays inside its
-  boundaries.
-- Bug-fix brief → the reproducer failed for the expected reason before the change,
-  now passes, the root cause is corrected, and every acceptance check holds.
+- Every ordered task is complete, including its declared files and inherited
+  constraints.
+- Every acceptance criterion holds and the diff stays inside the settled scope.
+- When the input includes a reproducer and root-cause evidence, the reproducer
+  failed for the expected reason before the change, now passes, and the confirmed
+  cause is corrected.
 
-Missing work returns to implementation. A failed bug-fix verification must not
+Missing work returns to implementation. A failed root-cause correction must not
 remain under the next hypothesis. Confirm every commit in `ATTEMPT_BASE..HEAD`
 belongs only to this attempt, then create normal revert commit(s); remove any
 uncommitted delta only when it is current-attempt controller-authored work. Rerun
@@ -141,88 +102,34 @@ instruction edits must be committed so the final review includes them. If the
 user leaves an approved edit uncommitted, stop before review. Skip this step when
 nothing qualifies, and require a clean worktree before continuing.
 
-## Always: one initial whole-branch review, then bounded fix verification
+## Bounded review loop
 
-After all tasks and any pre-review instruction revision settle, reuse the
-immutable preflight `BASE_SHA` and record the current `REVIEWED_HEAD`. Pass the exact `BASE_SHA`
-as `BASE_SHA` and `REVIEWED_HEAD` as `HEAD_SHA`, then request one
-fresh-context `full-review` via `requesting-code-review` over that immutable range
-on a mid-tier model (measured:
-with the template's severity floor it holds at large-diff scale — the top-tier
-premium buys nothing here). The review preflight must reject any current HEAD
-that no longer equals `REVIEWED_HEAD`. Route the validated `Gate status` before
-changing code:
+Require committed output and a clean worktree. For the initial review, pass the
+immutable `BASE_SHA` as `FROM_SHA`, current `HEAD` as `TO_SHA`, the settled
+requirements, and `PRIOR_REPORT: None` to `requesting-code-review`.
 
-- `incomplete` → stop and escalate with the missing evidence.
-- `plan-escalate` → stop and escalate to the human.
-- `pass` → the review passes; Minor findings remain optional.
-- `impl-fix` → batch all Critical/Important implementation fixes, use
-  TDD, run the relevant checks and full suite, then make one fix commit so
-  `FIXED_HEAD` is immutable.
+Handle each returned report mechanically:
 
-After an `impl-fix` batch, request a focused `verify-fix` over
-`REVIEWED_HEAD..FIXED_HEAD`, passing the prior report, unchanged requirements,
-and exact test evidence. Resume the same reviewer when supported; otherwise use
-a fresh mid-tier reviewer with only that verify package. A complete report with
-all prior findings resolved and no new Critical/Important issue has Gate status
-`pass` and passes. Other statuses follow the same decision table above.
+- `Review complete: no` → stop and surface its plain-language explanation.
+- A complete report with `Blocking findings: none` → record that report's
+  `TO_SHA` as `APPROVED_SHA` and leave the loop.
+- A complete report with blocking findings → if two correction review turns have
+  already been spent, stop and surface the remaining findings. Otherwise record
+  the report's `TO_SHA` as `LAST_REVIEWED_SHA` and append its whole report to the
+  bounded `PRIOR_REPORT` history under `Earlier report N`. Batch every blocking
+  finding, follow TDD, run the relevant checks and full suite, commit the
+  correction, and require a clean worktree.
+  Request the next fresh review with `LAST_REVIEWED_SHA` as `FROM_SHA`, current
+  `HEAD` as `TO_SHA`, unchanged requirements, and `PRIOR_REPORT`.
 
-Maintain a finding ledger across verify turns. Pass only unresolved,
-not-verifiable, and newly introduced Critical/Important IDs as active findings
-for the next fix delta. Carry resolved IDs forward unchanged; never ask a later
-delta to re-prove them.
+Allow at most two correction review turns after the initial review. Each review
+inspects exactly one immutable range; the initial range covers the settled branch,
+and later ranges cover only committed corrections. Never invoke `implement`
+recursively or restart an unbounded review loop.
 
-Use another whole-branch `full-review` instead of `verify-fix` only when the fix
-is not attributable to the reported findings or makes a semantic expansion by
-changing a public API, schema or migration, security or authorization behavior,
-or dependencies. That whole-branch `full-review` consumes the same limit below.
-A verify report that marks this semantic expansion `incomplete` may request the
-full-review when budget remains. Other `incomplete` reports, any
-`plan-escalate`, or exhausted budget escalate to the human.
+## Finish
 
-Allow at most two post-fix reviewer turns. Every post-fix dispatch —
-`full-review` or `verify-fix` — counts toward the same limit. For another fix
-round, advance `REVIEWED_HEAD` to the commit just reviewed, batch fixes again,
-test, commit a new `FIXED_HEAD`, and spend the second turn. Never restart an
-unbounded whole-branch loop.
-
-## Closeout handoff
-
-After final review passes, record its reviewed head as `PASSED_REVIEW_HEAD`. Do
-not invoke `llm-md-revise` again or change the source checkout before integration.
-The selected integration sequence is the only authorized closeout mutation. The
-PR sequence publishes the reviewed SHA; the base-merge sequence includes its
-approved base-branch switch, merge, and conflict recovery. Before
-offering integration, require a clean worktree and verify that current `HEAD` equals `PASSED_REVIEW_HEAD`;
-otherwise stop and require a new final review.
-
-1. Detect the repository's base branch from `origin`'s default branch; fall back to
-   `main`, then `master`. Do not guess another branch.
-2. Ask exactly whether to **create a pull request** or **merge into the detected
-   base branch**. Do not add keep, discard, branch deletion, or worktree cleanup
-   choices.
-   After the user selects a path and immediately before executing it, repeat the
-   clean-worktree check and verify `HEAD` still equals `PASSED_REVIEW_HEAD`. Any
-   mismatch stops integration and requires a new final review.
-3. Pull request → invoke `harness-flow:pr-creator`, passing
-   `PASSED_REVIEW_HEAD` for its execution-time guard.
-4. Base merge:
-   - Record the current named branch as `SOURCE_BRANCH`, the detected local base
-     branch as `BASE_BRANCH`, and its current commit as `BASE_HEAD`.
-   - Only after the user selects this path, switch to the detected base branch.
-     If it is missing, checked out in another worktree, or cannot be switched to
-     cleanly, stop; never operate on another checkout.
-   - Verify the branch is `BASE_BRANCH`, `HEAD == BASE_HEAD`, and the worktree is
-     clean. Merge exactly `PASSED_REVIEW_HEAD`, never the moving source-branch name.
-     Verify the merge result descends from `PASSED_REVIEW_HEAD` before success.
-   - On conflict, make no resolution edit. Run `git merge --abort`, verify
-     `HEAD == BASE_HEAD` and a clean worktree, then switch back to `SOURCE_BRANCH`
-     and verify `HEAD == PASSED_REVIEW_HEAD`. If any recovery check fails, stop
-     for user direction; never reset or clean.
-   - Conflict resolution is new source-branch implementation work: resolve, test,
-     commit, and obtain a new final review before another merge attempt.
-   Never delete the source branch or clean up a worktree automatically.
-
-If HEAD is detached, the working tree is dirty, or the current branch already is
-the base branch, report that state instead of pretending either integration action
-is valid. Resolve it only with the user's direction.
+After the loop records `APPROVED_SHA`, do not change the source checkout. Only
+then read [finish-reviewed-change.md](finish-reviewed-change.md) and pass that
+exact SHA to its finalization procedure. Any intervening source change requires
+a new review.

@@ -25,7 +25,7 @@ git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
 - Resolve the current `HEAD` once and call it `PUBLISH_HEAD`. A managed handoff
-  from `implement` includes `PASSED_REVIEW_HEAD`; require `PUBLISH_HEAD` to equal
+  from `implement` includes `APPROVED_SHA`; require `PUBLISH_HEAD` to equal
   it, or stop and return control for a new final review. For a standalone PR,
   the preflight current `HEAD` is `PUBLISH_HEAD`; it makes no claim that an
   earlier managed review covers that commit. Preserve the resolved SHA as a

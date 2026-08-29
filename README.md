@@ -2,7 +2,7 @@
 
 ## Overview
 
-> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work proceeds through design → planning → TDD → initial whole-branch review → bounded post-fix review → integration, while bug fixes proceed through root-cause investigation → regression test → minimal fix.
+> Claude Code와 Codex에서 같은 흐름을 제공하는 크로스 하네스 플러그인입니다. 기능 작업은 설계 → 계획 → TDD → 최초 전체 변경 리뷰 → 제한된 증분 리뷰 → 통합으로 진행하고, 버그 수정은 원인 조사 → 회귀 테스트 → 최소 수정으로 진행합니다.
 
 ### Problems it solves
 
@@ -14,12 +14,12 @@
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, with no forced spec gate
 - Stops before implementation when the checkout is dirty, then confirms an immutable `BASE_SHA`, the base branch, and the baseline test. It does not switch branches or worktrees during implementation or review; the selected base merge is the only exception
-- Implements inline with TDD in the current session and delegates one task sequentially only when a fresh subagent context is beneficial. It then verifies the changes through a report-only initial whole-branch review and bounded post-fix review turns.
+- 현재 세션에서 TDD로 직접 구현합니다. 최초 리뷰는 `BASE_SHA..HEAD` 전체 변경을 보고, 수정 후에는 직전 리뷰 SHA 이후의 커밋만 최대 두 번 증분 리뷰합니다.
 
 ### Who it's for
 
 - Users who want the agent in Claude Code or Codex to not skip required steps
-- Users who want TDD, current-checkout safety checks, an initial whole-branch review, and bounded post-fix review in one flow
+- TDD, 현재 체크아웃 안전 검사, 최초 전체 변경 리뷰, 제한된 증분 리뷰를 한 흐름에서 원하는 사용자
 
 ### Foundation
 
@@ -58,28 +58,21 @@ flowchart LR
 
     subgraph SHIP [review & ship]
         direction LR
-        RCR_FULL(["requesting-code-review<br/>full-review · report-only"])
-        FIX(["controller<br/>batch fix → test → commit"])
-        RCR_VERIFY(["requesting-code-review<br/>verify-fix · report-only"])
+        REVIEW(["requesting-code-review<br/>단일 범위 · report-only"])
+        FIX(["controller<br/>일괄 수정 → 테스트 → 커밋"])
         LMR(["llm-md-revise"])
-        BUDGET(["shared maximum:<br/>2 post-fix reviewer turns"])
-        ESC(["stop & escalate"])
-        CHOICE{"PR or base merge?"}
+        BUDGET(["수정 리뷰 최대 2회"])
+        ESC(["중단 후 보고"])
+        CHOICE{"PR 또는 base merge?"}
         PR(["pr-creator"])
-        BASE(["merge into detected base"])
-        LMR -- "settled + clean" --> RCR_FULL
-        RCR_FULL -- "pass" --> CHOICE
-        RCR_FULL -- "impl-fix +<br/>turn available" --> FIX
-        RCR_FULL -- "impl-fix +<br/>no turn" --> ESC
-        RCR_FULL -- "incomplete /<br/>plan-escalate" --> ESC
-        FIX -- "finding-scoped fix +<br/>spend next turn" --> RCR_VERIFY
-        FIX -- "semantic expansion +<br/>spend next turn" --> RCR_FULL
-        RCR_VERIFY -- "pass" --> CHOICE
-        RCR_VERIFY -- "impl-fix +<br/>turn available" --> FIX
-        RCR_VERIFY -- "semantic-expansion incomplete +<br/>turn available" --> RCR_FULL
-        RCR_VERIFY -- "semantic-expansion incomplete +<br/>no turn" --> ESC
-        RCR_VERIFY -- "impl-fix + no turn /<br/>other incomplete / plan-escalate" --> ESC
-        BUDGET -. "guards every<br/>post-fix dispatch" .-> FIX
+        BASE(["감지한 base에 merge"])
+        LMR -- "확정 + clean" --> REVIEW
+        REVIEW -- "complete: no" --> ESC
+        REVIEW -- "blocker 없음" --> CHOICE
+        REVIEW -- "blocker 있음 +<br/>횟수 남음" --> FIX
+        REVIEW -- "blocker 있음 +<br/>한도 소진" --> ESC
+        FIX -- "직전 SHA..HEAD +<br/>이전 보고서" --> REVIEW
+        BUDGET -. "수정 리뷰 제한" .-> FIX
         CHOICE -- "create PR" --> PR
         CHOICE -- "merge" --> BASE
     end
@@ -96,7 +89,7 @@ flowchart LR
     SD -- "confirmed + no<br/>plan request" --> IMPL
 
     IMPL -- "durable candidates" --> LMR
-    IMPL -- "no candidates" --> RCR_FULL
+    IMPL -- "no candidates" --> REVIEW
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -107,7 +100,7 @@ flowchart LR
     class REQ,UHF entry
     class BS,SPEC,WP design
     class TDD,IMPL build
-    class RCR_FULL,FIX,RCR_VERIFY,LMR,BUDGET,ESC,CHOICE,PR,BASE ship
+    class REVIEW,FIX,LMR,BUDGET,ESC,CHOICE,PR,BASE ship
     class SD debug
 
     style DESIGN fill:none,stroke:#64b5f6,stroke-dasharray:4 4
@@ -121,12 +114,12 @@ flowchart LR
 
 3. **writing-plans** — decomposes an approved spec, an approved inline design, or a confirmed bug-fix brief with an explicit plan request into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. The plan header's `Source` contains the actual spec path, agreed decisions, or a durable summary of confirmed bug evidence and its correction; every source requirement maps to a task's `Delivers` or an acceptance criterion. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. It accepts a raw spec only after `writing-plans` turns it into an approved plan. Before the first change, it stops for user direction if the checkout is dirty and confirms an immutable `BASE_SHA`, the base branch, and the baseline test. It does not create or switch branches or worktrees during implementation or review; a user-selected local base merge is the only exception. It delegates one task sequentially only when a fresh subagent context is beneficial. After confirming completeness, it first commits any approved instruction changes from `llm-md-revise`, then runs an initial fresh-context whole-branch review over the fixed `BASE_SHA..REVIEWED_HEAD` range. It verifies subsequent fixes with at most two post-fix reviewer turns within the shared limit; a whole-branch review required by semantic contract expansion consumes the same limit.
+4. **implement** — caller가 합의된 brief, 승인된 plan, 확인된 bug-fix brief를 공통된 settled input으로 정규화해 넘깁니다. 현재 체크아웃에서 TDD로 구현하며, 수정 전 dirty checkout 검사, 불변 `BASE_SHA`, base branch, baseline test를 확인합니다. 최초에는 `BASE_SHA..HEAD`를 리뷰하고, blocker를 수정한 뒤에는 `LAST_REVIEWED_SHA..HEAD`만 이전 보고서와 함께 새 reviewer에게 보냅니다. 수정 리뷰는 최대 두 번입니다. 작업 격리와 종료 절차는 필요할 때만 내부 reference를 읽습니다.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **llm-md-revise** — only when durable candidates exist, proposes platform-specific project instruction changes (`AGENTS.md` or `CLAUDE.md`) before the final review; approved changes are committed first so the review range includes them.
-   - 4-3. **requesting-code-review** — report-only mid-tier reviewer templates. A managed review preserves the exact SHA range supplied by the controller and verifies that the current `HEAD` matches the ending SHA. It uses native read-only controls when available; otherwise, a bounded before/after snapshot detects only the listed state changes. This fallback does not guarantee the contents of ignored files or fail-closed isolation. `full-review` examines the whole branch, while `verify-fix` examines only the committed fix delta; the result resolves to one deterministic `Gate status`: `pass | impl-fix | plan-escalate | incomplete`.
+   - 4-2. **llm-md-revise** — durable candidate가 있을 때만 프로젝트 지침 변경을 제안합니다. 승인된 변경은 리뷰 범위를 고정하기 전에 커밋합니다.
+   - 4-3. **requesting-code-review** — 호출 한 번마다 정확한 `FROM_SHA..TO_SHA` 한 범위를 fresh-context, report-only reviewer가 검토합니다. 결과 판단값은 `Review complete`와 `Blocking findings`뿐입니다. 파일별 diff와 `N/N` coverage를 확인하며, native read-only 제어가 없으면 전후 snapshot으로 저장소 변경을 탐지합니다.
 
-5. **Integration decision** — after revision and review settle, `implement` asks only whether to create a PR or merge into the detected base branch. Immediately before executing the choice, it rechecks the clean state and verifies `HEAD == PASSED_REVIEW_HEAD`. Before publishing a PR, it verifies that both the local HEAD and the remote branch tip match the same SHA, then verifies the PR's `headRefOid` after creation. A base merge requires explicit user approval, and neither path automatically deletes a branch or worktree.
+5. **통합 선택** — 리뷰 통과 뒤에만 종료 reference를 읽습니다. clean checkout과 `HEAD == APPROVED_SHA`를 다시 확인한 뒤 PR 또는 감지된 base branch merge를 묻습니다. PR 경로는 같은 SHA를 `pr-creator`에 전달합니다. 어느 경로도 branch나 worktree를 자동 삭제하지 않습니다.
 
 > **Mechanical work is not a routing exception.** Keep `brainstorming` proportional
 > — a behavior-preserving move or rename normally needs only a short agreed brief —
@@ -280,13 +273,13 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **implement** — single code-mutation controller: inline TDD, initial whole-branch review, bounded post-fix review, revisions, and PR/base-merge handoff
+- **implement** — 단일 코드 변경 controller: inline TDD, 최초 전체 변경 리뷰, 제한된 증분 리뷰, PR/base-merge handoff
 - **pr-creator** — GitHub pull request creation after the user selects the PR path
 
 **Quality assurance**
 
 - **test-driven-development** — enforces the Red-Green-Refactor cycle (includes testing-anti-patterns reference)
-- **requesting-code-review** — report-only full review and focused `verify-fix` request contracts
+- **requesting-code-review** — 정확한 단일 커밋 범위를 검토하는 report-only 리뷰 계약
 
 **Debugging**
 

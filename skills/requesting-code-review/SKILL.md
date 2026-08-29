@@ -5,66 +5,43 @@ description: Use when tasks or major features are complete, before merging, or w
 
 # Requesting Code Review
 
-Dispatch a report-only reviewer subagent over an immutable git range. A
-`full-review` starts in fresh context; a managed `verify-fix` may resume that
-reviewer. Resume retains that reviewer's own review context and adds the prior
-report and fix package; it never receives the implementation session history.
+Dispatch one fresh-context, report-only reviewer over one immutable commit range.
+One invocation returns one report and stops. It never fixes code, repeats a review,
+or finishes a branch; a caller such as `implement` owns those decisions.
 
-## Contract
+## Input
 
-One invocation dispatches exactly one reviewer turn and returns its report. The
-reviewer is instructed to be report-only; native controls enforce that contract
-when available, while the fallback below detects only its stated scope. A standalone
-invocation returns the report and stops; it does not fix, re-review, or finish a
-development branch. A controller such as `implement` owns any later action.
+Every package contains settled `REQUIREMENTS` copied inline, exact `FROM_SHA` and
+`TO_SHA` commits, and `PRIOR_REPORT` (all earlier complete reports in order, or
+`None` for initial and standalone reviews). Separate raw reports with `Earlier
+report N` headings; the bounded loop supplies at most two.
 
-## When
+A managed initial review passes its pinned `BASE_SHA` as `FROM_SHA`. A managed
+incremental review passes `LAST_REVIEWED_SHA` as `FROM_SHA`. Both pass the current
+committed `HEAD` as `TO_SHA`. Never recompute a caller-supplied range.
 
-- Before merging a branch, or after a major feature.
-- The initial whole-branch turn of the final review gate in `implement`.
-- Optional but useful: when stuck (fresh eyes), or after a complex bugfix.
-
-## How
-
-**1. Select the mode and freeze its range.**
-
-- `full-review` — default for standalone requests and the initial whole-branch
-  review. A managed `full-review` receives supplied `BASE_SHA` and `HEAD_SHA`
-  from its controller. Verify those exact commits; the skill must not replace
-  either with a freshly resolved merge-base or current HEAD. Resolve the current `HEAD`
-  separately and require it to equal the supplied `HEAD_SHA`; a mismatch makes
-  the review Incomplete before dispatch.
-
-  A standalone `full-review` has no caller-owned range. Resolve the target base
-  ref from the request or branch metadata, then pin the actual branch point and
-  committed HEAD:
+For a standalone request, honor a user-supplied commit range or base branch. When
+neither is supplied, detect the base from `origin`'s default branch, then `main`,
+then `master`; pin the branch point and current committed head:
 
 ```bash
-HEAD_SHA=$(git rev-parse --verify 'HEAD^{commit}')
-BASE_SHA=$(git merge-base <base-ref> "$HEAD_SHA")
-git rev-parse --verify "$BASE_SHA^{commit}"
-git status --porcelain
-git diff --quiet "$BASE_SHA" "$HEAD_SHA"
+TO_SHA=$(git rev-parse --verify 'HEAD^{commit}')
+FROM_SHA=$(git merge-base <base-ref> "$TO_SHA")
+git rev-parse --verify "$FROM_SHA^{commit}"
 ```
 
-- `verify-fix` — managed callers only. Freeze the previous reviewed commit as
-  `REVIEWED_HEAD` and the committed fix as `FIXED_HEAD`; include
-  active `PRIOR_FINDINGS`, the carry-forward `RESOLVED_FINDINGS` ledger, the
-  original `PLAN_OR_REQUIREMENTS`, and `TEST_EVIDENCE`. Review only
-  `REVIEWED_HEAD..FIXED_HEAD` plus the named active findings.
+This reviews the current branch's committed work even when the base branch moved.
+If the range is empty, report that there is nothing to review. Uncommitted changes
+are outside this contract.
 
-Each package is an immutable commit range. Verify both SHAs. If either is
-invalid, stop and report the bad range. For any managed package, resolve current
-HEAD and require it to equal the package's ending SHA (`HEAD_SHA` or
-`FIXED_HEAD`). Run `git status --porcelain`; if the worktree is dirty, stop
-because those changes would be silently excluded — never commit or stash them.
-Run `git diff --quiet` for the selected range; if the diff is empty, stop and
-report that there is nothing to review. Do not dispatch a reviewer for an
-invalid, partial, stale, or empty package.
+## Preflight
 
-Before dispatch, capture a repository-state snapshot with these read-only
-checks. Hash config and remote output so credentials embedded in URLs are not
-printed:
+Verify both SHAs resolve to commits. Require current `HEAD == TO_SHA`, an empty
+`git status --porcelain`, and a non-empty `FROM_SHA..TO_SHA` diff. Stop instead of
+silently reviewing a stale, partial, dirty, invalid, or empty package.
+
+Before dispatch, capture this repository-state snapshot. Hash config and remote
+output so credentials embedded in URLs are not printed:
 
 ```bash
 git rev-parse --verify 'HEAD^{commit}'
@@ -74,87 +51,50 @@ git for-each-ref --format='%(refname) %(objectname)'
 git ls-files --stage --debug | git hash-object --stdin
 git config --local --list | git hash-object --stdin
 git remote -v | git hash-object --stdin
+git diff --quiet "$FROM_SHA" "$TO_SHA" # exit 1 confirms a non-empty diff
 ```
 
-Capture every command and pipeline exit status, using pipefail or an equivalent
-when needed. Any snapshot command or pipeline failure makes the review Incomplete;
-do not dispatch when the preflight snapshot is incomplete.
+Capture every command and pipeline exit status with pipefail or its equivalent.
+For `git diff --quiet`, exit 1 means the required non-empty diff, exit 0 means an
+empty range, and any other status is an error. Stop on any other snapshot failure.
 
-The snapshot covers current commit, symbolic/detached HEAD, worktree/index plus
-index flags, untracked and ignored path membership—but not ignored-file contents—
-refs, local repository config, and remotes. Use native read-only restrictions when available. If the
-harness cannot enforce them, use a detection-based fallback: keep the
-report-only prompt, preferably use a disposable checkout without remotes, and
-compare the captured snapshot before and after the turn. Do not claim that this
-fallback is hard isolation. It is not fail-closed outside the listed snapshot
-scope. If the caller requires fail-closed isolation, do not dispatch without an
-enforcing control; return an Incomplete review. Any detected mutation invalidates
-the report.
+Use native read-only controls when available. Otherwise the report-only prompt and
+before/after snapshot provide detection, not fail-closed isolation: ignored-file
+contents are not covered. If a caller requires fail-closed isolation, do not
+dispatch without an enforcing control.
 
-**2. Dispatch exactly one reviewer turn.** Fill the matching template in
-`code-reviewer.md` and dispatch on a
-**mid-tier model** — the tier is the spec, not a specific model name: map it to
-your harness's own middle tier (e.g. Claude Code → `sonnet`; Codex → its
-mid-tier equivalent). Measured: paired with the template's severity floor it
-catches discovery-class defects at large-diff scale, so the top-tier premium
-buys nothing here. Do not compensate with confidence filters or finding
-suppression; cost control lives in model tier and output shape, not in dropped
-findings.
+## Dispatch
 
-- **Claude Code full-review:** Task/Agent with `general-purpose`, `model: sonnet`.
-- **Codex full-review:** direct `spawn_agent` with `task_name: "final_review"`, the filled
-  template as `message`, and `fork_turns: "none"`. Omit unsupported `model` /
-  `profile` / `agent_type`; ask for its mid-tier model in the message without
-  claiming an exact-model guarantee.
-- **verify-fix:** resume the same reviewer when the harness supports it, keeping
-  reviewer independence while avoiding a cold start and whole-branch reread.
-  Codex uses `followup_task` with the original reviewer target. If resume is not
-  available, dispatch a new mid-tier general-purpose reviewer with the complete
-  verify-fix package and no implementation-session history.
+Fill the single template in [code-reviewer.md](code-reviewer.md) with
+`{REQUIREMENTS}`, `{FROM_SHA}`, `{TO_SHA}`, and `{PRIOR_REPORT}`. Dispatch exactly
+one general-purpose reviewer on the harness's mid-tier model. Use fresh-context on
+every invocation; do not resume a previous reviewer or pass implementation-session
+history.
 
-Before dispatch, freeze the requirements by copying their exact text inline as
-`PLAN_OR_REQUIREMENTS`; never pass only a file path, especially for an ignored
-plan or spec. Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
-`{BASE_SHA}`, `{HEAD_SHA}`. Verify-fix placeholders: `{PLAN_OR_REQUIREMENTS}`,
-`{PRIOR_FINDINGS}`, `{RESOLVED_FINDINGS}`, `{TEST_EVIDENCE}`,
-`{REVIEWED_HEAD}`, `{FIXED_HEAD}`. For later verify turns, pass only unresolved,
-not-verifiable, and new Critical/Important IDs as active findings; carry already
-resolved IDs in the resolved ledger without asking the reviewer to re-evaluate
-them against a newer delta. The reviewer freezes the bounded range's changed-file
-list, reads each listed file's diff exactly once in a separate result, and proves
-coverage with an `N/N` count. This adds cheap read calls but avoids truncating one
-aggregate diff and repeating the whole review.
+- **Claude Code:** Task/Agent with `general-purpose`, `model: sonnet` or the current
+  mid-tier equivalent.
+- **Codex:** `spawn_agent` with the unique `task_name:
+  "final_review_<unused-ordinal>_<TO_SHA-prefix>"`, `fork_turns: "none"`, and the
+  filled prompt. Choose an unused ordinal, omit unsupported model/profile fields,
+  and request the mid-tier model.
 
-**3. Validate and return the report.** After the reviewer returns, repeat and
-compare every snapshot check exactly against its preflight value. If repository
-state changed, the report is invalid: stop, surface the mutation, and never
-revert it automatically. A timeout, empty response, malformed report, or report
-missing a required field is not approval; return it as an incomplete review.
+The reviewer reads every changed file's diff separately and proves `N/N` coverage.
+The optional prior report asks the same reviewer function to verify earlier
+blocking findings while reviewing the new range; it does not create another mode,
+finding ledger, or persistent reviewer state.
 
-Validate `Gate status` against the report evidence before returning it:
+## Validate and return
 
-- `incomplete` — review execution is Incomplete, coverage is not `N/N`, or an
-  active finding is Not-verifiable.
-- `plan-escalate` — at least one active Critical/Important finding has that class.
-- `impl-fix` — execution is complete and at least one active Critical/Important
-  implementation finding is unresolved or newly reported.
-- `pass` — execution is complete, coverage is `N/N`, all active findings are
-  resolved, and no new Critical/Important issue exists. Minor findings do not
-  block this status.
+After the reviewer returns, repeat every snapshot check and compare it with the
+preflight values. If repository state changed, invalidate the report, surface the
+observed change, and never revert it automatically.
 
-Apply precedence in that order: `incomplete` → `plan-escalate` → `impl-fix` →
-`pass`.
+A valid report contains `Review complete: yes | no`, the exact reviewed range,
+`Reviewed files: N/N` when complete, `Blocking findings: none | finding list`, and
+a plain-language explanation when the review is not complete.
 
-A claimed status inconsistent with those fields is malformed, not a second
-opinion: return an Incomplete review. Do not act on findings inside this skill;
-the caller decides whether to stop, fix, or request another review.
-
-## In `implement`
-
-The `implement` chain starts its gate with **one initial whole-branch review**
-after all tasks and any approved pre-review instruction revision — there is no
-per-task or group-boundary reviewer. The `implement` skill owns fixes and may
-request bounded `verify-fix` or semantic-expansion `full-review` turns; this
-skill still dispatches only one report-only reviewer turn per invocation.
-
-See the template: [code-reviewer.md](code-reviewer.md).
+Timeouts, empty responses, malformed output, incomplete coverage, stale ranges,
+or detected repository mutation are not approval. Return `Review complete: no`
+with a plain-language explanation; do not classify the reason with a status code.
+When the fields are consistent, return the report unchanged. The caller decides
+whether to stop, fix the blocking findings, or request another review.
