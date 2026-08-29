@@ -5,8 +5,9 @@ description: Use when executing settled code work in the current session from an
 
 # Implement
 
-Execute settled code work **inline**, then get **one fresh-context review** and
-own revisions through the integration decision. Dispatch a subagent for a task
+Execute settled code work **inline**, then start the review gate with **one initial
+fresh-context whole-branch review** and own bounded revisions through the integration
+decision. Dispatch a subagent for a task
 only when a fresh subagent context clearly helps — never for parallelism.
 
 ## Before you start
@@ -140,27 +141,31 @@ instruction edits must be committed so the final review includes them. If the
 user leaves an approved edit uncommitted, stop before review. Skip this step when
 nothing qualifies, and require a clean worktree before continuing.
 
-## Always: one final review, then focused fix verification
+## Always: one initial whole-branch review, then bounded fix verification
 
 After all tasks and any pre-review instruction revision settle, reuse the
-immutable preflight `BASE_SHA` and record the current `REVIEWED_HEAD`, then
-request one fresh-context `full-review` via
-`requesting-code-review` over that whole range on a mid-tier model (measured:
+immutable preflight `BASE_SHA` and record the current `REVIEWED_HEAD`. Pass the exact `BASE_SHA`
+as `BASE_SHA` and `REVIEWED_HEAD` as `HEAD_SHA`, then request one
+fresh-context `full-review` via `requesting-code-review` over that immutable range
+on a mid-tier model (measured:
 with the template's severity floor it holds at large-diff scale — the top-tier
-premium buys nothing here). Route the report before changing code:
+premium buys nothing here). The review preflight must reject any current HEAD
+that no longer equals `REVIEWED_HEAD`. Route the validated `Gate status` before
+changing code:
 
-- `Review execution: Incomplete` → stop and escalate with the missing evidence.
-- Any `plan-escalate` → stop and escalate to the human.
-- No Critical/Important findings → the review passes.
-- `impl-fix` findings → batch all Critical/Important implementation fixes, use
+- `incomplete` → stop and escalate with the missing evidence.
+- `plan-escalate` → stop and escalate to the human.
+- `pass` → the review passes; Minor findings remain optional.
+- `impl-fix` → batch all Critical/Important implementation fixes, use
   TDD, run the relevant checks and full suite, then make one fix commit so
-  `FIXED_HEAD` is immutable. Minor findings remain optional.
+  `FIXED_HEAD` is immutable.
 
 After an `impl-fix` batch, request a focused `verify-fix` over
 `REVIEWED_HEAD..FIXED_HEAD`, passing the prior report, unchanged requirements,
 and exact test evidence. Resume the same reviewer when supported; otherwise use
 a fresh mid-tier reviewer with only that verify package. A complete report with
-all prior findings resolved and no new Critical/Important issue passes.
+all prior findings resolved and no new Critical/Important issue has Gate status
+`pass` and passes. Other statuses follow the same decision table above.
 
 Maintain a finding ledger across verify turns. Pass only unresolved,
 not-verifiable, and newly introduced Critical/Important IDs as active findings
@@ -168,11 +173,12 @@ for the next fix delta. Carry resolved IDs forward unchanged; never ask a later
 delta to re-prove them.
 
 Use another whole-branch `full-review` instead of `verify-fix` only when the fix
-is not attributable to the reported findings or changes a public API, schema or
-migration, security or authorization behavior, or dependencies. A verify report
-that marks this semantic expansion Incomplete may request that full-review when
-budget remains. Other Incomplete reports, any `plan-escalate`, or exhausted
-budget escalate to the human.
+is not attributable to the reported findings or makes a semantic expansion by
+changing a public API, schema or migration, security or authorization behavior,
+or dependencies. That whole-branch `full-review` consumes the same limit below.
+A verify report that marks this semantic expansion `incomplete` may request the
+full-review when budget remains. Other `incomplete` reports, any
+`plan-escalate`, or exhausted budget escalate to the human.
 
 Allow at most two post-fix reviewer turns. Every post-fix dispatch —
 `full-review` or `verify-fix` — counts toward the same limit. For another fix

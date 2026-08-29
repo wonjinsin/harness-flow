@@ -21,16 +21,23 @@ development branch. A controller such as `implement` owns any later action.
 ## When
 
 - Before merging a branch, or after a major feature.
-- The final whole-branch gate in `implement`.
+- The initial whole-branch turn of the final review gate in `implement`.
 - Optional but useful: when stuck (fresh eyes), or after a complex bugfix.
 
 ## How
 
 **1. Select the mode and freeze its range.**
 
-- `full-review` — default for standalone requests and the initial final review.
-  Resolve the target base ref from the request or branch metadata, then pin the
-  actual branch point and committed HEAD:
+- `full-review` — default for standalone requests and the initial whole-branch
+  review. A managed `full-review` receives supplied `BASE_SHA` and `HEAD_SHA`
+  from its controller. Verify those exact commits; the skill must not replace
+  either with a freshly resolved merge-base or current HEAD. Resolve the current `HEAD`
+  separately and require it to equal the supplied `HEAD_SHA`; a mismatch makes
+  the review Incomplete before dispatch.
+
+  A standalone `full-review` has no caller-owned range. Resolve the target base
+  ref from the request or branch metadata, then pin the actual branch point and
+  committed HEAD:
 
 ```bash
 HEAD_SHA=$(git rev-parse --verify 'HEAD^{commit}')
@@ -47,11 +54,13 @@ git diff --quiet "$BASE_SHA" "$HEAD_SHA"
   `REVIEWED_HEAD..FIXED_HEAD` plus the named active findings.
 
 Each package is an immutable commit range. Verify both SHAs. If either is
-invalid, stop and report the bad range. Run `git status --porcelain`; if the
-worktree is dirty, stop because those changes would be silently excluded —
-never commit or stash them. Run `git diff --quiet` for the selected range; if
-the diff is empty, stop and report that there is nothing to review. Do not
-dispatch a reviewer for an invalid, partial, or empty package.
+invalid, stop and report the bad range. For any managed package, resolve current
+HEAD and require it to equal the package's ending SHA (`HEAD_SHA` or
+`FIXED_HEAD`). Run `git status --porcelain`; if the worktree is dirty, stop
+because those changes would be silently excluded — never commit or stash them.
+Run `git diff --quiet` for the selected range; if the diff is empty, stop and
+report that there is nothing to review. Do not dispatch a reviewer for an
+invalid, partial, stale, or empty package.
 
 Before dispatch, capture a repository-state snapshot with these read-only
 checks. Hash config and remote output so credentials embedded in URLs are not
@@ -121,15 +130,31 @@ compare every snapshot check exactly against its preflight value. If repository
 state changed, the report is invalid: stop, surface the mutation, and never
 revert it automatically. A timeout, empty response, malformed report, or report
 missing a required field is not approval; return it as an incomplete review.
-Do not act on findings inside this skill. The caller decides whether to stop,
-fix, or request another review.
+
+Validate `Gate status` against the report evidence before returning it:
+
+- `incomplete` — review execution is Incomplete, coverage is not `N/N`, or an
+  active finding is Not-verifiable.
+- `plan-escalate` — at least one active Critical/Important finding has that class.
+- `impl-fix` — execution is complete and at least one active Critical/Important
+  implementation finding is unresolved or newly reported.
+- `pass` — execution is complete, coverage is `N/N`, all active findings are
+  resolved, and no new Critical/Important issue exists. Minor findings do not
+  block this status.
+
+Apply precedence in that order: `incomplete` → `plan-escalate` → `impl-fix` →
+`pass`.
+
+A claimed status inconsistent with those fields is malformed, not a second
+opinion: return an Incomplete review. Do not act on findings inside this skill;
+the caller decides whether to stop, fix, or request another review.
 
 ## In `implement`
 
-The `implement` chain runs **one final whole-branch review** after all tasks and
-any approved pre-review instruction revision — there is no per-task or
-group-boundary reviewer. The `implement` skill's final-review loop owns fixes and
-decides whether to request a `verify-fix`; this skill still dispatches only one
-report-only reviewer turn per invocation.
+The `implement` chain starts its gate with **one initial whole-branch review**
+after all tasks and any approved pre-review instruction revision — there is no
+per-task or group-boundary reviewer. The `implement` skill owns fixes and may
+request bounded `verify-fix` or semantic-expansion `full-review` turns; this
+skill still dispatches only one report-only reviewer turn per invocation.
 
 See the template: [code-reviewer.md](code-reviewer.md).

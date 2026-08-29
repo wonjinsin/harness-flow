@@ -104,8 +104,8 @@ Claude Code Task/Agent (general-purpose):
     Acknowledge what was done well before listing issues — accurate praise
     helps the implementer trust the rest of the feedback.
 
-    **Severity floor.** This branch was implemented with only a self-review and
-    this single final review — no intermediate reviewer. Rate severity by
+    **Severity floor.** This branch had only a self-review before this initial
+    whole-branch review — no intermediate reviewer. Rate severity by
     consequence, not by surface form: a finding that violates a plan/brief
     requirement, or propagates a wrong value/type/contract downstream, is
     Important or Critical even when it reads as a type-contract or style nit. A
@@ -158,10 +158,16 @@ Claude Code Task/Agent (general-purpose):
 
     ### Assessment
 
-    If review execution is Incomplete for any reason — command failure,
-    truncated output, missing evidence, or a reviewed-file count that does not
-    equal the changed-file count — set Ready to merge to `No`. An incomplete
-    review is never approval.
+    Derive one `Gate status` from the report; do not give a separate advisory
+    verdict:
+    - `incomplete` — execution is Incomplete or reviewed files are not `N/N`.
+    - `plan-escalate` — any Critical/Important finding has that class.
+    - `impl-fix` — execution is complete and at least one Critical/Important
+      implementation finding exists.
+    - `pass` — execution is complete, reviewed files are `N/N`, and no
+      Critical/Important finding exists. Minor findings do not block `pass`.
+
+    Precedence is `incomplete` → `plan-escalate` → `impl-fix` → `pass`.
 
     **Review execution:** [Complete | Incomplete]
 
@@ -169,7 +175,10 @@ Claude Code Task/Agent (general-purpose):
 
     **Reviewed files:** [N/N]
 
-    **Ready to merge?** [Yes | No | With fixes]
+    If the reviewed-file count differs from the changed-file count, mark Review
+    execution Incomplete.
+
+    **Gate status:** [pass | impl-fix | plan-escalate | incomplete]
 
     **Reasoning:** [1-2 sentence technical assessment]
 
@@ -285,9 +294,17 @@ Your final message is the report itself:
 
 ### Assessment
 
-If review execution is Incomplete, or the reviewed-file count does not equal the
-changed-file count, set Fixes verified to `No`. An incomplete verification is
-never approval.
+Derive one `Gate status` from the report:
+- `incomplete` — execution is Incomplete, reviewed files are not `N/N`, or any
+  active finding is `Not-verifiable`.
+- `plan-escalate` — any new Critical/Important finding has that class.
+- `impl-fix` — execution is complete and any active finding is `Unresolved`, or
+  a new Critical/Important implementation finding exists.
+- `pass` — execution is complete, reviewed files are `N/N`, every active finding
+  is `Resolved`, and no new Critical/Important finding exists. Minor findings do
+  not block `pass`.
+
+Precedence is `incomplete` → `plan-escalate` → `impl-fix` → `pass`.
 
 **Review execution:** [Complete | Incomplete]
 
@@ -295,7 +312,7 @@ never approval.
 
 **Reviewed files:** [N/N]
 
-**Fixes verified?** [Yes | No]
+**Gate status:** [pass | impl-fix | plan-escalate | incomplete]
 
 **Reasoning:** [1-2 sentence technical assessment]
 ````

@@ -56,9 +56,12 @@ stack fixes. If evidence cannot distinguish hypotheses, report the gap.
 1. Capture a **confirmed bug-fix brief**: the reproducer, root-cause evidence,
    minimal correction, boundaries, and acceptance checks. The reproducer becomes
    the first failing test during implementation.
-2. Invoke `harness-flow:implement`. It owns TDD, implementation, verification,
-   final review, revisions, and the integration decision. Do not change code in
-   this skill.
+2. If the user explicitly requested an implementation plan, invoke
+   `harness-flow:writing-plans` with the confirmed bug-fix brief; after approval,
+   that plan hands off to `harness-flow:implement`. Otherwise invoke
+   `harness-flow:implement` directly. It owns TDD, implementation, verification,
+   review, revisions, and the integration decision. Do not change code in this
+   skill.
 3. **If implementation or verification fails, stop and count.** Return here with
    the new evidence, then go back to Phase 1. <3 attempted fixes → form a new
    hypothesis. **≥3 failed fixes = wrong architecture, not a failed hypothesis** —

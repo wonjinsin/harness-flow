@@ -9,7 +9,8 @@ Turn an approved design into a plan the implementing session can follow. A plan 
 a list of **tracer-bullet tasks** — vertical slices, each a complete path through
 every layer it touches, verifiable on its own.
 
-**Input:** an approved spec, or an approved inline design.
+**Input:** an approved spec, an approved inline design, or a confirmed bug-fix
+brief when the user explicitly requested a plan after root-cause investigation.
 When the user asks for a plan directly and key decisions are still open, don't
 plan around them — ask the 1–2 questions that settle them first, then plan.
 
@@ -20,15 +21,17 @@ plan around them — ask the 1–2 questions that settle them first, then plan.
 
 ```
 # <Feature> Plan
-Source: <spec path | "Inline approved design — <durable summary of settled decisions>">
+Source: <spec path | "Inline approved design — <durable summary of settled decisions>" |
+        "Confirmed bug-fix brief — <durable summary of the evidence and correction>">
 Goal: one sentence.
 Constraints: <project-wide rules copied verbatim from the source, or "none"> —
       every task inherits these.
 ```
 
 Use the spec path when one exists. Otherwise embed a durable summary after
-`Inline approved design`; never point to a conversation because the plan must
-survive a session boundary. Never invent a spec path only to satisfy the header.
+`Inline approved design` or `Confirmed bug-fix brief`; never point to a
+conversation because the plan must survive a session boundary. Never invent a
+spec path only to satisfy the header.
 
 Before presenting the plan, prove source coverage: every source requirement maps to
 a task's **Delivers** or acceptance criteria. Put source-wide rules in **Constraints**;
@@ -77,5 +80,6 @@ granularity right? are the blocking edges correct? should any merge or split?
 Iterate until the user approves.
 
 There is no group-boundary reviewer and no per-task reviewer.
-After the user approves, hand off to `implement`, which builds inline and ends
-with one final whole-branch review.
+After the user approves, hand off to `implement`, which builds inline and starts
+its review gate with one initial whole-branch review. Post-fix review remains
+bounded by `implement`'s shared reviewer-turn limit.

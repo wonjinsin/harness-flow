@@ -33,7 +33,10 @@ Detailed references:
 
 A skill is reusable guidance for future agents: a discipline, technique, pattern,
 or reference. Do not create one for a one-off solution, project-specific fact, or
-mechanical rule better enforced by code.
+mechanical rule better enforced by code. Keep project-specific facts such as
+private schemas, table names, and repository conventions in project documentation
+or project instructions; a skill may teach the reusable retrieval or application
+workflow without embedding those facts.
 
 Keep the runtime surface small:
 
@@ -80,6 +83,11 @@ Pressure and rationalization testing is required only for discipline skills.
 Technique skills need application plus variation. Pattern skills need recognition
 plus a counter-example. Reference skill evaluation needs retrieval, application,
 and gap cases; pure reference skills do not need artificial pressure.
+
+Run one case per RED → GREEN cycle; do not batch every required case before the
+first GREEN. Technique order is application, then variation. Pattern order is
+recognition, then counter-example. Reference order is retrieval, then application,
+then gap. After every case has gone green, rerun the full set as regression evidence.
 
 ## RED → GREEN → REFACTOR
 

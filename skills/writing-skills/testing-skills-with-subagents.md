@@ -47,6 +47,10 @@ For non-deterministic behavior, run multiple fresh samples and read each result.
 For deterministic scripts or schemas, prefer automated tests. Do not replace
 behavioral evidence with a parser test when the risk is agent judgment.
 
+Run one case per RED → GREEN cycle. The cases below define required final
+coverage, not a batch of failures to collect before the first GREEN. After all
+cycles pass independently, rerun the complete set as regression evidence.
+
 ## Discipline-only pressure evaluation
 
 Build one realistic scenario with at least three pressures:
@@ -74,10 +78,12 @@ skills whose rule is still rationalized away.
 
 ## Technique evaluation
 
-Use two cases:
+Use two sequential cycles:
 
-1. **Application:** a normal task that requires every essential step.
-2. **Variation:** an edge case with a changed input, environment, or boundary.
+1. **Application:** run application RED → GREEN on a normal task that requires
+   every essential step.
+2. **Variation:** only after application is green, run variation RED → GREEN with
+   a changed input, environment, or boundary.
 
 Score the produced steps or artifact. A good result applies the method rather
 than paraphrasing it. A missed step becomes one clarified instruction; a
@@ -85,22 +91,26 @@ failure unique to the edge case becomes one boundary.
 
 ## Pattern evaluation
 
-Use a matched pair:
+Use a matched pair as sequential cycles:
 
-1. **Recognition:** the pattern should apply.
-2. **Counter-example:** a similar-looking case where it must not apply.
+1. **Recognition:** run recognition RED → GREEN where the pattern should apply.
+2. **Counter-example:** only after recognition is green, run counter-example
+   RED → GREEN on a similar-looking case where it must not apply.
 
 The pair detects both under-triggering and over-triggering. Add trigger symptoms
 or exclusions only when the corresponding case fails.
 
 ## Reference evaluation
 
-Use three cases:
+Use three sequential cycles:
 
-1. **Retrieval:** locate the exact fact, field, command, or constraint.
-2. **Application:** use that fact in a realistic decision or artifact.
-3. **Gap:** ask for a nearby unsupported case and verify the skill exposes the
-   limit instead of inventing an answer.
+1. **Retrieval:** run retrieval RED → GREEN by locating the exact fact, field,
+   command, or constraint.
+2. **Application:** only after retrieval is green, run application RED → GREEN
+   by using that fact in a realistic decision or artifact.
+3. **Gap:** only after application is green, run gap RED → GREEN by asking for a
+   nearby unsupported case and verifying the skill exposes the limit instead of
+   inventing an answer.
 
 Reference skill evaluation should favor precise outputs and source locations.
 Do not add pressure language unless the reference also enforces a discipline.

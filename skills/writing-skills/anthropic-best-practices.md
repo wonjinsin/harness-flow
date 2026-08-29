@@ -302,7 +302,13 @@ Claude loads FORMS.md, REFERENCE.md, or EXAMPLES.md only when needed.
 
 #### Pattern 2: Domain-specific organization
 
-For Skills with multiple domains, organize content by domain to avoid loading irrelevant context. When a user asks about sales metrics, Claude only needs to read sales-related schemas, not finance or marketing data. This keeps token usage low and context focused.
+> **Harness-flow note:** Project-specific schemas, table names, repository
+> conventions, and private filtering rules belong in project documentation or
+> project instructions, not a distributed Skill. Apply this organization pattern
+> only to reusable cross-project guidance; a Skill may teach how to retrieve and
+> apply the authoritative project facts.
+
+For Skills with multiple domains, organize reusable guidance by domain to avoid loading irrelevant context. When a user asks about sales metrics, Claude only needs to read sales-related procedures, not finance or marketing guidance. This keeps token usage low and context focused.
 
 ```
 bigquery-skill/
@@ -769,9 +775,9 @@ The most effective Skill development process involves Claude itself. Work with o
 
 2. **Identify the reusable pattern**: After completing the task, identify what context you provided that would be useful for similar future tasks.
 
-   **Example**: If you worked through a BigQuery analysis, you might have provided table names, field definitions, filtering rules (like "always exclude test accounts"), and common query patterns.
+   **Example**: If you worked through a BigQuery analysis, you might have repeatedly retrieved the authoritative schema, validated required filters from project documentation, and applied the same query-checking workflow.
 
-3. **Ask Claude A to create a Skill**: "Create a Skill that captures this BigQuery analysis pattern we just used. Include the table schemas, naming conventions, and the rule about filtering test accounts."
+3. **Ask Claude A to create a Skill**: "Create a Skill that captures this reusable BigQuery analysis workflow. Teach agents to retrieve project schemas and filtering rules from the authoritative project documentation instead of embedding them."
 
    <Tip>
      Claude models understand the Skill format and structure natively. You don't need special system prompts or a "writing skills" skill to get Claude to help create Skills. Simply ask Claude to create a Skill and it will generate properly structured SKILL.md content with appropriate frontmatter and body content.
@@ -779,7 +785,7 @@ The most effective Skill development process involves Claude itself. Work with o
 
 4. **Review for conciseness**: Check that Claude A hasn't added unnecessary explanations. Ask: "Remove the explanation about what win rate means - Claude already knows that."
 
-5. **Improve information architecture**: Ask Claude A to organize the content more effectively. For example: "Organize this so the table schema is in a separate reference file. We might add more tables later."
+5. **Improve information architecture**: Ask Claude A to organize the content more effectively. For example: "Move the reusable query-validation procedure to a reference file and keep project schemas in project documentation."
 
 6. **Test on similar tasks**: Use the Skill with Claude B (a fresh instance with the Skill loaded) on related use cases. Observe whether Claude B finds the right information, applies rules correctly, and handles the task successfully.
 
