@@ -22,6 +22,11 @@ test('codex manifest name and version mirror the claude manifest', () => {
   assert.equal(codex.version, claude.version);
 });
 
+test('Claude Code and Codex publish version 2.3.0', () => {
+  assert.equal(claude.version, '2.3.0');
+  assert.equal(codex.version, '2.3.0');
+});
+
 test('claude marketplace version mirrors the plugin manifests', () => {
   const entry = claudeMarketplace.plugins.find((plugin) => plugin.name === claude.name);
   assert.ok(entry, 'harness-flow marketplace entry present');
