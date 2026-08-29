@@ -31,6 +31,8 @@ Claude Code Task/Agent (general-purpose):
 
     ## Requirements / Plan
 
+    Requirements text copied into this prompt; never a path-only reference:
+
     {PLAN_OR_REQUIREMENTS}
 
     ## Git Range to Review
@@ -196,7 +198,7 @@ harness's mid-tier model without claiming an exact-model guarantee.
 **Placeholders:**
 
 - `{DESCRIPTION}` — brief summary of what was built
-- `{PLAN_OR_REQUIREMENTS}` — what it should do (plan file path, task text, or requirements)
+- `{PLAN_OR_REQUIREMENTS}` — exact requirements text copied into this prompt
 - `{BASE_SHA}` — starting commit
 - `{HEAD_SHA}` — ending commit
 

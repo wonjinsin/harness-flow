@@ -1,6 +1,6 @@
 ---
 name: using-harness-flow
-description: Use when starting any conversation - establishes how to find and use skills, requiring native skill loading before ANY response including clarifying questions.
+description: Use when starting any conversation, including before clarifying questions.
 ---
 
 <SUBAGENT-STOP>
@@ -18,7 +18,7 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
 - Skill creation, editing, or verification (`SKILL.md` and skill-shipped prompt
   templates) → `writing-skills` directly. Skill-only work stays outside the
   brainstorming → implement chain; enter that chain only when product/source code
-  is also in scope
+  is also in scope. This skill-only route takes precedence over generic read-only analysis
 - Approved spec → `writing-plans`; approved plan, agreed small-change brief, or
   confirmed bug-fix brief → `implement`
 - Build / feature / refactor / script → brainstorming

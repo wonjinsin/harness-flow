@@ -1,6 +1,6 @@
 ---
 name: llm-md-revise
-description: Use before the final code review when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting in CLAUDE.md or AGENTS.md. Also use when the user says "remember this" / "add to project memory", asks to update AGENTS.md, CLAUDE.md, or project instructions, or repeats a correction twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole, nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
+description: Use when completed implementation produced corrections, durable rules, facts, anti-patterns, or external-system references worth persisting before the final review; when the user says "remember this" / "add to project memory"; when asked to update AGENTS.md, CLAUDE.md, or project instructions; or when a correction repeats twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole, nor for code-derivable conventions, one-off task state, or unrelated personal preferences.
 ---
 
 # llm-md-revise

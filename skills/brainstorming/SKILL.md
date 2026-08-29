@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "Use BEFORE writing or changing code for a feature, refactor, or script, and when the user asks to research, investigate, compare, analyze, or report on an in-scope codebase, repository, or technical artifact, even without requesting a change. Do NOT use for general-knowledge questions, bugs, test failures, or unexpected behavior (use systematic-debugging), an approved spec (use writing-plans), or an approved plan or agreed brief (use implement)."
+description: "Use when the user requests a feature, refactor, or script before code changes, or asks for research, investigation, comparison, analysis, or reporting about an in-scope codebase, repository, or technical artifact. Do NOT use for skill-only creation, editing, or verification (use writing-skills), general-knowledge questions, bugs, test failures, or unexpected behavior (use systematic-debugging), an approved spec (use writing-plans), or an approved plan or agreed brief (use implement)."
 ---
 
 # Brainstorming
@@ -37,8 +37,8 @@ also asks to continue beyond the spec.
 
 ## Change exit — recommend, let the user pick
 
-Once the approach is agreed, recommend an exit and confirm. The user's "ok" is
-the gate; there is no separate approval loop.
+Once the approach is agreed, recommend an exit and confirm. This confirmation
+selects the exit; the large path still keeps its spec and plan review gates.
 
 - Small / clear → "I'll hand the agreed brief to implementation. OK?" → capture
   the goal, acceptance checks, and boundaries as an **agreed brief**, then invoke

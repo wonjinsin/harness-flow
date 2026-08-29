@@ -1,6 +1,6 @@
 # Worked Examples
 
-Three calibration scenarios. Each shows: session signal → WHERE → HOW → the Step 5 `Target:` line.
+Four calibration scenarios. Each shows: session signal → WHERE → HOW → the Step 5 `Target:` line.
 
 ## 1. Subdir-scoped rule
 

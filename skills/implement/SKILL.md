@@ -34,19 +34,22 @@ Before the first code change:
    `git rev-parse --git-dir`, `git symbolic-ref -q --short HEAD`, and
    `git rev-parse --verify 'HEAD^{commit}'`. If the branch query is empty, a
    detached HEAD is detected. Before the first code change, the controller must stop
-   and require user direction. Reuse the recorded top-level path, git dir, branch,
-   and starting commit for any subagent identity check.
+   and require user direction. Reuse the recorded top-level path, git dir, and
+   branch as stable checkout identity.
 3. Detect `BASE_REF` from `origin`'s default branch; fall back to `main`, then
    `master`. Pin its immutable merge-base as `BASE_SHA` **before the first code
    change**, verify it resolves to a commit, and reuse that SHA for completeness
    checks and final review. If the current branch is already the base branch, say
    **before editing** that the final PR/base-merge choice will be unavailable.
    Continue only when the user already chose the current checkout or confirms it.
-   Do not create or switch a branch or worktree.
+   Before the integration choice, do not create or switch a branch or worktree.
+   The user-selected base merge in Closeout is the sole exception.
 4. Prepare dependencies when needed and run the project's existing baseline suite.
    A failure already named by a confirmed bug-fix brief is expected evidence; any
    unexpected baseline failure must stop implementation. Report the evidence and
    return to `harness-flow:systematic-debugging` before proceeding.
+5. For a confirmed bug-fix brief, record current `HEAD` as `ATTEMPT_BASE`
+   immediately before its first Red cycle.
 
 ## Default: implement inline
 
@@ -78,9 +81,11 @@ general-purpose subagent for that task:
 
 - Pass the current work item's settled input as its prompt inline (no extra brief
   files, no ledger).
-- Pass the recorded checkout identity. Before editing, the subagent must run
+- Immediately before dispatch, resolve current `HEAD` as `EXPECTED_HEAD` and pass
+  it with the stable checkout identity. Before editing, the subagent must run
   `git rev-parse --show-toplevel`, `git rev-parse --git-dir`,
-  `git symbolic-ref -q --short HEAD`, and resolve HEAD, then compare every value.
+  `git symbolic-ref -q --short HEAD`, and resolve HEAD, then compare every value,
+  including current HEAD against `EXPECTED_HEAD`.
   A checkout identity mismatch must stop before any edit or commit and report the
   observed values.
 - Give it the files to touch and the interfaces it must honor (derive these from
@@ -119,8 +124,13 @@ yourself first against the actual diff (`git diff "$BASE_SHA"..HEAD`):
 - Bug-fix brief → the reproducer failed for the expected reason before the change,
   now passes, the root cause is corrected, and every acceptance check holds.
 
-Missing work returns to implementation. Failed bug-fix verification returns to
-`harness-flow:systematic-debugging` with the new evidence. Do not request final
+Missing work returns to implementation. A failed bug-fix verification must not
+remain under the next hypothesis. Confirm every commit in `ATTEMPT_BASE..HEAD`
+belongs only to this attempt, then create normal revert commit(s); remove any
+uncommitted delta only when it is current-attempt controller-authored work. Rerun
+the baseline and require a clean worktree before returning the new evidence to
+`harness-flow:systematic-debugging`. Never reset, rebase, or amend history. Mixed
+ownership or a revert conflict stops for user direction. Do not request final
 review or offer integration for partial or failing work.
 
 After completeness holds and before pinning the review range, invoke
@@ -173,9 +183,12 @@ unbounded whole-branch loop.
 ## Closeout handoff
 
 After final review passes, record its reviewed head as `PASSED_REVIEW_HEAD`. Do
-not invoke `llm-md-revise` again or make any file or commit change during closeout.
-Before offering integration, require a clean worktree and verify that current
-`HEAD` equals `PASSED_REVIEW_HEAD`; otherwise stop and require a new final review.
+not invoke `llm-md-revise` again or change the source checkout before integration.
+The selected integration sequence is the only authorized closeout mutation. The
+PR sequence publishes the reviewed SHA; the base-merge sequence includes its
+approved base-branch switch, merge, and conflict recovery. Before
+offering integration, require a clean worktree and verify that current `HEAD` equals `PASSED_REVIEW_HEAD`;
+otherwise stop and require a new final review.
 
 1. Detect the repository's base branch from `origin`'s default branch; fall back to
    `main`, then `master`. Do not guess another branch.
@@ -187,11 +200,21 @@ Before offering integration, require a clean worktree and verify that current
    mismatch stops integration and requires a new final review.
 3. Pull request → invoke `harness-flow:pr-creator`, passing
    `PASSED_REVIEW_HEAD` for its execution-time guard.
-4. Base merge → merge exactly `PASSED_REVIEW_HEAD` as the immutable source,
-   never the possibly moving source-branch name.
-   Verify the merge result descends from `PASSED_REVIEW_HEAD` before reporting
-   success. A conflict, manual resolution, or any additional content change stops
-   integration and requires a new final review before another merge attempt.
+4. Base merge:
+   - Record the current named branch as `SOURCE_BRANCH`, the detected local base
+     branch as `BASE_BRANCH`, and its current commit as `BASE_HEAD`.
+   - Only after the user selects this path, switch to the detected base branch.
+     If it is missing, checked out in another worktree, or cannot be switched to
+     cleanly, stop; never operate on another checkout.
+   - Verify the branch is `BASE_BRANCH`, `HEAD == BASE_HEAD`, and the worktree is
+     clean. Merge exactly `PASSED_REVIEW_HEAD`, never the moving source-branch name.
+     Verify the merge result descends from `PASSED_REVIEW_HEAD` before success.
+   - On conflict, make no resolution edit. Run `git merge --abort`, verify
+     `HEAD == BASE_HEAD` and a clean worktree, then switch back to `SOURCE_BRANCH`
+     and verify `HEAD == PASSED_REVIEW_HEAD`. If any recovery check fails, stop
+     for user direction; never reset or clean.
+   - Conflict resolution is new source-branch implementation work: resolve, test,
+     commit, and obtain a new final review before another merge attempt.
    Never delete the source branch or clean up a worktree automatically.
 
 If HEAD is detached, the working tree is dirty, or the current branch already is

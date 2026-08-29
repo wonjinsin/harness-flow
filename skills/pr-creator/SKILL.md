@@ -28,7 +28,8 @@ git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
   from `implement` includes `PASSED_REVIEW_HEAD`; require `PUBLISH_HEAD` to equal
   it, or stop and return control for a new final review. For a standalone PR,
   the preflight current `HEAD` is `PUBLISH_HEAD`; it makes no claim that an
-  earlier managed review covers that commit.
+  earlier managed review covers that commit. Preserve the resolved SHA as a
+  literal value; do not rely on a shell variable surviving another tool call.
 - Uncommitted changes exist → stop and ask the user (commit / stash / leave out). A PR is outward-facing; never silently decide what ships.
 - Empty current branch (detached HEAD) → stop. Preserve the HEAD SHA and direct
   Codex App users to **Create branch** or **Hand off to local**; otherwise ask
@@ -84,11 +85,17 @@ Any missing or mismatched value stops the workflow and reports the unsafe PR whe
 one was created.
 
 ```bash
-git push -u origin "$PUBLISH_HEAD:refs/heads/<branch>"
+git push origin "<PUBLISH_HEAD>:refs/heads/<branch>"
 git ls-remote --exit-code origin "refs/heads/<branch>"
 gh pr create --base <base> --title "<title>" --body-file <tmp-file> --assignee @me
 gh pr view <PR-URL> --json headRefOid --jq .headRefOid
 ```
+
+Replace `<PUBLISH_HEAD>` with the verified commit SHA and `<branch>` with the
+validated branch name before execution. Never leave either placeholder or use an
+unset shell variable in the refspec; an empty source before `:` deletes a remote
+branch. The raw-SHA push intentionally omits `-u` because no local branch ref is
+the refspec source.
 
 Write the body to a temp file and pass `--body-file` — inline `--body "$(cat <<EOF ...)"` breaks on quoting and is hard to review.
 

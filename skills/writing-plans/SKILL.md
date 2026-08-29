@@ -9,7 +9,7 @@ Turn an approved design into a plan the implementing session can follow. A plan 
 a list of **tracer-bullet tasks** — vertical slices, each a complete path through
 every layer it touches, verifiable on its own.
 
-**Input:** an approved spec, or the design agreed in the current conversation.
+**Input:** an approved spec, or an approved inline design.
 When the user asks for a plan directly and key decisions are still open, don't
 plan around them — ask the 1–2 questions that settle them first, then plan.
 
@@ -20,15 +20,15 @@ plan around them — ask the 1–2 questions that settle them first, then plan.
 
 ```
 # <Feature> Plan
-Source: <spec path | "Agreed design in current conversation"> — the source of
-        intent; tasks need not restate its decisions. Consult it while implementing.
+Source: <spec path | "Inline approved design — <durable summary of settled decisions>">
 Goal: one sentence.
 Constraints: <project-wide rules copied verbatim from the source, or "none"> —
       every task inherits these.
 ```
 
-Use the spec path when one exists. Otherwise use the exact agreed-design phrase.
-Never invent a spec path or create a spec only to satisfy the plan header.
+Use the spec path when one exists. Otherwise embed a durable summary after
+`Inline approved design`; never point to a conversation because the plan must
+survive a session boundary. Never invent a spec path only to satisfy the header.
 
 Before presenting the plan, prove source coverage: every source requirement maps to
 a task's **Delivers** or acceptance criteria. Put source-wide rules in **Constraints**;

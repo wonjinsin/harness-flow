@@ -26,15 +26,16 @@ Phase 1, you cannot propose a fix — this holds for "simple" bugs too.
    echo "workflow: IDENTITY=${IDENTITY:+SET}${IDENTITY:-UNSET}"   # layer 1
    env | grep IDENTITY || echo "not in build env"                 # layer 2
    security find-identity -v                                       # layer 3
-   codesign --sign "$IDENTITY" --verbose=4 "$APP"                  # layer 4
+   codesign --display --verbose=4 "$APP"                            # layer 4
    ```
 5. **Trace data flow backward.** When the error is deep in the stack, trace the
-   bad value up to its origin and fix at the source — see `root-cause-tracing.md`.
+   bad value up to its origin and identify the source correction — see
+   `root-cause-tracing.md`.
 
 **Tempted to conclude "no root cause / it's environmental"?** ~95% of such calls are
 incomplete investigation — prove it before exiting. If it genuinely is
 environmental/timing/external, document why, then add a retry/timeout/error-handling
-defense plus monitoring and treat *that* as the fix — don't just stop.
+defense plus monitoring to the confirmed bug-fix brief. Do not implement it here.
 
 ## Phase 2 — Pattern
 
@@ -44,9 +45,11 @@ reference implementation? Read it completely, not skimmed.
 
 ## Phase 3 — Hypothesis
 
-State one hypothesis: "X is the root cause because Y." Test it with the *smallest*
-change, one variable at a time. Confirmed → Phase 4. Wrong → form a new
-hypothesis; don't stack fixes. When you don't understand something, say so and dig.
+State one hypothesis: "X is the root cause because Y." Test it with the smallest non-mutating observation:
+a focused reproducer, alternate input or environment,
+existing logs, or a debugger/tracepoint. Do not edit production, test, or config
+files in this skill. Confirmed → Phase 4. Wrong → form a new hypothesis; don't
+stack fixes. If evidence cannot distinguish hypotheses, report the gap.
 
 ## Phase 4 — Confirmed fix handoff
 
@@ -62,8 +65,8 @@ hypothesis; don't stack fixes. When you don't understand something, say so and d
    each fix surfacing new coupling elsewhere is the tell. Stop guessing and raise
    the design question with the human before any fix #4.
 
-Consider adding validation at each layer the bad value passed through, to make the
-bug structurally impossible — see `defense-in-depth.md`.
+Record needed validation layers in the bug-fix brief; `implement` owns their code
+and tests. See `defense-in-depth.md`.
 
 ## Supporting techniques
 

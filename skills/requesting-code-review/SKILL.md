@@ -1,19 +1,20 @@
 ---
 name: requesting-code-review
-description: Use when completing tasks, implementing major features, or before merging to verify work meets requirements. Also use when the user explicitly asks for a code review of a branch, diff, or recent changes.
+description: Use when tasks or major features are complete, before merging, or when the user explicitly asks for a code review of a branch, diff, or recent changes.
 ---
 
 # Requesting Code Review
 
 Dispatch a report-only reviewer subagent over an immutable git range. A
 `full-review` starts in fresh context; a managed `verify-fix` may resume that
-reviewer with only the prior report and fix package. The reviewer never receives
-the implementation session history.
+reviewer. Resume retains that reviewer's own review context and adds the prior
+report and fix package; it never receives the implementation session history.
 
 ## Contract
 
 One invocation dispatches exactly one reviewer turn and returns its report. The
-reviewer is report-only: it never edits code or changes git state. A standalone
+reviewer is instructed to be report-only; native controls enforce that contract
+when available, while the fallback below detects only its stated scope. A standalone
 invocation returns the report and stops; it does not fix, re-review, or finish a
 development branch. A controller such as `implement` owns any later action.
 
@@ -66,15 +67,20 @@ git config --local --list | git hash-object --stdin
 git remote -v | git hash-object --stdin
 ```
 
+Capture every command and pipeline exit status, using pipefail or an equivalent
+when needed. Any snapshot command or pipeline failure makes the review Incomplete;
+do not dispatch when the preflight snapshot is incomplete.
+
 The snapshot covers current commit, symbolic/detached HEAD, worktree/index plus
-index flags, untracked and ignored path membership, refs, local repository
-config, and remote configuration. Tool-level read-only protection is mandatory,
-not optional. Use native deny/restriction controls when the harness can enforce
-them. If it cannot enforce them, dispatch in an isolated disposable checkout
-that has no write-capable access to the active checkout, its refs, or remotes;
-do not dispatch against the active checkout with prompt-only protection. The
-caller owns setup and cleanup of that isolation. Prompt rules remain mandatory
-defense in depth because tool policies vary by harness.
+index flags, untracked and ignored path membership—but not ignored-file contents—
+refs, local repository config, and remotes. Use native read-only restrictions when available. If the
+harness cannot enforce them, use a detection-based fallback: keep the
+report-only prompt, preferably use a disposable checkout without remotes, and
+compare the captured snapshot before and after the turn. Do not claim that this
+fallback is hard isolation. It is not fail-closed outside the listed snapshot
+scope. If the caller requires fail-closed isolation, do not dispatch without an
+enforcing control; return an Incomplete review. Any detected mutation invalidates
+the report.
 
 **2. Dispatch exactly one reviewer turn.** Fill the matching template in
 `code-reviewer.md` and dispatch on a
@@ -97,7 +103,9 @@ findings.
   available, dispatch a new mid-tier general-purpose reviewer with the complete
   verify-fix package and no implementation-session history.
 
-Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
+Before dispatch, freeze the requirements by copying their exact text inline as
+`PLAN_OR_REQUIREMENTS`; never pass only a file path, especially for an ignored
+plan or spec. Full-review placeholders: `{DESCRIPTION}`, `{PLAN_OR_REQUIREMENTS}`,
 `{BASE_SHA}`, `{HEAD_SHA}`. Verify-fix placeholders: `{PLAN_OR_REQUIREMENTS}`,
 `{PRIOR_FINDINGS}`, `{RESOLVED_FINDINGS}`, `{TEST_EVIDENCE}`,
 `{REVIEWED_HEAD}`, `{FIXED_HEAD}`. For later verify turns, pass only unresolved,

@@ -23,19 +23,10 @@ getter that throws if accessed early), not at the `git init` call.
 
 ## When you can't trace by eye
 
-Instrument before the dangerous operation and capture the call chain:
-
-```typescript
-async function gitInit(directory: string) {
-  console.error('DEBUG git init:', { directory, cwd: process.cwd(), stack: new Error().stack });
-  await execFileAsync('git', ['init'], { cwd: directory });
-}
-```
-
-- Use `console.error()` in tests — a logger may be suppressed.
-- Log *before* the operation, not after it fails; include cwd + env.
-- Run and grep: `npm test 2>&1 | grep 'DEBUG git init'` (or `pytest -s`, `go test -v`).
-- Read the stack for the test file and line that triggers it.
+Use an existing trace flag, debugger, or non-mutating tracepoint immediately
+before the dangerous operation. Inspect its argument, cwd, environment, and call
+stack without editing repository files. Read the stack for the caller that
+introduced the bad value.
 
 Fixing at the source removes the bug; adding validation at each layer it passed
 through (see `defense-in-depth.md`) makes it impossible to recur.

@@ -12,8 +12,8 @@
 
 ### How it solves them
 
-- Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, no forced gate
-- 구현 전에 dirty checkout이면 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch/worktree는 자동 생성하거나 전환하지 않는다
+- Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, with no forced spec gate
+- 구현 전에 dirty checkout이면 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. 구현·review 중 branch/worktree는 전환하지 않으며, 선택된 base merge만 예외다
 - 현재 session에서 TDD로 inline 구현하고, fresh subagent context가 유리할 때만 한 task를 순차 위임한다. 이후 report-only whole-branch review와 focused delta review로 수정 사항을 검증한다.
 
 ### Who it's for
@@ -37,7 +37,7 @@
 
 ## Skill chain — the order work flows in
 
-The chain routes by request type (no tier classifier): skill-only creation/edit/verification → `writing-skills` directly, outside this code-mutation chain; code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below). 명시적 spec 요청은 `brainstorming`의 explicit-spec mode, 구현 plan 요청은 `writing-plans`, code review 요청은 `requesting-code-review`로 간다. 승인된 spec은 `writing-plans`, 승인된 plan이나 합의된 brief는 `implement`로 간다. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+The chain routes by request type (no tier classifier): skill-only creation/edit/verification → `writing-skills` directly, outside this code-mutation chain and ahead of generic read-only analysis; other code work or read-only investigation/reporting about the in-scope codebase, repository, or technical artifact → `brainstorming`; a bug/test failure → `systematic-debugging` (parallel track below). 명시적 spec 요청은 `brainstorming`의 explicit-spec mode, 구현 plan 요청은 `writing-plans`, code review 요청은 `requesting-code-review`로 간다. 승인된 spec은 `writing-plans`, 승인된 plan이나 합의된 brief는 `implement`로 간다. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
@@ -86,7 +86,8 @@ flowchart LR
     WP --> IMPL
     SD -- "confirmed<br/>bug-fix brief" --> IMPL
 
-    IMPL --> LMR
+    IMPL -- "durable candidates" --> LMR
+    IMPL -- "no candidates" --> RCR_FULL
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -109,12 +110,12 @@ flowchart LR
 
 2. **brainstorming** — agrees the approach through dialogue, then recommends an exit: small/clear → send an agreed brief directly to `implement`; large/ambiguous → save a spec, then write an approved plan before `implement`. 명시적 spec 요청에서는 spec review까지만 수행하고, 사용자가 후속 진행도 요청하지 않았다면 멈춘다. Both code-changing exits converge on the same controller. Large-exit output: `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md`.
 
-3. **writing-plans** — decomposes a spec or an agreed conversational design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Plan header의 `Source`는 실제 spec 경로나 현재 대화의 합의된 design을 가리키며, 모든 source requirement는 task의 `Delivers`나 acceptance criterion에 매핑한다. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
+3. **writing-plans** — decomposes a spec or an approved inline design into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. Plan header의 `Source`는 실제 spec 경로나 합의 결정을 담은 durable inline summary이며, 모든 source requirement는 task의 `Delivers`나 acceptance criterion에 매핑한다. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. Raw spec은 `writing-plans`에서 approved plan으로 바꾼 뒤 받는다. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. Branch나 worktree는 생성·전환하지 않는다. Fresh subagent context가 유리할 때만 한 task를 순차 위임한다. Completeness 확인 뒤 `llm-md-revise`의 승인된 instruction 변경을 먼저 커밋하고, 그 HEAD를 대상으로 fresh-context whole-branch review를 실행한다. 이후 수정 사항은 최대 두 번의 focused reviewer turn으로 검증한다.
+4. **implement** — accepts an agreed small-change brief, approved plan, or confirmed bug-fix brief and performs all code mutation inline with TDD in the current checkout. Raw spec은 `writing-plans`에서 approved plan으로 바꾼 뒤 받는다. 첫 변경 전에 dirty checkout이면 사용자 지시를 위해 중단하고 immutable `BASE_SHA`, base branch, baseline test를 확인한다. 구현·review 중 branch/worktree는 생성·전환하지 않으며, 사용자가 선택한 local base merge만 예외다. Fresh subagent context가 유리할 때만 한 task를 순차 위임한다. Completeness 확인 뒤 `llm-md-revise`의 승인된 instruction 변경을 먼저 커밋하고, 그 HEAD를 대상으로 fresh-context whole-branch review를 실행한다. 이후 수정 사항은 최대 두 번의 focused reviewer turn으로 검증한다.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **llm-md-revise** — 최종 review 전에 session learning을 platform별 project instruction(`AGENTS.md` 또는 `CLAUDE.md`) 후보로 제안하며, 승인된 변경은 review 범위에 포함되도록 먼저 커밋한다.
-   - 4-3. **requesting-code-review** — read-only-isolated, report-only mid-tier reviewer templates: `full-review` freezes the changed-file list after instruction revision and reads each file diff once to avoid aggregate-output truncation; focused `verify-fix` does the same only for the committed fix delta, re-evaluates active finding IDs, and carries resolved IDs unchanged. The caller owns fixes and loop limits.
+   - 4-2. **llm-md-revise** — durable candidate가 있을 때만 최종 review 전에 platform별 project instruction(`AGENTS.md` 또는 `CLAUDE.md`) 변경을 제안하며, 승인된 변경은 review 범위에 포함되도록 먼저 커밋한다.
+   - 4-3. **requesting-code-review** — report-only mid-tier reviewer templates. Native read-only control이 있으면 사용하고, 없으면 bounded before/after snapshot으로 명시된 상태 변경만 탐지한다. 이 fallback은 ignored-file 내용이나 fail-closed isolation을 보장하지 않는다. `full-review`는 whole branch를, `verify-fix`는 committed fix delta만 검토한다.
 
 5. **Integration decision** — revision과 review가 끝난 뒤 `implement`는 PR 생성 또는 감지된 base branch로의 merge만 묻는다. 선택 실행 직전에 clean 상태와 `HEAD == PASSED_REVIEW_HEAD`를 다시 검증한다. PR 생성은 publish 직전에 local HEAD와 remote branch tip을 모두 같은 SHA로 확인하고, 생성 뒤 PR `headRefOid`도 검증한다. Base merge에는 명시적 사용자 승인이 필요하며 어느 경로도 branch나 worktree를 자동 삭제하지 않는다.
 
@@ -136,7 +137,7 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Parallel track — bug fixing
 
-**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Enforces root-cause investigation before any fix attempt (4 phases, Iron Law: no fixes without investigation). At Phase 4 it sends a confirmed bug-fix brief to `implement`, which owns TDD, review, revision, and integration handoff. Failed implementation or verification returns to root-cause analysis with the new evidence.
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Diagnosis stays non-mutating and confirms root cause before Phase 4 sends a bug-fix brief to `implement`, which owns TDD, review, revision, and integration. Failed attempts are reverted before their evidence returns to root-cause analysis.
 
 ---
 

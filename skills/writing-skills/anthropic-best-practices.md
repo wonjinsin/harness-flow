@@ -2,10 +2,11 @@
 
 > Learn how to write effective Skills that Claude can discover and use successfully.
 
-> **Harness-flow override:** In this repository, skill descriptions contain
-> triggering conditions only. That local policy overrides this generic guide's
-> what + when metadata advice; use the remaining guidance for structure,
-> progressive disclosure, and evaluation design.
+> **Harness-flow override:** Metadata guidance below is non-normative in this
+> repository, including what + when summaries, third-person wording, and naming
+> examples. The local contract in `SKILL.md` requires triggering conditions only
+> beginning with `Use when`; use this guide for structure, progressive disclosure,
+> scripts, and general evaluation design.
 
 Good Skills are concise, well-structured, and tested with real usage. This guide provides practical authoring decisions to help you write Skills that Claude can discover and use effectively.
 
