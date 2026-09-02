@@ -22,9 +22,9 @@ test('codex manifest name and version mirror the claude manifest', () => {
   assert.equal(codex.version, claude.version);
 });
 
-test('Claude Code and Codex publish version 2.3.0', () => {
-  assert.equal(claude.version, '2.3.0');
-  assert.equal(codex.version, '2.3.0');
+test('Claude Code and Codex publish version 2.3.1', () => {
+  assert.equal(claude.version, '2.3.1');
+  assert.equal(codex.version, '2.3.1');
 });
 
 test('claude marketplace version mirrors the plugin manifests', () => {

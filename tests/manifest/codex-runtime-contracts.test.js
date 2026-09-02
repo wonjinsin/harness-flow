@@ -140,17 +140,51 @@ test('code review uses one immutable range contract for initial and incremental 
   assert.doesNotMatch(review, /resume the same reviewer/i);
 });
 
-test('managed review loop batches fixes over bounded incremental ranges', () => {
+test('managed review loop batches valid fixes over risk-bounded correction ranges', () => {
   const implement = read('skills/implement/SKILL.md');
   const brainstorm = read('skills/brainstorming/SKILL.md');
   assert.match(implement, /initial[\s\S]*`BASE_SHA` as `FROM_SHA`[\s\S]*current `HEAD` as `TO_SHA`/i);
   assert.match(implement, /`Review complete: no`[\s\S]*stop/i);
-  assert.match(implement, /blocking findings[\s\S]*batch[\s\S]*TDD[\s\S]*full suite[\s\S]*commit/i);
+  assert.match(
+    implement,
+    /blocking findings[\s\S]*batch[\s\S]*TDD[\s\S]*commit[\s\S]*full `VERIFICATION_EVIDENCE`/i,
+  );
   assert.match(implement, /`LAST_REVIEWED_SHA`[\s\S]*`FROM_SHA`[\s\S]*`PRIOR_REPORT`/i);
   assert.match(implement, /at most two correction review turns/i);
   assert.match(implement, /blocking findings[^\n]*none[\s\S]*`APPROVED_SHA`[\s\S]*`TO_SHA`/i);
   assert.doesNotMatch(implement, /verify-fix|Gate status|finding ledger|semantic expansion/i);
   assert.doesNotMatch(brainstorm, /verify-fix|Gate status|post-fix reviewer/i);
+});
+
+test('implementation validates blocking findings before changing code', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const validationIndex = implement.indexOf('validate every blocking finding');
+  const turnLimitIndex = implement.indexOf('two correction review turns');
+
+  assert.match(
+    implement,
+    /validate\s+every blocking finding[\s\S]*settled requirements[\s\S]*resulting tree[\s\S]*acceptance/i,
+  );
+  assert.match(implement, /validate[\s\S]*blocking finding[\s\S]*all relevant[\s\S]*tests/i);
+  assert.doesNotMatch(implement, /changed tests/i);
+  assert.match(
+    implement,
+    /valid[\s\S]*batch[\s\S]*TDD[\s\S]*commit[\s\S]*full `VERIFICATION_EVIDENCE`/i,
+  );
+  assert.match(
+    implement,
+    /factually\s+false[\s\S]*contradicts[\s\S]*do not change[\s\S]*approve[\s\S]*stop/i,
+  );
+  assert.match(implement, /correction would violate[\s\S]*acceptance criterion/i);
+  assert.match(
+    implement,
+    /exact finding[\s\S]*rebuttal evidence[\s\S]*correction consequence[\s\S]*user\s+direction/i,
+  );
+  assert.ok(
+    validationIndex >= 0 && turnLimitIndex >= 0 && validationIndex < turnLimitIndex,
+    'blocking findings must be validated before the correction-turn limit is applied',
+  );
+  assert.doesNotMatch(implement, /Handle each returned report mechanically/i);
 });
 
 test('reviewer fallback discloses limits and invalidates detected mutation', () => {
@@ -177,6 +211,136 @@ test('review packages inline requirements and always uses fresh context', () => 
   assert.match(template, /requirements text copied into this prompt/i);
   assert.match(review, /fresh-context on\s+every invocation/i);
   assert.match(review, /do not resume a previous reviewer/i);
+});
+
+test('managed review packages bind verification evidence to TO_SHA', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+
+  for (const text of [review, template]) {
+    assert.match(text, /VERIFICATION_EVIDENCE/);
+    assert.match(text, /verified commit[\s\S]*TO_SHA/i);
+    assert.match(text, /exact command[\s\S]*exit\s+status[\s\S]*observed\s+result/i);
+    assert.match(
+      text,
+      /PRE_CHECK[\s\S]*HEAD == TO_SHA[\s\S]*clean[\s\S]*POST_CHECK[\s\S]*HEAD == TO_SHA[\s\S]*clean/i,
+    );
+  }
+  assert.match(
+    implement,
+    /after commit[\s\S]*HEAD == TO_SHA[\s\S]*clean[\s\S]*VERIFICATION_EVIDENCE/i,
+  );
+  assert.match(implement, /before and after[\s\S]*same `TO_SHA`[\s\S]*clean/i);
+  assert.match(
+    implement,
+    /llm-md-revise[\s\S]*HEAD[\s\S]*differs[\s\S]*rerun[\s\S]*final[\s\S]*verification[\s\S]*VERIFICATION_EVIDENCE/i,
+  );
+  assert.match(review, /managed[\s\S]*must supply[\s\S]*VERIFICATION_EVIDENCE/i);
+  assert.match(
+    review,
+    /preflight[\s\S]*managed[\s\S]*PRE_CHECK[\s\S]*POST_CHECK[\s\S]*missing[\s\S]*stops[\s\S]*dispatch/i,
+  );
+  assert.match(review, /standalone[\s\S]*`None`/i);
+  assert.match(
+    template,
+    /caller-observed[\s\S]*do not assume[\s\S]*omitted[\s\S]*passed/i,
+  );
+  assert.match(template, /whether the commands cover the requirements and named risk/i);
+});
+
+test('review model and correction range are selected by pinned risk', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+
+  for (const text of [review, template]) {
+    assert.match(text, /RISK_LEVEL/);
+    assert.match(text, /RISK_BASIS/);
+  }
+  assert.match(
+    review,
+    /authentication[\s\S]*authorization[\s\S]*cryptograph[\s\S]*secret handling[\s\S]*migration[\s\S]*durable[\s\S]*schema[\s\S]*data loss[\s\S]*concurrency[\s\S]*transactions[\s\S]*public compatibility[\s\S]*multiple coupled subsystems/i,
+  );
+  assert.match(review, /large review surface[\s\S]*size or spread[\s\S]*cross-file reasoning/i);
+  assert.match(review, /standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
+  assert.match(review, /exactly one general-purpose reviewer/i);
+  assert.match(template, /model:\s*\{REVIEW_MODEL\}/);
+  assert.match(template, /named high-risk basis[\s\S]*security[\s\S]*architecture/i);
+  assert.match(
+    template,
+    /standard[\s\S]*new high-risk signal[\s\S]*Review complete:[^\n]*no[\s\S]*explain/i,
+  );
+  assert.match(
+    implement,
+    /before the initial review[\s\S]*RISK_LEVEL[\s\S]*never downgrade[\s\S]*upgrade/i,
+  );
+  assert.match(
+    implement,
+    /standard[\s\S]*LAST_REVIEWED_SHA[\s\S]*high[\s\S]*BASE_SHA[\s\S]*full/i,
+  );
+  assert.match(
+    implement,
+    /new[\s\S]*high-risk signal[\s\S]*upgrade[\s\S]*fresh[\s\S]*BASE_SHA[\s\S]*review[\s\S]*do not[\s\S]*spend[\s\S]*correction review turn/i,
+  );
+  assert.match(
+    implement,
+    /high-risk signal[\s\S]*confirm[\s\S]*requirements or diff[\s\S]*upgrade/i,
+  );
+  assert.match(
+    implement,
+    /before any decision branch[\s\S]*`standard` report[\s\S]*high-risk signal[\s\S]*regardless[\s\S]*Review complete/i,
+  );
+  assert.match(
+    review,
+    /standard[\s\S]*new high-risk signal[\s\S]*Review complete:[^\n]*yes[\s\S]*malformed[\s\S]*Review complete:[^\n]*no/i,
+  );
+});
+
+test('canonical guidance mirrors review hardening contracts', () => {
+  const agents = read('AGENTS.md');
+
+  assert.match(agents, /validates every blocker[\s\S]*conflicts[\s\S]*stops/i);
+  assert.match(
+    agents,
+    /acceptance criterion[\s\S]*no code change[\s\S]*correction consequence/i,
+  );
+  assert.match(
+    agents,
+    /VERIFICATION_EVIDENCE[\s\S]*exact commands[\s\S]*exit statuses[\s\S]*TO_SHA/i,
+  );
+  assert.match(
+    agents,
+    /VERIFICATION_EVIDENCE[\s\S]*PRE_CHECK[\s\S]*POST_CHECK[\s\S]*clean/i,
+  );
+  assert.match(agents, /standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
+  assert.match(
+    agents,
+    /standard[\s\S]*LAST_REVIEWED_SHA[\s\S]*high[\s\S]*full range[\s\S]*BASE_SHA/i,
+  );
+  assert.match(agents, /high-risk signal[\s\S]*upgrades[\s\S]*cannot be downgraded/i);
+  assert.match(
+    agents,
+    /llm-md-revise[\s\S]*new commit[\s\S]*full suite[\s\S]*TO_SHA[\s\S]*regenerate `VERIFICATION_EVIDENCE`/i,
+  );
+  assert.match(agents, /risk signals[\s\S]*large diff[\s\S]*high/i);
+  assert.match(
+    agents,
+    /validated escalation[\s\S]*high-risk full-range review[\s\S]*does not consume[\s\S]*correction-review turn/i,
+  );
+});
+
+test('canonical documentation surfaces are English and describe review hardening', () => {
+  const agents = read('AGENTS.md');
+  const readme = read('README.md');
+
+  for (const document of [agents, readme]) {
+    assert.doesNotMatch(document, /\p{Script=Hangul}/u);
+  }
+  assert.match(readme, /SHA-bound `VERIFICATION_EVIDENCE`/i);
+  assert.match(readme, /disputed blocker[\s\S]*evidence/i);
+  assert.match(readme, /standard risk[\s\S]*mid-tier[\s\S]*high risk[\s\S]*most-capable/i);
+  assert.match(readme, /REVIEW -- "other complete: no" --> ESC/);
 });
 
 test('SessionStart covers Codex resume and Windows hook commands', () => {
@@ -319,8 +483,8 @@ test('instruction revision is committed before review and finalization is lazy',
   assert.match(revision, /before[\s\S]*review range[\s\S]*pinned/i);
   assert.match(agents, /llm-md-revise[\s\S]*review range[\s\S]*commit/i);
   assert.match(readme, /IMPL -- "durable candidates" --> LMR/);
-  assert.match(readme, /IMPL -- "no candidates" --> REVIEW/);
-  assert.match(readme, /LMR[^\n]*--> REVIEW/);
+  assert.match(readme, /IMPL -- "no candidates" --> EVIDENCE/);
+  assert.match(readme, /LMR[^\n]*--> EVIDENCE/);
   assert.doesNotMatch(readme, /REVIEW[^\n]*--> LMR/);
   assert.match(finish, /pull request[\s\S]*base[\s\S]*branch/i);
   assert.doesNotMatch(implement, /finishing-a-development-branch/);
@@ -545,7 +709,7 @@ test('optional revision and canonical docs stay aligned', () => {
   const examples = read('skills/llm-md-revise/references/examples.md');
 
   assert.match(readme, /IMPL -- "durable candidates" --> LMR/);
-  assert.match(readme, /IMPL -- "no candidates" --> REVIEW/);
+  assert.match(readme, /IMPL -- "no candidates" --> EVIDENCE/);
   assert.equal(claude.trim(), '@AGENTS.md');
   assert.match(examples, /Four calibration scenarios/);
   assert.equal([...examples.matchAll(/^## \d+\./gm)].length, 4);
@@ -600,14 +764,15 @@ test('managed reviews preserve the caller-pinned commit range', () => {
   );
 });
 
-test('workflow starts with the whole change and bounds later delta reviews', () => {
+test('workflow starts with the whole change and uses risk-bounded correction reviews', () => {
   const plans = read('skills/writing-plans/SKILL.md');
   const implement = read('skills/implement/SKILL.md');
   const review = read('skills/requesting-code-review/SKILL.md');
 
   assert.doesNotMatch(plans, /whole-branch|delta review|correction review/i);
   assert.match(implement, /initial range covers the settled branch/i);
-  assert.match(implement, /later ranges cover only committed corrections/i);
+  assert.match(implement, /standard later ranges cover only committed corrections/i);
+  assert.match(implement, /high-risk later[\s\S]*full resulting branch/i);
   assert.match(implement, /at most two correction review turns/i);
   assert.match(review, /initial[\s\S]*`BASE_SHA`[\s\S]*`FROM_SHA`/i);
   assert.match(review, /incremental[\s\S]*`LAST_REVIEWED_SHA`[\s\S]*`FROM_SHA`/i);
@@ -640,7 +805,7 @@ test('default implementation and review contract stays compact', () => {
     (total, file) => total + read(file).split(/\r?\n/).length,
     0,
   );
-  assert.ok(lines <= 350, `default contract is ${lines} lines; expected at most 350`);
+  assert.ok(lines <= 400, `default contract is ${lines} lines; expected at most 400`);
 });
 
 test('skill evaluations run one RED GREEN cycle per case', () => {

@@ -5,7 +5,7 @@ Use this single template for initial, incremental, and standalone reviews.
 ````text
 Claude Code Task/Agent (general-purpose):
   description: "Review code changes"
-  model: sonnet   # substitute the harness's mid-tier model
+  model: {REVIEW_MODEL}
   prompt: |
     You are a senior code reviewer. Review the supplied immutable commit range
     against its requirements and report defects before they cascade.
@@ -20,6 +20,24 @@ Claude Code Task/Agent (general-purpose):
     ## Requirements
     Requirements text copied into this prompt, never a path-only reference:
     {REQUIREMENTS}
+
+    ## Verification evidence
+    {VERIFICATION_EVIDENCE}
+    This is caller-observed evidence, not work performed by the reviewer. Its
+    verified commit must equal `TO_SHA`; `PRE_CHECK` must record `HEAD == TO_SHA` and
+    a clean worktree; each entry names the exact command, exit status, and observed
+    result; and `POST_CHECK` must record `HEAD == TO_SHA` and a clean worktree.
+    Do not assume an omitted check passed or treat exit zero alone as behavioral proof. Judge
+    whether the commands cover the requirements and named risk while inspecting tests.
+    `None` is allowed for a standalone review, but it proves nothing.
+
+    ## Risk
+    **Level:** {RISK_LEVEL}
+    **Basis:** {RISK_BASIS}
+    For `high`, use the named high-risk basis to deepen security and architecture
+    interaction review. For `standard`, do not reduce the normal quality rubric. If
+    you find a concrete new high-risk signal missing from the basis, set
+    `Review complete: no` and explain the signal so the caller can escalate review.
 
     ## Prior report
     {PRIOR_REPORT}
@@ -53,6 +71,7 @@ Claude Code Task/Agent (general-purpose):
     Complete requirements review before implementation-quality review:
     - Does the resulting behavior match every requirement and acceptance criterion?
     - Is planned functionality complete?
+    - Does the supplied verification evidence cover the requirements and risks?
     - When a prior report exists, is every previous blocking finding addressed?
     - Are the requirements themselves sufficient and internally consistent?
     Contradictory or insufficient requirements make `Review complete: no`; explain
@@ -105,4 +124,4 @@ Use `spawn_agent` directly with the unique
 `task_name: "final_review_<unused-ordinal>_<TO_SHA-prefix>"`, `fork_turns: "none"`,
 and the filled prompt as `message`. Choose an unused ordinal and omit unsupported
 model/profile fields. Ask for the mid-tier model without claiming an exact-model
-guarantee.
+guarantee for `standard`, or the most-capable available model for `high`.

@@ -58,14 +58,14 @@ Work the input in the current session, on the session's model:
    writes, and confirm they remain inside the settled boundaries. Run the targeted
    tests after formatting. Commit each ordered task separately; without ordered
    tasks, commit once the acceptance criteria pass.
-3. After the last task, run the full suite + format check + typecheck once. The
-   final format check must not write files. When the project exposes only a
-   mutating formatter, run it before the relevant commit and use the clean-tree
-   check as final format verification.
-4. If a formatter writes after the intended commit, inspect that delta immediately,
-   rerun the relevant test, include it in task or work finalization, commit it,
-   rerun the final checks, and require a clean worktree. Unknown or user-owned
-   writes stop the workflow for user direction.
+3. After commit, pin current `HEAD` as `TO_SHA`; require `HEAD == TO_SHA` and a clean
+   worktree, then run the full suite + format check + typecheck once. Record each exact
+   command, exit status, and concise result. The final format check must not write files.
+   Run a mutating formatter before commit and use the clean-tree check for final proof.
+4. Before and after those commands, require the same `TO_SHA` and clean worktree;
+   package records as `VERIFICATION_EVIDENCE`. If a formatter writes, inspect the delta, rerun
+   the relevant test, commit controller-owned work, and restart verification at the new
+   `TO_SHA`. Unknown or user-owned writes stop for user direction.
 
 Do not pause between tasks to check in — execute the whole input. Stop only for a
 blocker you cannot resolve or genuine ambiguity.
@@ -95,37 +95,55 @@ the baseline and require a clean worktree before returning the new evidence to
 ownership or a revert conflict stops for user direction. Do not request final
 review or offer integration for partial or failing work.
 
-After completeness holds and before pinning the review range, invoke
-`harness-flow:llm-md-revise` when the session produced durable candidates. Settle
-every candidate and any approved edit, including its commit decision. Approved
-instruction edits must be committed so the final review includes them. If the
-user leaves an approved edit uncommitted, stop before review. Skip this step when
-nothing qualifies, and require a clean worktree before continuing.
+Before pinning the review range, invoke `harness-flow:llm-md-revise` when the session
+produced durable candidates. Settle every candidate and approved edit, including its
+commit decision. Approved instruction edits must be committed so the final review includes them;
+an approved but uncommitted edit stops. Skip when nothing qualifies and require a clean
+worktree. After `llm-md-revise`, if `HEAD` differs from the verified `TO_SHA`, rerun
+final verification at the new clean commit and replace `VERIFICATION_EVIDENCE`.
 
 ## Bounded review loop
 
-Require committed output and a clean worktree. For the initial review, pass the
-immutable `BASE_SHA` as `FROM_SHA`, current `HEAD` as `TO_SHA`, the settled
-requirements, and `PRIOR_REPORT: None` to `requesting-code-review`.
+Before the initial review, classify and pin `RISK_LEVEL` plus `RISK_BASIS` from the
+requirements and complete `BASE_SHA..HEAD` diff using `requesting-code-review`'s risk
+signals. Never downgrade before approval; upgrade when a high-risk signal appears.
 
-Handle each returned report mechanically:
+Require committed output and a clean worktree. For initial review, pass immutable
+`BASE_SHA` as `FROM_SHA`, current `HEAD` as `TO_SHA`, settled requirements, SHA-bound
+`VERIFICATION_EVIDENCE`, pinned risk, and `PRIOR_REPORT: None`.
 
-- `Review complete: no` → stop and surface its plain-language explanation.
+Handle each returned report from its evidence:
+
+Before any decision branch, inspect a `standard` report for a concrete new high-risk signal,
+regardless of its `Review complete` value. Confirm it in requirements or diff; upgrade to
+`high` and request one fresh `BASE_SHA..TO_SHA` review with unchanged requirements and evidence. Do not spend a correction review turn. Unconfirmed signals stop.
+
+- Any other `Review complete: no` → stop and surface its plain-language explanation.
 - A complete report with `Blocking findings: none` → record that report's
   `TO_SHA` as `APPROVED_SHA` and leave the loop.
-- A complete report with blocking findings → if two correction review turns have
-  already been spent, stop and surface the remaining findings. Otherwise record
-  the report's `TO_SHA` as `LAST_REVIEWED_SHA` and append its whole report to the
-  bounded `PRIOR_REPORT` history under `Earlier report N`. Batch every blocking
-  finding, follow TDD, run the relevant checks and full suite, commit the
-  correction, and require a clean worktree.
-  Request the next fresh review with `LAST_REVIEWED_SHA` as `FROM_SHA`, current
-  `HEAD` as `TO_SHA`, unchanged requirements, and `PRIOR_REPORT`.
+- A complete report with blocking findings → validate every blocking finding against
+  the settled requirements, resulting tree, all relevant tests, and acceptance criteria.
+  A blocker is disputed only when it is factually
+  false, contradicts a settled requirement, or its correction would violate an
+  acceptance criterion; preference or low confidence is not enough. For a disputed
+  blocker, do not change code, dismiss the finding, or approve the range. Stop and
+  surface the exact finding, rebuttal evidence, and correction consequence for user
+  direction. If all blockers are valid but two correction review turns have already
+  been spent, stop and surface the validated findings. Otherwise record the report's
+  `TO_SHA` as `LAST_REVIEWED_SHA`, append its whole report to the bounded
+  `PRIOR_REPORT` history under `Earlier report N`, then batch every valid finding,
+  follow TDD, run the relevant checks, commit the correction, then regenerate full `VERIFICATION_EVIDENCE` at the
+  clean committed `TO_SHA`.
+  For `standard`, request the next fresh review with `LAST_REVIEWED_SHA` as
+  `FROM_SHA`; for `high`, use `BASE_SHA` so the most-capable reviewer rechecks the
+  full resulting branch. Pass current `HEAD` as `TO_SHA`, unchanged requirements,
+  fresh `VERIFICATION_EVIDENCE`, pinned risk, and `PRIOR_REPORT`.
 
 Allow at most two correction review turns after the initial review. Each review
 inspects exactly one immutable range; the initial range covers the settled branch,
-and later ranges cover only committed corrections. Never invoke `implement`
-recursively or restart an unbounded review loop.
+standard later ranges cover only committed corrections, while high-risk later
+ranges cover the full resulting branch. Never invoke `implement` recursively or
+restart an unbounded review loop.
 
 ## Finish
 
