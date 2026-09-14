@@ -7,7 +7,7 @@ description: Use when completed implementation produced corrections, durable rul
 
 Surface session-derived knowledge worth persisting, target the active harness's
 durable instruction surface, place it at the **narrowest applicable scope**, then
-apply per-candidate diffs the user approves one at a time.
+present all candidate diffs together and apply the user's selected set.
 
 **Core principle:** if a future coding agent could derive it by reading the code, it
 does not belong in project instructions. Only persist what project state can't tell.
@@ -107,10 +107,15 @@ push root past 200 lines, and relocate only your own additions — never reforma
 reorder, or move pre-existing root content. Whole-file cleanup is outside this
 skill's session-derived scope.
 
-### Step 5 — Present diffs one-by-one
+### Step 5 — Present all diffs and collect one selection
+
+Show every surviving candidate in one response before asking for a decision.
+Assign stable numeric IDs; keep them unchanged through edits and follow-ups.
+Start with a compact index (`ID | proposed instruction | target`), then include
+each candidate's evidence and exact diff using this template:
 
 ```
-[N/M] <Category> · confidence <high|medium|low>
+[ID] <Category> · confidence <high|medium|low>
 Evidence source: <user | diff | external>
 Evidence: <matching form below>
   user — "<verbatim user quote>"
@@ -121,21 +126,35 @@ Target: <file path> · reason: <why this scope + load style, one clause>
 Proposed edit:
   - <old text or insertion point>
   + <new text>
-
-Apply? (a)pprove / (e)dit / (r)eject / (d)efer
 ```
 
 Use exactly one evidence form per candidate. A diff-only candidate uses its path
 and durable rationale; never fabricate a user quote that did not occur.
 
 The `reason:` clause is annotation, not a second question — placement was decided in
-Step 4. **Never bulk-approve** multiple candidates in one prompt: one decision each.
-**(e)dit is not approval** — apply the requested change, re-show the revised diff, and
-get an explicit (a)pprove before writing.
+Step 4. Ask once after the complete batch. Accept selected IDs, all, none, or a
+mixed reply such as `apply 1,3; edit 2: <new wording>; reject 4`. Use one native
+multi-select prompt if available; otherwise accept a single free-text reply.
+Do not turn the batch into separate per-candidate questions or tool calls.
+
+An explicit selection approves those displayed diffs; apply them without asking
+again. Unmentioned IDs remain deferred, never implicitly approved. `all` approves
+the displayed batch; `none` leaves files unchanged. **An edit request is not
+approval** — revise the proposal, re-show all revised diffs together under their
+original IDs, and collect one selection for that revised subset. Do not re-ask
+about unchanged approved, rejected, or deferred candidates.
+
+If no candidates survive filtering, report that briefly and finish without an
+approval or commit prompt.
 
 ### Step 6 — Apply and suggest commit
 
-Edit per approved candidate (create the target file if absent). Then summarize and suggest:
+Apply only the approved set, grouping edits by target file (create it if absent).
+Preserve unselected content. Report applied, rejected, and deferred IDs, plus any
+revised proposals still awaiting approval. While revised proposals await selection,
+ask only about that subset; defer commit suggestions and questions until the batch
+is settled. If nothing was applied across the batch, skip the commit suggestion.
+Otherwise summarize once and suggest:
 
 ```
 Project instructions updated with N entries. Suggested commit:
