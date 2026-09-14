@@ -55,10 +55,10 @@ refactor when behavior did not change is testing the wrong thing.
 
 ## Comments
 
-Write code that reads without comments. A comment states a current fact the
-code cannot: a non-obvious invariant, an external constraint, a domain rule —
-one terse line. Design alternatives, prior versions, review history, and
-deferred ideas belong in the commit message, not in code.
+Default to no explanatory comments. Before code changes, read and apply
+[comment-policy.md](comment-policy.md), including its pre-commit audit and
+ordinary prose-only correction rule. It is the shared implementation/review
+quality constraint; clearer code must precede any explanatory-comment exception.
 
 ## When stuck
 

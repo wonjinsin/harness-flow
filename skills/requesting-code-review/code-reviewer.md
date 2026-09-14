@@ -56,8 +56,8 @@ Claude Code Task/Agent (general-purpose):
     in a separate tool result so a large aggregate diff cannot truncate. Do not
     run an aggregate diff. Review only this range.
 
-    Read a changed file separately only when a hunk ends mid-function. Inspect
-    unchanged code only for one concrete interaction risk you can name. This is
+    Read a changed file separately only for a cut-off function/comment or its needed code.
+    Inspect unchanged code only for one concrete interaction risk you can name. This is
     especially important for an incremental range: determine whether the fix
     works in the resulting tree without crawling or rereading the prior branch
     diff. If the allowed evidence cannot establish that, mark the review
@@ -83,11 +83,11 @@ Claude Code Task/Agent (general-purpose):
     - security, authorization, data loss, and concurrency risks;
     - separation of concerns, integration, performance, and compatibility;
     - tests of real behavior, important edge coverage, and migration safety; and
-    - comments and documentation that state durable facts rather than process history.
+    - the inline comment policy, including deleted or newly stale comments, and documentation accuracy.
     Categorize findings by consequence:
     - Critical: security, data loss, or fundamentally broken behavior.
     - Important: incorrect requirements behavior, architecture defects, missing
-      validation/error handling, or material test gaps.
+      validation/error handling, material test gaps, or proven comment-policy violations.
     - Minor: non-blocking cleanup, clarity, or optimization.
     Critical and Important findings are blocking. Minor findings are not. Do not
     suppress findings with confidence thresholds or finding-count caps.

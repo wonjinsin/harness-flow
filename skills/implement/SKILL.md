@@ -15,9 +15,9 @@ belong to the caller. It contains the desired change, scope and constraints,
 acceptance criteria, optional ordered tasks, and optional reproducer plus confirmed
 root-cause evidence.
 
-Scan the input once for conflicts, missing acceptance criteria, or anything a
-reviewer would reject. Recover a missing detail with one or two settling questions;
-do not bounce the user back to an earlier skill. If the input is clean, proceed.
+Include TDD's comment policy among the settled quality constraints and review requirements.
+Scan for conflicts or missing acceptance criteria; recover missing details with one
+or two settling questions. Do not bounce the user back to an earlier skill.
 
 ## Current checkout preflight
 
@@ -50,14 +50,14 @@ Before the first code change:
 
 ## Default: implement inline
 
-Work the input in the current session, on the session's model:
+Work inline on the session's model:
 
 1. Load `test-driven-development` and implement each logical task Red → Green → Refactor.
    When the input includes a reproducer, turn it into the first failing test.
-2. Run the formatter before each task or final commit when applicable, inspect its
-   writes, and confirm they remain inside the settled boundaries. Run the targeted
-   tests after formatting. Commit each ordered task separately; without ordered
-   tasks, commit once the acceptance criteria pass.
+2. Audit comments against TDD's policy before every commit; pass exception evidence to review.
+   Run the formatter before each task or final commit when applicable, inspect its
+   writes for scope, and run targeted tests after formatting. Commit each ordered
+   task separately; without ordered tasks, commit once the acceptance criteria pass.
 3. After commit, pin current `HEAD` as `TO_SHA`; require `HEAD == TO_SHA` and a clean
    worktree, then run the full suite + format check + typecheck once. Record each exact
    command, exit status, and concise result. The final format check must not write files.
@@ -67,8 +67,7 @@ Work the input in the current session, on the session's model:
    the relevant test, commit controller-owned work, and restart verification at the new
    `TO_SHA`. Unknown or user-owned writes stop for user direction.
 
-Do not pause between tasks to check in — execute the whole input. Stop only for a
-blocker you cannot resolve or genuine ambiguity.
+Execute the whole input without check-ins; stop only for an unresolved blocker or ambiguity.
 
 ## Optional task isolation
 

@@ -8,8 +8,8 @@ context. Isolation is optional and sequential; never dispatch tasks in parallel.
 - Pass the task's settled input inline. Do not create a brief file or ledger.
 - Immediately before dispatch, resolve current `HEAD` as `EXPECTED_HEAD` and pass
   it with the session checkout's top-level path, git directory, and named branch.
-- Name the allowed files and interfaces. Require TDD, one commit, and comments
-  that state durable technical facts rather than design history.
+- Name the allowed files and interfaces. Require TDD with its code-first comment
+  policy, one commit, and evidence for retained explanatory-comment exceptions.
 - Select and explicitly set the least costly model tier that fits the task. Use a
   standard tier for non-trivial integration or judgment work.
 
