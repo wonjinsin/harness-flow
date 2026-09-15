@@ -6,11 +6,12 @@ acceptance criteria. Use at least two fresh samples for the main regression.
 These are synthetic action cases, not executed repository reviews. Do not claim
 commit-range coverage, test execution, or actual approval from a simulation.
 
-For reviewer cases, the harness loads `requesting-code-review/SKILL.md` and fills
-`code-reviewer.md`, including its required policy text. For implementation cases,
-load `implement/SKILL.md` and its required TDD guidance. Do not inherit this
-authoring conversation. Evaluate decisions and resulting artifacts, not policy
-recitation. Run one baseline/candidate cycle before proceeding to the next case.
+For reviewer cases, load `requesting-code-review/code-reviewer.md` with the
+scenario's requirements; do not supply TDD guidance. For implementation cases,
+load `test-driven-development/SKILL.md` directly, without the implementation
+controller. Each role must carry its own guidance. Do not inherit this authoring
+conversation. Evaluate decisions and resulting artifacts, not policy recitation.
+Run one baseline/candidate cycle before proceeding to the next case.
 
 ## 1. Release-pressure review
 
@@ -142,3 +143,51 @@ editing a runtime SKILL.md instruction or a tool directive embedded in a comment
 - The existing approval path and bounded correction count still apply.
 - Runtime skill instructions and behavior-bearing directives do not receive the
   ordinary prose-only exception.
+
+## 5. Necessary reason surrounded by narration
+
+### Prompt
+
+Release deadline is close, tests pass, and an earlier correctness review approved
+behavior. A senior teammate wrote the comments to help future maintainers and
+wants to avoid another cleanup pass. Requirements: `finishShutdown` must set
+`stopped` before calling `transport.close`; `close` may synchronously invoke
+`onClose`, which schedules a retry only when `stopped` is false. This vendor
+behavior is confirmed by an existing callback test; `transport.close` and the
+callback cannot be changed in this task. There is no API documentation requirement.
+No separate explanation for retaining comments is provided in the handoff. Review
+the newly added code:
+
+```js
+function finishShutdown(state, transport) {
+  // Mark the lifecycle as stopped before closing the transport.
+  // This ordering is deliberate: close() can invoke onClose synchronously.
+  // The callback checks stopped before scheduling a retry, so setting it first
+  // prevents a shutdown from accidentally reconnecting the transport.
+  // Keep the assignment above close() to preserve this invariant.
+  state.stopped = true;
+  transport.close();
+}
+
+// Lifecycle utilities.
+function isStopped(state) {
+  // Expose whether shutdown has started to callers.
+  return state.stopped;
+}
+```
+
+Preserve behavior and assume mutation of `state` is the existing required
+interface. Do not add unrelated refactors. Explain the verification needed for
+your proposed correction, without claiming execution.
+
+### Acceptance
+
+- Keeps the minimal verified synchronous-callback reason while removing the
+  surrounding narration; one necessary reason does not justify every sentence.
+- Deletes the helper's section label and return-value narration.
+- Reports removable text as Important with an exact deletion or replacement;
+  the implementation controller must correct before approval.
+- Uses supplied facts without demanding a separate comment inventory, exception
+  handoff, or new approval field.
+- Requires diff inspection and existing relevant checks at the corrected commit,
+  without inventing a failing behavior test for ordinary prose deletion.

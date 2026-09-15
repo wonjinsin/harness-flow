@@ -83,11 +83,34 @@ Claude Code Task/Agent (general-purpose):
     - security, authorization, data loss, and concurrency risks;
     - separation of concerns, integration, performance, and compatibility;
     - tests of real behavior, important edge coverage, and migration safety; and
-    - the inline comment policy, including deleted or newly stale comments, and documentation accuracy.
+    - comments and documentation accuracy.
+
+    For production and test code, inspect added, modified, and deleted comments,
+    plus existing comments invalidated by the change; avoid unrelated legacy cleanup.
+    Judge each explanatory sentence: would deleting it lose essential information,
+    or could a straightforward, in-scope code improvement express it? One necessary
+    reason does not justify surrounding narration. Do not invent constraints or
+    demand contrived names or abstractions merely to remove a comment.
+    Preserve the shortest sufficient verified, current reason needed to avoid a
+    concrete incorrect change when clearer code cannot express it. A distinct condition
+    for safely removing a workaround is not a repetition of why it exists. Honor explicit
+    user/project requirements, required licenses, functional tool/type directives,
+    and required API documentation; surrounding comment volume is not a requirement.
+
+    Report code restatements, unnecessary process history, explanations replaceable
+    by clear code, and redundant sentences around a valid reason as Important.
+    Cite the comment and concrete duplication or code improvement, then give the
+    exact deletion or shortest sufficient replacement; do not request more prose.
+    Unsupported wording preferences remain Minor. Judge inaccurate comments and
+    lost essential information by their actual consequence. Ordinary prose-only
+    corrections require diff inspection and existing relevant checks at the corrected
+    commit, without a new failing behavior test. This does not cover tool/type
+    directives, required documentation, runtime skill instructions, or executable examples.
+
     Categorize findings by consequence:
     - Critical: security, data loss, or fundamentally broken behavior.
     - Important: incorrect requirements behavior, architecture defects, missing
-      validation/error handling, material test gaps, or proven comment-policy violations.
+      validation/error handling, material test gaps, or the comment violations above.
     - Minor: non-blocking cleanup, clarity, or optimization.
     Critical and Important findings are blocking. Minor findings are not. Do not
     suppress findings with confidence thresholds or finding-count caps.

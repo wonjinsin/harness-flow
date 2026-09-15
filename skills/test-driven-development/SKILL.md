@@ -55,10 +55,35 @@ refactor when behavior did not change is testing the wrong thing.
 
 ## Comments
 
-Default to no explanatory comments. Before code changes, read and apply
-[comment-policy.md](comment-policy.md), including its pre-commit audit and
-ordinary prose-only correction rule. It is the shared implementation/review
-quality constraint; clearer code must precede any explanatory-comment exception.
+Default to no explanatory comments in production or test code. Express intent
+through clear names and straightforward code first; do not invent abstractions
+or contrived names solely to eliminate a comment.
+
+Keep only the shortest sufficient statement of a verified, current reason that
+an in-scope code improvement cannot express and whose removal would risk a
+concrete incorrect change, including distinct conditions for safely removing a
+workaround. "Helpful", "complex", or "domain rule" alone is not enough; do not
+invent constraints or add policy-compliance explanations to code.
+
+Before every implementation or correction commit, inspect added, modified, and
+deleted comments and existing comments invalidated by the change. Delete code
+restatements, step-by-step narration, and work/plan/review history unless it
+explains a necessary current constraint. For each remaining explanation, remove
+sentences that add no essential information; one necessary reason does not
+justify a whole paragraph. Improve unclear code before retaining an explanation.
+Keep this cleanup within the change's scope, including isolated tasks.
+
+Honor explicit user/project requirements. Preserve required licenses, functional
+tool/type directives, and required API documentation after checking their actual
+contracts. Surrounding comment volume is not a requirement. These rules concern
+code comments, not prose in standalone documents.
+
+For edits affecting only ordinary prose comments, inspect the diff to establish
+that runtime behavior, types, tool directives, generated documentation, and
+licensing contracts are unchanged, then use existing relevant checks. No new
+failing behavior test is required. Keep the controller's commit, verification,
+and review steps. Code behavior changes still follow TDD. This exception does
+not cover runtime skill instructions or executable examples.
 
 ## When stuck
 

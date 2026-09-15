@@ -16,8 +16,6 @@ Every package contains settled `REQUIREMENTS` copied inline, exact `FROM_SHA` an
 `PRIOR_REPORT` (all earlier complete reports in order, or `None` for initial and
 standalone reviews). Separate raw reports with `Earlier report N` headings; the
 bounded loop supplies at most two.
-Read [comment-policy.md](../test-driven-development/comment-policy.md) and include it verbatim
-once in `REQUIREMENTS` for managed and standalone reviews; preserve explicit user/project overrides.
 
 A managed caller must supply `VERIFICATION_EVIDENCE`: verified commit equal to `TO_SHA`;
 `PRE_CHECK` recording `HEAD == TO_SHA` and a clean worktree; each check's exact command,

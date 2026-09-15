@@ -365,6 +365,46 @@ test('TDD deletion rule preserves pre-existing user code', () => {
   assert.match(tdd, /current TDD cycle/i);
 });
 
+test('TDD owns self-contained comment cleanup and prose-only verification', () => {
+  const tdd = read('skills/test-driven-development/SKILL.md').replace(/\s+/g, ' ');
+  assert.doesNotMatch(tdd, /comment-policy\.md/);
+  assert.match(tdd, /default to no explanatory comments/i);
+  assert.match(tdd, /before every implementation or correction commit/i);
+  assert.match(tdd, /deleted comments[\s\S]*invalidated/i);
+  assert.match(tdd, /shortest[\s\S]*verified[\s\S]*reason/i);
+  assert.match(tdd, /licenses[\s\S]*directives[\s\S]*API documentation/i);
+  assert.match(tdd, /ordinary prose[\s\S]*existing relevant checks/i);
+  assert.match(tdd, /no new failing behavior test/i);
+  assert.match(tdd, /does not cover runtime skill instructions or executable examples/i);
+});
+
+test('comment review guidance travels inside the reviewer prompt', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  const prompt = template.match(/prompt: \|([\s\S]*?)````/)?.[1].replace(/\s+/g, ' ') ?? '';
+
+  for (const text of [review, template]) {
+    assert.doesNotMatch(text, /test-driven-development|comment-policy\.md/);
+  }
+  assert.match(prompt, /sentence[\s\S]*essential information/i);
+  assert.match(prompt, /redundant sentences[^.]* as Important\./i);
+  assert.match(prompt, /exact deletion or shortest sufficient replacement/i);
+  assert.match(prompt, /licenses[\s\S]*directives[\s\S]*API documentation/i);
+  assert.match(prompt, /deleted[\s\S]*invalidated[\s\S]*unrelated legacy/i);
+  assert.match(prompt, /ordinary prose-only corrections[\s\S]*existing relevant checks/i);
+});
+
+test('implementation delegates comment work without a shared policy handoff', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const isolation = read('skills/implement/task-isolation.md');
+  assert.equal(fs.existsSync(path.join(ROOT, 'skills/test-driven-development/comment-policy.md')), false);
+  assert.match(implement, /load `test-driven-development`/i);
+  assert.match(isolation, /require TDD/i);
+  for (const text of [implement, isolation]) {
+    assert.doesNotMatch(text, /comment.policy|audit comments|exception evidence|explanatory.comment/i);
+  }
+});
+
 test('legacy worktree skill is removed from the runtime workflow', () => {
   const worktreePath = path.join(ROOT, 'skills/using-git-worktrees/SKILL.md');
   const plans = read('skills/writing-plans/SKILL.md');
@@ -795,17 +835,18 @@ test('review reports expose only two decision fields', () => {
   assert.match(template, /Blocking findings:[^\n]*none[^\n]*finding list/i);
 });
 
-test('default implementation and review contract stays compact', () => {
+test('default implementation, TDD, and review guidance stays compact', () => {
   const defaultFiles = [
     'skills/implement/SKILL.md',
+    'skills/test-driven-development/SKILL.md',
     'skills/requesting-code-review/SKILL.md',
     'skills/requesting-code-review/code-reviewer.md',
   ];
-  const lines = defaultFiles.reduce(
-    (total, file) => total + read(file).split(/\r?\n/).length,
+  const words = defaultFiles.reduce(
+    (total, file) => total + read(file).trim().split(/\s+/).length,
     0,
   );
-  assert.ok(lines <= 400, `default contract is ${lines} lines; expected at most 400`);
+  assert.ok(words <= 4000, `default guidance is ${words} words; expected at most 4000`);
 });
 
 test('skill evaluations run one RED GREEN cycle per case', () => {

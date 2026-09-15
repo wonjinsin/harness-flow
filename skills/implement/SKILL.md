@@ -15,7 +15,6 @@ belong to the caller. It contains the desired change, scope and constraints,
 acceptance criteria, optional ordered tasks, and optional reproducer plus confirmed
 root-cause evidence.
 
-Include TDD's comment policy among the settled quality constraints and review requirements.
 Scan for conflicts or missing acceptance criteria; recover missing details with one
 or two settling questions. Do not bounce the user back to an earlier skill.
 
@@ -54,8 +53,7 @@ Work inline on the session's model:
 
 1. Load `test-driven-development` and implement each logical task Red → Green → Refactor.
    When the input includes a reproducer, turn it into the first failing test.
-2. Audit comments against TDD's policy before every commit; pass exception evidence to review.
-   Run the formatter before each task or final commit when applicable, inspect its
+2. Run the formatter before each task or final commit when applicable, inspect its
    writes for scope, and run targeted tests after formatting. Commit each ordered
    task separately; without ordered tasks, commit once the acceptance criteria pass.
 3. After commit, pin current `HEAD` as `TO_SHA`; require `HEAD == TO_SHA` and a clean
