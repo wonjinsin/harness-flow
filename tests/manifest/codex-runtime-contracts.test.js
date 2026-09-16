@@ -481,6 +481,18 @@ test('spec and plan artifacts have concrete, non-overlapping routes', () => {
   }
 });
 
+test('implementation always delegates memory evaluation before review', () => {
+  const implement = read('skills/implement/SKILL.md');
+  const handoff = implement.slice(
+    implement.indexOf('Before pinning the review range'),
+    implement.indexOf('## Bounded review loop'),
+  );
+
+  assert.match(handoff, /always invoke `harness-flow:llm-md-revise`/i);
+  assert.match(handoff, /candidate evaluation belongs to `llm-md-revise`/i);
+  assert.doesNotMatch(handoff, /invoke[^.]*when|skip when nothing qualifies/i);
+});
+
 test('instruction revision is committed before review and finalization is lazy', () => {
   const implement = read('skills/implement/SKILL.md');
   const revision = read('skills/llm-md-revise/SKILL.md');
@@ -522,8 +534,8 @@ test('instruction revision is committed before review and finalization is lazy',
   assert.doesNotMatch(prCreator, /only if the branch isn't already pushed/i);
   assert.match(revision, /before[\s\S]*review range[\s\S]*pinned/i);
   assert.match(agents, /llm-md-revise[\s\S]*review range[\s\S]*commit/i);
-  assert.match(readme, /IMPL -- "durable candidates" --> LMR/);
-  assert.match(readme, /IMPL -- "no candidates" --> EVIDENCE/);
+  assert.match(readme, /IMPL -- "complete" --> LMR/);
+  assert.doesNotMatch(readme, /IMPL[^\n]*--> EVIDENCE/);
   assert.match(readme, /LMR[^\n]*--> EVIDENCE/);
   assert.doesNotMatch(readme, /REVIEW[^\n]*--> LMR/);
   assert.match(finish, /pull request[\s\S]*base[\s\S]*branch/i);
@@ -743,13 +755,20 @@ test('condition waiting accepts valid falsy generic values', () => {
   assert.match(waiting, /'DONE event'[\s\S]*'ready state'[\s\S]*'path exists'/);
 });
 
-test('optional revision and canonical docs stay aligned', () => {
+test('mandatory memory evaluation and canonical docs stay aligned', () => {
+  const memory = read('skills/llm-md-revise/SKILL.md');
+  const description = memory.match(/^description:\s*(.+)$/m)?.[1] ?? '';
+  const agents = read('AGENTS.md');
   const readme = read('README.md');
   const claude = read('CLAUDE.md');
   const examples = read('skills/llm-md-revise/references/examples.md');
 
-  assert.match(readme, /IMPL -- "durable candidates" --> LMR/);
-  assert.match(readme, /IMPL -- "no candidates" --> EVIDENCE/);
+  assert.match(description, /^Use when implementation is complete and ready for review;/);
+  assert.match(memory, /after every completed implementation[\s\S]*gather and filter candidates here even when the caller expects none/i);
+  assert.match(memory, /if no candidates survive filtering[\s\S]*report[\s\S]*without an\s+approval or commit prompt/i);
+  assert.match(agents, /llm-md-revise[^\n]*always runs before the review range is pinned/);
+  assert.match(readme, /IMPL -- "complete" --> LMR/);
+  assert.doesNotMatch(readme, /IMPL[^\n]*--> EVIDENCE/);
   assert.equal(claude.trim(), '@AGENTS.md');
   assert.match(examples, /Four calibration scenarios/);
   assert.equal([...examples.matchAll(/^## \d+\./gm)].length, 4);

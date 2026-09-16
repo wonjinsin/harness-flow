@@ -96,8 +96,7 @@ flowchart LR
     SD -- "confirmed + explicit<br/>plan request" --> WP
     SD -- "confirmed + no<br/>plan request" --> IMPL
 
-    IMPL -- "durable candidates" --> LMR
-    IMPL -- "no candidates" --> EVIDENCE
+    IMPL -- "complete" --> LMR
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -124,7 +123,7 @@ flowchart LR
 
 4. **implement** — accepts an agreed brief, approved plan, or confirmed bug-fix brief as one settled input. It implements with TDD in the current checkout after checking for a dirty tree and pinning `BASE_SHA`, the base branch, and the baseline test. Final verification records exact commands, exit statuses, concise results, and clean pre/post checks at `TO_SHA`. Before fixing a blocker, the controller validates it against requirements, the resulting tree, all relevant tests, and acceptance criteria; a disputed blocker stops the workflow with evidence instead of forcing a code change. Standard-risk corrections review `LAST_REVIEWED_SHA..HEAD`, while high-risk corrections re-review the complete `BASE_SHA..HEAD` range with the most-capable model. The loop permits at most two correction reviews. Task isolation and finalization references load only when needed.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **llm-md-revise** — proposes project-instruction changes only when durable candidates exist. Approved edits are committed before the review range is pinned; a new commit requires fresh full-suite verification evidence at the new `TO_SHA`.
+   - 4-2. **llm-md-revise** — always evaluates candidates after implementation is complete; `implement` does not pre-screen them. It proposes project-instruction changes only for surviving candidates, or reports none without an approval or commit prompt. Approved edits are committed before the review range is pinned; a new commit requires fresh full-suite verification evidence at the new `TO_SHA`.
    - 4-3. **requesting-code-review** — dispatches one fresh-context, report-only reviewer over the exact `FROM_SHA..TO_SHA` range per invocation. The package includes inline requirements, SHA-bound `VERIFICATION_EVIDENCE`, pinned `RISK_LEVEL` and `RISK_BASIS`, and bounded prior reports. Standard risk uses a mid-tier reviewer; high risk uses the most-capable reviewer and full-range correction reviews. A new high-risk signal blocks approval until validated and escalated. The only decision fields are `Review complete` and `Blocking findings`. The reviewer proves per-file `N/N` coverage, and bounded before/after snapshots detect repository changes when native read-only control is unavailable.
 
 5. **Integration choice** — loads the finalization reference only after review passes. It rechecks a clean checkout and `HEAD == APPROVED_SHA`, then asks whether to create a PR or merge into the detected base branch. The PR path passes the same SHA to `pr-creator`. Neither path automatically deletes a branch or worktree.

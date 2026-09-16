@@ -92,11 +92,13 @@ the baseline and require a clean worktree before returning the new evidence to
 ownership or a revert conflict stops for user direction. Do not request final
 review or offer integration for partial or failing work.
 
-Before pinning the review range, invoke `harness-flow:llm-md-revise` when the session
-produced durable candidates. Settle every candidate and approved edit, including its
-commit decision. Approved instruction edits must be committed so the final review includes them;
-an approved but uncommitted edit stops. Skip when nothing qualifies and require a clean
-worktree. After `llm-md-revise`, if `HEAD` differs from the verified `TO_SHA`, rerun
+Before pinning the review range, always invoke `harness-flow:llm-md-revise`.
+Candidate evaluation belongs to `llm-md-revise`, even when the controller expects
+none. Continue after it reports no surviving candidates or settles every candidate
+and approved edit, including its commit decision.
+Approved instruction edits must be committed so the final review includes them;
+an approved but uncommitted edit stops.
+Require a clean worktree. After `llm-md-revise`, if `HEAD` differs from the verified `TO_SHA`, rerun
 final verification at the new clean commit and replace `VERIFICATION_EVIDENCE`.
 
 ## Bounded review loop
