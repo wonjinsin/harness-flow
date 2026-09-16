@@ -114,10 +114,66 @@ test('review report proves coverage with two decision fields', () => {
   assert.match(template, /Reviewed range/);
   assert.match(template, /git diff --name-only/);
   assert.match(template, /each listed path[\s\S]*exactly once/i);
+  assert.match(template, /git --literal-pathspecs diff --no-renames/);
   assert.match(template, /Reviewed files:[^\n]*N\/N/i);
-  assert.match(template, /reviewed-file count[\s\S]*changed-file count[\s\S]*Review complete[^\n]*no/i);
+  assert.match(template, /reviewed paths[\s\S]*assigned paths[\s\S]*Review complete[^\n]*no/i);
   assert.match(template, /do not\s+run an aggregate diff/i);
   assert.doesNotMatch(template, /Finding ID|Gate status|impl-fix|plan-escalate/i);
+});
+
+test('review batches independent reads without crossing verification barriers', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+
+  assert.match(review, /independent snapshot commands[\s\S]*parallel/i);
+  assert.match(review, /every result[\s\S]*before dispatch/i);
+  assert.match(review, /do not overlap[\s\S]*snapshot[\s\S]*review/i);
+  assert.match(review, /GIT_OPTIONAL_LOCKS=0/);
+  assert.match(template, /independent[\s\S]*diff[\s\S]*parallel/i);
+  assert.match(template, /each file[\s\S]*separate tool result/i);
+  assert.match(template, /failed or truncated[\s\S]*incomplete/i);
+});
+
+test('large reviews use three concurrent assignments while small reviews stay single', () => {
+  const review = read('skills/requesting-code-review/SKILL.md');
+  assert.match(review, /large review surface[\s\S]*parallel-review\.md/i);
+  assert.match(review, /otherwise[\s\S]*one reviewer/i);
+
+  const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
+  assert.match(parallel, /two non-empty[\s\S]*groups/i);
+  assert.match(parallel, /implementation[\s\S]*tests[\s\S]*together/i);
+  assert.match(parallel, /two detail reviewers[\s\S]*one integration reviewer/i);
+  assert.match(parallel, /start all three[\s\S]*before waiting/i);
+  assert.match(parallel, /fewer than three[\s\S]*single reviewer/i);
+  assert.match(parallel, /same[\s\S]*requirements[\s\S]*range[\s\S]*evidence[\s\S]*risk[\s\S]*prior reports/i);
+});
+
+test('review assignments preserve detailed coverage and independent integration review', () => {
+  const template = read('skills/requesting-code-review/code-reviewer.md');
+  const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
+
+  assert.match(template, /\{REVIEW_ASSIGNMENT\}/);
+  assert.match(template, /Reviewed paths:/);
+  assert.match(template, /Prior verification:/);
+  assert.match(parallel, /detail[\s\S]*every hunk[\s\S]*both review stages/i);
+  assert.match(parallel, /integration[\s\S]*every changed file[\s\S]*directly/i);
+  assert.match(parallel, /every requirement[\s\S]*every earlier blocker/i);
+  assert.match(parallel, /do not wait for[\s\S]*detail reports/i);
+  assert.match(parallel, /all assignments[\s\S]*fresh context/i);
+});
+
+test('parallel review aggregation rejects missing evidence without a serial full review', () => {
+  const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
+
+  assert.match(parallel, /set union[\s\S]*frozen manifest/i);
+  assert.match(parallel, /do not sum[\s\S]*counts/i);
+  assert.match(parallel, /every reviewer[\s\S]*finished[\s\S]*postflight/i);
+  assert.match(parallel, /timeout[\s\S]*incomplete[\s\S]*Review complete: no/i);
+  assert.match(parallel, /new high-risk signals[\s\S]*even[\s\S]*incomplete/i);
+  assert.match(parallel, /deduplicate[\s\S]*highest severity/i);
+  assert.match(parallel, /conflicting[\s\S]*no/i);
+  assert.match(parallel, /do not[\s\S]*full serial re-review/i);
+  assert.match(parallel, /one report[\s\S]*Review complete[\s\S]*Blocking findings/i);
 });
 
 test('code review uses one immutable range contract for initial and incremental review', () => {
@@ -189,7 +245,7 @@ test('implementation validates blocking findings before changing code', () => {
 
 test('reviewer fallback discloses limits and invalidates detected mutation', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
-  assert.match(review, /after the reviewer returns[\s\S]*repeat every snapshot check[\s\S]*compare/i);
+  assert.match(review, /after all reviewers finish[\s\S]*repeat every snapshot check[\s\S]*compare/i);
   assert.match(review, /native[\s\S]*read-only[\s\S]*when available/i);
   assert.match(review, /otherwise[\s\S]*snapshot[\s\S]*detection[\s\S]*not fail-closed/i);
   assert.match(review, /ignored-file[\s\S]*contents[\s\S]*not covered/i);
@@ -264,7 +320,7 @@ test('review model and correction range are selected by pinned risk', () => {
   );
   assert.match(review, /large review surface[\s\S]*size or spread[\s\S]*cross-file reasoning/i);
   assert.match(review, /standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
-  assert.match(review, /exactly one general-purpose reviewer/i);
+  assert.match(review, /each reviewer[\s\S]*standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
   assert.match(template, /model:\s*\{REVIEW_MODEL\}/);
   assert.match(template, /named high-risk basis[\s\S]*security[\s\S]*architecture/i);
   assert.match(
@@ -341,6 +397,11 @@ test('canonical documentation surfaces are English and describe review hardening
   assert.match(readme, /disputed blocker[\s\S]*evidence/i);
   assert.match(readme, /standard risk[\s\S]*mid-tier[\s\S]*high risk[\s\S]*most-capable/i);
   assert.match(readme, /REVIEW -- "other complete: no" --> ESC/);
+  for (const document of [agents, readme]) {
+    assert.match(document, /two detail reviewers[\s\S]*one integration reviewer/i);
+    assert.match(document, /parallel[\s\S]*tool/i);
+    assert.doesNotMatch(document, /dispatches one fresh-context[\s\S]{0,60}per invocation/i);
+  }
 });
 
 test('SessionStart covers Codex resume and Windows hook commands', () => {

@@ -5,7 +5,7 @@ description: Use when tasks or major features are complete, before merging, or w
 
 # Requesting Code Review
 
-Dispatch one fresh-context, report-only reviewer over one immutable commit range.
+Dispatch fresh-context, report-only review over one immutable commit range.
 One invocation returns one report and stops. It never fixes code, repeats a review,
 or finishes a branch; a caller such as `implement` owns those decisions.
 
@@ -34,9 +34,8 @@ multiple coupled subsystems, or a large review surface whose size or spread limi
 cross-file reasoning. Otherwise use `standard`. Record concrete paths and trigger as
 `RISK_BASIS`; a managed loop may upgrade to `high` but never downgrade before approval.
 
-For a standalone request, honor a user-supplied commit range or base branch. When
-neither is supplied, detect the base from `origin`'s default branch, then `main`,
-then `master`; pin the branch point and current committed head:
+For standalone review, honor the requested range or base; otherwise use `origin`'s
+default branch, then `main`, then `master`. Pin the branch point and committed head:
 
 ```bash
 TO_SHA=$(git rev-parse --verify 'HEAD^{commit}')
@@ -55,8 +54,8 @@ package, require its verified commit to equal `TO_SHA` and both `PRE_CHECK` and
 `POST_CHECK` to record that same clean state; mismatched or missing evidence stops
 dispatch. Stop instead of reviewing a stale, partial, dirty, invalid, or empty package.
 
-Before dispatch, capture this repository-state snapshot. Hash config and remote
-output so credentials embedded in URLs are not printed:
+Before dispatch, snapshot repository state. Hash config and remote output to avoid
+printing embedded credentials:
 
 ```bash
 git rev-parse --verify 'HEAD^{commit}'
@@ -72,6 +71,9 @@ git diff --quiet "$FROM_SHA" "$TO_SHA" # exit 1 confirms a non-empty diff
 Capture every command and pipeline exit status with pipefail or its equivalent.
 For `git diff --quiet`, exit 1 means the required non-empty diff, exit 0 means an
 empty range, and any other status is an error. Stop on any other snapshot failure.
+Run independent snapshot commands in parallel; inspect every result before dispatch.
+Set `GIT_OPTIONAL_LOCKS=0` to prevent index refreshes during inspection.
+Do not overlap either snapshot with review execution.
 
 Use native read-only controls when available. Otherwise the report-only prompt and
 before/after snapshot provide detection, not fail-closed isolation: ignored-file
@@ -80,37 +82,42 @@ dispatch without an enforcing control.
 
 ## Dispatch
 
+Freeze the changed-file manifest with
+`git diff --name-only -z --no-renames --diff-filter=ACDMRTUXB FROM_SHA..TO_SHA`.
+Preserve exact paths when decoding NUL-delimited output; disabling rename detection
+keeps both old and new paths in coverage. Stop on failed or truncated output.
+
+For a large review surface whose size or spread limits cross-file reasoning,
+load [parallel-review.md](parallel-review.md) to assign three concurrent reviewers.
+Otherwise use one reviewer with a `single` assignment covering the entire manifest.
+High risk alone does not require three reviewers.
+
 Fill the single template in [code-reviewer.md](code-reviewer.md) with
-`{REQUIREMENTS}`, `{VERIFICATION_EVIDENCE}`, `{FROM_SHA}`, `{TO_SHA}`, and
-`{RISK_LEVEL}`, `{RISK_BASIS}`, `{REVIEW_MODEL}`, and `{PRIOR_REPORT}`. Dispatch
-exactly one general-purpose reviewer: `standard` uses the harness's mid-tier model;
-`high` uses its most-capable available model. Use fresh-context on every invocation;
+the input fields, `{REVIEW_MODEL}`, and `{REVIEW_ASSIGNMENT}` (role, frozen manifest,
+assigned paths, and scope). Each reviewer uses the pinned risk tier:
+`standard` uses the harness's mid-tier model; `high` uses its most-capable available
+model. Use fresh-context on every invocation;
 do not resume a previous reviewer or pass implementation-session history.
 
-- **Claude Code:** Task/Agent with `general-purpose`; select the current mid-tier
-  equivalent for `standard` and most-capable equivalent for `high`.
+- **Claude Code:** Task/Agent with `general-purpose` and the selected tier.
 - **Codex:** `spawn_agent` with the unique `task_name:
   "final_review_<unused-ordinal>_<TO_SHA-prefix>"`, `fork_turns: "none"`, and the
-  filled prompt. Choose an unused ordinal, omit unsupported model/profile fields,
-  and request the selected risk-based tier.
-
-The reviewer reads every changed file's diff separately and proves `N/N` coverage.
-The optional prior report asks the same reviewer function to verify earlier
-blocking findings while reviewing the new range; it does not create another mode,
-finding ledger, or persistent reviewer state.
+  filled prompt. Omit unsupported model/profile fields; request the selected tier.
 
 ## Validate and return
 
-After the reviewer returns, repeat every snapshot check and compare it with the
+After all reviewers finish, repeat every snapshot check and compare it with the
 preflight values. If repository state changed, invalidate the report, surface the
 observed change, and never revert it automatically.
 
-A valid report contains `Review complete: yes | no`, exact range, `Reviewed files: N/N`,
-`Blocking findings: none | finding list`, and an explanation when incomplete. A `standard`
+A single or combined report contains `Review complete: yes | no`, exact range, `Reviewed files: N/N`,
+exact reviewed paths, prior verification, `Blocking findings: none | finding list`,
+and an explanation when incomplete. Require the reviewed path set to equal the
+frozen manifest, not just matching counts. A `standard`
 report naming a new high-risk signal with `Review complete: yes` is malformed; return `Review complete: no` and explain.
 
 Timeouts, empty responses, malformed output, incomplete coverage, stale ranges,
 or detected repository mutation are not approval. Return `Review complete: no`
 with a plain-language explanation; do not classify the reason with a status code.
-When the fields are consistent, return the report unchanged. The caller decides
-whether to stop, fix the blocking findings, or request another review.
+Return a valid single report unchanged; combine parallel reports using the reference.
+The caller owns fixes and further reviews.

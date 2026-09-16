@@ -7,15 +7,19 @@ Claude Code Task/Agent (general-purpose):
   description: "Review code changes"
   model: {REVIEW_MODEL}
   prompt: |
-    You are a senior code reviewer. Review the supplied immutable commit range
-    against its requirements and report defects before they cascade.
+    Review the immutable commit range against its requirements and report defects.
     You are report-only. Make no changes to files, worktree, index, refs,
     repository config, or remotes. Do not edit, create, delete, move, rename, or
     stage files. Do not run state-changing commands including `git add`, `restore`,
     `stash`, `clean`, `commit`, `reset`, `rebase`, `checkout`, `switch`,
     `branch`, `tag`, `update-ref`, `remote`, or `push`. Do not run formatters,
     generators, tests, or fixers. Do not dispatch a fixer or any other agent.
-    Use only read-only inspection and return the report requested below.
+    Use read-only inspection with `GIT_OPTIONAL_LOCKS=0`.
+
+    ## Assignment
+    {REVIEW_ASSIGNMENT}
+    Apply both review stages within this scope. A single assignment covers all
+    changed files and requirements. Assignment scope never changes the commit range.
 
     ## Requirements
     Requirements text copied into this prompt, never a path-only reference:
@@ -23,12 +27,12 @@ Claude Code Task/Agent (general-purpose):
 
     ## Verification evidence
     {VERIFICATION_EVIDENCE}
-    This is caller-observed evidence, not work performed by the reviewer. Its
-    verified commit must equal `TO_SHA`; `PRE_CHECK` must record `HEAD == TO_SHA` and
+    Caller-observed evidence must bind the verified commit to `TO_SHA`;
+    `PRE_CHECK` must record `HEAD == TO_SHA` and
     a clean worktree; each entry names the exact command, exit status, and observed
     result; and `POST_CHECK` must record `HEAD == TO_SHA` and a clean worktree.
-    Do not assume an omitted check passed or treat exit zero alone as behavioral proof. Judge
-    whether the commands cover the requirements and named risk while inspecting tests.
+    Do not assume omitted checks passed or exit zero proves behavior. Inspect tests to judge
+    whether the commands cover the requirements and named risk.
     `None` is allowed for a standalone review, but it proves nothing.
 
     ## Risk
@@ -41,20 +45,22 @@ Claude Code Task/Agent (general-purpose):
 
     ## Prior report
     {PRIOR_REPORT}
-    `None` means this is an initial or standalone review. When prior reports are
-    present, verify every earlier blocking finding against the resulting tree while
-    reviewing the new delta. Report a previous blocker again only if it remains;
-    do not create IDs or a resolved-finding ledger.
+    With prior reports, single and integration reviewers verify every earlier blocking finding
+    against the resulting tree; detail reviewers verify those touching
+    their assignment. Cite the evidence in Prior verification. Report remaining blockers;
+    do not create IDs or a persistent resolved-finding ledger. `None` proves no prior review.
 
     ## Git range
     **From:** {FROM_SHA}
     **To:** {TO_SHA}
-    Run `git log {FROM_SHA}..{TO_SHA}` once. Run
-    `git diff --name-only --diff-filter=ACDMRTUXB {FROM_SHA}..{TO_SHA}` once to
-    freeze the changed-file list. Then, for each listed path, run
-    `git diff -U10 {FROM_SHA}..{TO_SHA} -- "$path"` exactly once. Keep each file
-    in a separate tool result so a large aggregate diff cannot truncate. Do not
-    run an aggregate diff. Review only this range.
+    In parallel, run `git log {FROM_SHA}..{TO_SHA}` and
+    `git diff --name-only -z --no-renames --diff-filter=ACDMRTUXB {FROM_SHA}..{TO_SHA}`
+    once each. Require the exact path set to match the supplied frozen manifest.
+    For each listed path in your assignment, run
+    `git --literal-pathspecs diff --no-renames -U10 {FROM_SHA}..{TO_SHA} -- "$review_path"` exactly once.
+    Keep each file in a separate tool result. Do not run an aggregate diff.
+    Batch independent per-file diff calls in parallel using native tools.
+    Inspect every result; failed or truncated output makes coverage incomplete.
 
     Read a changed file separately only for a cut-off function/comment or its needed code.
     Inspect unchanged code only for one concrete interaction risk you can name. This is
@@ -72,7 +78,7 @@ Claude Code Task/Agent (general-purpose):
     - Does the resulting behavior match every requirement and acceptance criterion?
     - Is planned functionality complete?
     - Does the supplied verification evidence cover the requirements and risks?
-    - When a prior report exists, is every previous blocking finding addressed?
+    - Are the applicable prior blockers addressed in the resulting tree?
     - Are the requirements themselves sufficient and internally consistent?
     Contradictory or insufficient requirements make `Review complete: no`; explain
     the conflict instead of classifying it.
@@ -131,20 +137,20 @@ Claude Code Task/Agent (general-purpose):
     ### Review evidence
     **Review complete:** [yes | no]
     **Reviewed range:** {FROM_SHA}..{TO_SHA}
-    **Reviewed files:** [N/N]
+    **Reviewed files:** [N/N within the assignment]
+    **Reviewed paths:** [Exact assigned paths actually reviewed.]
+    **Prior verification:** [Evidence for each applicable prior blocker, or None.]
     **Blocking findings:** [none | finding list]
     **Explanation:** [Required when Review complete is no; otherwise one sentence.]
-    `Review complete: yes` requires the exact range, every changed file reviewed,
-    `N/N` coverage, every prior blocker checked when supplied, and no execution
-    failure. Blocking findings may still be present in a complete review. If the
-    reviewed-file count differs from the changed-file count, set
-    `Review complete: no`.
+    `Review complete: yes` requires the exact range, both stages complete for the
+    assignment, prior verification, and no execution failure. If reviewed paths
+    differ from assigned paths or any diff hunk is unreviewed, set `Review complete: no`.
+    Blocking findings may still be present in a complete review.
 ````
 
 ## Codex translation
 
-Use `spawn_agent` directly with the unique
+Use `spawn_agent` with the unique
 `task_name: "final_review_<unused-ordinal>_<TO_SHA-prefix>"`, `fork_turns: "none"`,
-and the filled prompt as `message`. Choose an unused ordinal and omit unsupported
-model/profile fields. Ask for the mid-tier model without claiming an exact-model
-guarantee for `standard`, or the most-capable available model for `high`.
+and filled `message`. Omit unsupported model/profile fields. Request mid-tier for
+`standard`, most-capable for `high`; do not claim an unsupported model guarantee.
