@@ -1,72 +1,119 @@
-# Parallel Review
+# Concurrent Review Assignments
 
-Use this reference only for a large review surface. Keep the caller's immutable
-range, risk classification, correction-turn limit, and single returned report.
+Small and medium changes use a single reviewer with the complete rubric. For a
+large review surface whose size or spread limits complete cross-file reasoning,
+use two detail reviewers and one integration reviewer concurrently when the
+files can be divided into cohesive groups. High risk alone does not require
+three reviewers. Preserve the caller's immutable range, risk tier, reasoning
+effort, correction-turn limit, and single returned report.
 
 ## Assign and dispatch
 
-Partition the frozen manifest into two non-empty, disjoint groups. Keep each
-behavior's implementation, related tests, and required documentation together.
-Keep rename source and destination together. Balance by changed content and
-coupling rather than file count. Do not split a file's hunks between reviewers.
-If two cohesive groups cannot be formed, or fewer than three reviewer slots can
-run concurrently, use a single reviewer for the entire manifest and explain why.
-Do not queue three serial reviews or lower the pinned risk tier.
+Freeze two non-empty, disjoint detail groups whose union is the full manifest.
+Keep closely coupled implementation and tests together where practical. Use
+stable global indices into the packet's ordered manifest, never shard-local
+indices. Record the controller's `assignments` before dispatch:
 
-Dispatch two detail reviewers and one integration reviewer using the shared
-`code-reviewer.md` template. Give all three the same inline requirements, commit
-range, verification evidence, risk metadata, complete prior reports, and full
-frozen manifest. Fill `REVIEW_ASSIGNMENT` with one of these scopes:
+| Role | File assignment | Required `checksCompleted` |
+| --- | --- | --- |
+| `detail_a` | First detail group | All 20 checks in the `detail and single` fragment. |
+| `detail_b` | Second detail group | All 20 checks in the `detail and single` fragment. |
+| `integration` | The entire manifest | All 12 checks in the `integration` fragment. |
+| `single` | The entire manifest | All 20 checks in the `detail and single` fragment. |
 
-- **Detail A / Detail B:** list the assigned group's exact paths. Review every
-  hunk in those files through both review stages, including implementation,
-  tests, comments, and documentation. Inspect needed interactions outside the
-  group, but list only fully reviewed assigned paths as coverage. Verify prior
-  blockers touching the group; the integration reviewer owns all prior blockers.
-- **Integration:** assign the entire manifest. Read every changed file's diff
-  directly. Check every requirement and acceptance criterion, verification
-  sufficiency, and every earlier blocker against the resulting tree. Focus the
-  quality stage on cross-file behavior, interfaces, compatibility, security,
-  migrations, and concurrency. The detail reviewers own exhaustive local quality
-  checks. Do not wait for or rely on detail reports to perform this inspection.
+All receive the full frozen manifest and the same inline requirements, commit
+range, prepared evidence, verification evidence, risk metadata, and prior reports.
+Every reviewer reads every complete diff section. Detail reviewers inspect every
+hunk and both review stages for assigned paths, including every part of each
+nondeleted assigned file's resulting content. Integration independently inspects
+every changed file directly, every requirement, and every earlier blocker against
+the resulting tree; do not wait for detail reports. Single owns the entire change.
+Inspect needed cross-group and unchanged interactions. A defect outside an
+assignment must still be reported if noticed. No check is optional.
 
-All assignments use fresh context and the pinned model tier. Start all three
-before waiting for any report; each also batches independent tool reads. Use a
-different unused ordinal for each native dispatch name. Reviewers never delegate.
-If dispatch fails partway, stop outstanding reviewers, wait for their termination,
-and return an incomplete report after postflight; do not treat partial work as a
-single-review fallback.
+Integration and single supply exact earlier blocker text plus evidence for every
+prior blocker. Details supply a unique exact-text subset for relevant prior
+blockers. No prior reports means an empty prior-verification list, not missing
+test evidence. All assignments use fresh context, the same pinned model tier and
+reasoning effort, the shared `code-reviewer.md` prompt and JSON schema, and their
+complete fragment from `review-checks.md`. Copy exact check names into
+`checksCompleted`; put no prose in that array. Use a different unused ordinal for
+each native dispatch name. Reviewers never delegate.
+
+Start all three before waiting for any report. If fewer than three reviewer slots
+can run concurrently, or no cohesive two-group partition exists, use a single
+reviewer with every check and disclose the fallback. Do not queue three serial
+reviews or lower the model tier or reasoning effort to meet a timing target.
+If dispatch fails partway, stop outstanding reviewers, wait for termination, and
+return incomplete after postflight; partial work is not a single-review fallback.
 
 ## Validate and combine
 
-Wait until every reviewer has finished or confirmed termination before postflight.
-Apply the main skill's before/after snapshot comparison once around the entire
-group, not once per reviewer. Do not let the caller edit or finalize the checkout
-while a reviewer remains active.
+Apply this section to parallel and single reviews. Wait until every reviewer has
+finished or confirmed termination before postflight. Repeat the main skill's
+repository snapshots once around the entire group. Verify the prepared packet
+digest still matches. Do not allow edits or finalization while any reviewer remains
+active.
 
-Validate each report's range, required fields, assignment completion, exact
-reviewed paths, and prior verification. The two detail assignments must be
-disjoint; the set union of their reviewed paths must equal the frozen manifest.
-The integration review must independently cover that manifest and every earlier
-blocker. Do not sum file counts: duplicate paths cannot compensate for omissions.
-A path counts only when all its required diff hunks were reviewed. Derive the
-combined `N/N` from unique paths and preserve per-assignment coverage as evidence.
+Use `scripts/combine-reviews.js` with a JSON input containing the complete parsed
+`packet` object, `reports` as report objects or JSON file paths, `assignments`,
+the pinned `riskLevel`, every exact earlier blocker text in `priorFindings`,
+`transport: "native"`, and the reader's `maxBytes`. Report file paths resolve from
+the input file's directory. Store controller-created files outside the checkout.
+The combiner derives the complete section set from the packet. If supplied,
+`expectedSections` must match that set. Fully inlined evidence uses explicit
+`transport: "inline"` with no section indices; omitting transport is an error.
+Single may omit `assignments` or supply exactly `{ "single": [all file indices] }`.
+Parallel requires exactly the three role keys above; detail sets must be disjoint
+and cover the whole manifest, and integration must list every file index.
 
-A timeout, missing or malformed report, incomplete assignment, range mismatch,
+For example, a two-file packet without prior findings uses this controller input
+construction; replace paths, assignments, and risk with the frozen invocation:
+
+```javascript
+const fs = require('node:fs');
+const packet = JSON.parse(fs.readFileSync('/absolute/review/packet.json', 'utf8'));
+const input = {
+  packet,
+  reports: ['detail-a.json', 'detail-b.json', 'integration.json'],
+  assignments: { detail_a: [0], detail_b: [1], integration: [0, 1] },
+  riskLevel: 'high',
+  priorFindings: [],
+  transport: 'native',
+  maxBytes: 24000,
+};
+fs.writeFileSync('/absolute/review/combine-input.json', JSON.stringify(input));
+```
+
+Then run `node <skill-dir>/scripts/combine-reviews.js /absolute/review/combine-input.json`
+and inspect the complete output and exit status: 0 means structurally complete,
+1 means incomplete, and 2 means input could not be processed. Always check findings
+and postflight before approval. Preserve all available raw reports on
+failure; do not manufacture a clean report when parsing fails.
+
+The combiner validates exact range and digest, role and check sets, each detail
+report's exact assigned file indices, integration's or single's full manifest,
+every reviewer's complete section indices, and required prior verification.
+Do not sum file counts: duplicate paths cannot compensate for omissions. Map
+validated indices back to exact paths. Keep per-role evidence. These attestations
+validate report structure; they cannot prove that a model inspected the source
+correctly or establish unchanged defect recall.
+
+A timeout, missing/malformed response, incomplete assignment, stale range, required
 execution failure, or detected mutation makes the combined `Review complete: no`.
-Preserve all available findings and new high-risk signals even in incomplete
-reports, so the caller can apply its existing escalation rule. Explain missing
-evidence without inventing a pass or retrying review inside this invocation.
+Preserve available findings and new high-risk signals even in incomplete reports.
+A standard-risk review exposing new high-risk evidence remains incomplete for the
+caller's escalation rule. Missing evidence must never become approval.
 
-Combine and deduplicate findings by underlying defect, preserving distinct
-consequences, evidence, corrections, and the highest severity. Silence from another
-reviewer does not refute a finding. For conflicting conclusions that cannot be
-reconciled from the supplied evidence, keep both with their evidence and mark
-`Review complete: no`; do not approve by majority vote. Do not perform a full serial
-re-review during aggregation or fix findings here.
+Combine exact duplicate finding records at their highest severity. Preserve distinct
+consequences, corrections, and uncertain duplicates verbatim. Silence from another
+reviewer does not refute a finding. The caller checks supplied findings for conflicting
+conclusions; if their evidence cannot reconcile them, keep both and set
+`Review complete: no`. Do not approve by majority vote or perform a full serial re-review.
+Do not dispatch an additional aggregation model. Structural validation and formatting
+are deterministic; no new analysis pass is needed to rewrite the reports.
 
-Return one report in the shared template's format with only `Review complete` and
-`Blocking findings` as decision fields. Use full-manifest coverage, the integration
-reviewer's prior verification, and a concise explanation of each assignment's
-coverage. Include all blockers and non-blocking findings; a complete report with
-blockers remains complete and leaves correction decisions to the caller.
+Return one report with only `Review complete` and `Blocking findings` as decision
+fields. Include strengths, all blocking and non-blocking findings, exact range and
+reviewed paths, prior verification, and each assignment's coverage. A complete report
+may contain blockers; correction and further review remain the caller's responsibility.

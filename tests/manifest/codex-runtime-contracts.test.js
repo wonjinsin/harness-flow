@@ -104,73 +104,80 @@ test('code review preflights an immutable commit range', () => {
   assert.match(review, /empty[\s\S]*stop/i);
 });
 
-test('review report proves coverage with two decision fields', () => {
+test('review reports prove source and rubric coverage', () => {
   const template = read('skills/requesting-code-review/code-reviewer.md');
-  assert.match(template, /Stage 1[\s\S]*Requirements compliance/i);
-  assert.match(template, /Stage 2[\s\S]*Implementation quality/i);
+  const parallel = read('skills/requesting-code-review/parallel-review.md');
+  assert.match(read('skills/requesting-code-review/review-checks.md'), /Stage 1[\s\S]*Requirements compliance/i);
+  assert.match(read('skills/requesting-code-review/review-checks.md'), /Stage 2[\s\S]*Implementation quality/i);
+  assert.match(template, /\{REVIEW_CHECKS\}/);
+  assert.doesNotMatch(template, /Judge each explanatory sentence/);
   assert.match(template, /do not run tests/i);
-  assert.match(template, /Review complete:[^\n]*yes[^\n]*no/i);
-  assert.match(template, /Blocking findings:[^\n]*none[^\n]*finding list/i);
-  assert.match(template, /Reviewed range/);
-  assert.match(template, /git diff --name-only/);
-  assert.match(template, /each listed path[\s\S]*exactly once/i);
-  assert.match(template, /git --literal-pathspecs diff --no-renames/);
-  assert.match(template, /Reviewed files:[^\n]*N\/N/i);
-  assert.match(template, /reviewed paths[\s\S]*assigned paths[\s\S]*Review complete[^\n]*no/i);
-  assert.match(template, /do not\s+run an aggregate diff/i);
+  assert.match(template, /\{REVIEW_EVIDENCE\}/);
+  assert.match(template, /review-report\.schema\.json/);
+  assert.match(template, /reviewedFileIndices[\s\S]*reviewedSections[\s\S]*checksCompleted/);
+  assert.match(template, /packetDigest/);
+  assert.match(template, /every[\s\S]*hunk/i);
+  assert.match(parallel, /every requirement[\s\S]*every earlier blocker/i);
   assert.doesNotMatch(template, /Finding ID|Gate status|impl-fix|plan-escalate/i);
 });
 
-test('review batches independent reads without crossing verification barriers', () => {
+test('review prompt check sets match deterministic role validation', () => {
+  const { REQUIRED_CHECKS } = require('../../skills/requesting-code-review/scripts/combine-reviews.js');
+  const fragments = read('skills/requesting-code-review/review-checks.md');
+  for (const [heading, roles] of [
+    ['detail and single', ['detail_a', 'detail_b', 'single']],
+    ['integration', ['integration']],
+  ]) {
+    const section = fragments.split(`## ${heading}\n`)[1]?.split('\n## ')[0];
+    const checks = section?.match(/Own exactly: ([\s\S]*?)\./)?.[1]
+      .split(',').map((check) => check.trim());
+    assert.ok(checks, `Missing check fragment: ${heading}`);
+    for (const role of roles) assert.deepEqual([...checks].sort(), [...REQUIRED_CHECKS[role]].sort());
+  }
+});
+
+test('review prepares immutable per-file evidence before parallel dispatch', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');
-
   assert.match(review, /independent snapshot commands[\s\S]*parallel/i);
   assert.match(review, /every result[\s\S]*before dispatch/i);
   assert.match(review, /do not overlap[\s\S]*snapshot[\s\S]*review/i);
   assert.match(review, /GIT_OPTIONAL_LOCKS=0/);
-  assert.match(template, /independent[\s\S]*diff[\s\S]*parallel/i);
-  assert.match(template, /each file[\s\S]*separate tool result/i);
+  assert.match(review, /prepare-review\.js/);
+  assert.match(review, /outside[\s\S]*checkout/i);
+  assert.match(template, /do not[\s\S]*refetch[\s\S]*supplied/i);
+  assert.match(template, /unchanged[\s\S]*interaction/i);
   assert.match(template, /failed or truncated[\s\S]*incomplete/i);
 });
 
-test('large reviews use three concurrent assignments while small reviews stay single', () => {
+test('large reviews use three concurrent assignments while smaller reviews stay single', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
-  assert.match(review, /large review surface[\s\S]*parallel-review\.md/i);
-  assert.match(review, /otherwise[\s\S]*one reviewer/i);
-
   const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
+  assert.match(review, /small[\s\S]*medium[\s\S]*single/i);
+  assert.match(review, /large[\s\S]*parallel-review\.md/i);
   assert.match(parallel, /two non-empty[\s\S]*groups/i);
   assert.match(parallel, /implementation[\s\S]*tests[\s\S]*together/i);
   assert.match(parallel, /two detail reviewers[\s\S]*one integration reviewer/i);
   assert.match(parallel, /start all three[\s\S]*before waiting/i);
   assert.match(parallel, /fewer than three[\s\S]*single reviewer/i);
   assert.match(parallel, /same[\s\S]*requirements[\s\S]*range[\s\S]*evidence[\s\S]*risk[\s\S]*prior reports/i);
+  assert.match(parallel, /all[\s\S]*full[\s\S]*manifest/i);
+  assert.match(parallel, /outside[\s\S]*assignment[\s\S]*report/i);
+  assert.match(parallel, /disjoint[\s\S]*union[\s\S]*manifest/i);
+  assert.match(parallel, /reasoning effort/i);
+  assert.doesNotMatch(parallel, /do not repeat another owner's exhaustive checks/i);
 });
 
-test('review assignments preserve detailed coverage and independent integration review', () => {
-  const template = read('skills/requesting-code-review/code-reviewer.md');
+test('parallel review validates and combines without an additional model', () => {
   const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
-
-  assert.match(template, /\{REVIEW_ASSIGNMENT\}/);
-  assert.match(template, /Reviewed paths:/);
-  assert.match(template, /Prior verification:/);
-  assert.match(parallel, /detail[\s\S]*every hunk[\s\S]*both review stages/i);
-  assert.match(parallel, /integration[\s\S]*every changed file[\s\S]*directly/i);
-  assert.match(parallel, /every requirement[\s\S]*every earlier blocker/i);
-  assert.match(parallel, /do not wait for[\s\S]*detail reports/i);
-  assert.match(parallel, /all assignments[\s\S]*fresh context/i);
-});
-
-test('parallel review aggregation rejects missing evidence without a serial full review', () => {
-  const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
-
-  assert.match(parallel, /set union[\s\S]*frozen manifest/i);
-  assert.match(parallel, /do not sum[\s\S]*counts/i);
+  assert.match(parallel, /combine-reviews\.js/i);
+  assert.match(parallel, /transport[\s\S]*native[\s\S]*maxBytes/i);
+  assert.match(parallel, /derives[\s\S]*section/i);
+  assert.match(parallel, /do not[\s\S]*aggregation[\s\S]*model/i);
   assert.match(parallel, /every reviewer[\s\S]*finished[\s\S]*postflight/i);
   assert.match(parallel, /timeout[\s\S]*incomplete[\s\S]*Review complete: no/i);
-  assert.match(parallel, /new high-risk signals[\s\S]*even[\s\S]*incomplete/i);
-  assert.match(parallel, /deduplicate[\s\S]*highest severity/i);
+  assert.match(parallel, /new high-risk signals[\s\S]*incomplete/i);
+  assert.match(parallel, /exact[\s\S]*duplicate[\s\S]*highest severity/i);
   assert.match(parallel, /conflicting[\s\S]*no/i);
   assert.match(parallel, /do not[\s\S]*full serial re-review/i);
   assert.match(parallel, /one report[\s\S]*Review complete[\s\S]*Blocking findings/i);
@@ -192,7 +199,7 @@ test('code review uses one immutable range contract for initial and incremental 
   assert.match(review, /Earlier\s+report N/i);
   assert.match(implement, /append[\s\S]*whole report[\s\S]*`PRIOR_REPORT`/i);
   assert.match(review, /fresh-context[\s\S]*every invocation/i);
-  assert.match(template, /prior reports[\s\S]*every earlier blocking finding/i);
+  assert.match(read('skills/requesting-code-review/review-checks.md'), /prior reports[\s\S]*every earlier blocking finding/i);
   assert.doesNotMatch(review, /resume the same reviewer/i);
 });
 
@@ -272,7 +279,8 @@ test('review packages inline requirements and always uses fresh context', () => 
 test('managed review packages bind verification evidence to TO_SHA', () => {
   const implement = read('skills/implement/SKILL.md');
   const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
+  const template = read('skills/requesting-code-review/code-reviewer.md')
+    + read('skills/requesting-code-review/review-checks.md');
 
   for (const text of [review, template]) {
     assert.match(text, /VERIFICATION_EVIDENCE/);
@@ -299,10 +307,10 @@ test('managed review packages bind verification evidence to TO_SHA', () => {
   );
   assert.match(review, /standalone[\s\S]*`None`/i);
   assert.match(
-    template,
+    read('skills/requesting-code-review/review-checks.md'),
     /caller-observed[\s\S]*do not assume[\s\S]*omitted[\s\S]*passed/i,
   );
-  assert.match(template, /whether the commands cover the requirements and named risk/i);
+  assert.match(read('skills/requesting-code-review/review-checks.md'), /whether the commands cover the\s+requirements and named risk/i);
 });
 
 test('review model and correction range are selected by pinned risk', () => {
@@ -322,10 +330,10 @@ test('review model and correction range are selected by pinned risk', () => {
   assert.match(review, /standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
   assert.match(review, /each reviewer[\s\S]*standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
   assert.match(template, /model:\s*\{REVIEW_MODEL\}/);
-  assert.match(template, /named high-risk basis[\s\S]*security[\s\S]*architecture/i);
+  assert.match(read('skills/requesting-code-review/review-checks.md'), /named high-risk basis[\s\S]*security[\s\S]*architecture/i);
   assert.match(
     template,
-    /standard[\s\S]*new high-risk signal[\s\S]*Review complete:[^\n]*no[\s\S]*explain/i,
+    /standard[\s\S]*new high-risk signal[\s\S]*complete:[^\n]*false[\s\S]*explain/i,
   );
   assert.match(
     implement,
@@ -398,7 +406,7 @@ test('canonical documentation surfaces are English and describe review hardening
   assert.match(readme, /standard risk[\s\S]*mid-tier[\s\S]*high risk[\s\S]*most-capable/i);
   assert.match(readme, /REVIEW -- "other complete: no" --> ESC/);
   for (const document of [agents, readme]) {
-    assert.match(document, /two detail reviewers[\s\S]*one integration reviewer/i);
+    assert.match(document, /small and medium[\s\S]*one reviewer[\s\S]*two detail reviewers[\s\S]*one integration reviewer/i);
     assert.match(document, /parallel[\s\S]*tool/i);
     assert.doesNotMatch(document, /dispatches one fresh-context[\s\S]{0,60}per invocation/i);
   }
@@ -442,7 +450,9 @@ test('TDD owns self-contained comment cleanup and prose-only verification', () =
 test('comment review guidance travels inside the reviewer prompt', () => {
   const review = read('skills/requesting-code-review/SKILL.md');
   const template = read('skills/requesting-code-review/code-reviewer.md');
-  const prompt = template.match(/prompt: \|([\s\S]*?)````/)?.[1].replace(/\s+/g, ' ') ?? '';
+  const prompt = read('skills/requesting-code-review/review-checks.md').replace(/\s+/g, ' ');
+  assert.match(template, /\{REVIEW_CHECKS\}/);
+  assert.match(review, /assigned role[\s\S]*review-checks\.md/i);
 
   for (const text of [review, template]) {
     assert.doesNotMatch(text, /test-driven-development|comment-policy\.md/);
