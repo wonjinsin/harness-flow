@@ -13,17 +13,26 @@ test('create-worktree command exists', () => {
   assert.equal(fs.existsSync(COMMAND_PATH), true);
 });
 
-test('selects an explicit branch or falls back to the repository base branch', () => {
+test('uses a positional branch name and an optional --base branch', () => {
   const command = readCommand();
 
-  assert.match(command, /branch.*provided[\s\S]*use it as the base/i);
-  assert.match(command, /no branch.*provided[\s\S]*repository(?:'s)? base branch/i);
+  assert.match(command, /^argument-hint: <branch-name> \[--base <base-branch-name>\]$/m);
+  assert.match(command, /use `<branch-name>` as the new branch name/i);
+  assert.match(command, /`--base`.*provided[\s\S]*use.*base branch/i);
+  assert.match(command, /`--base`.*omitted[\s\S]*repository(?:'s)? base branch/i);
+});
+
+test('stops on invalid arguments before changing repository state', () => {
+  const command = readCommand();
+
+  assert.match(command, /arguments do not match[\s\S]*stop before changing[\s\S]*show the expected usage/i);
 });
 
 test('creates the worktree under the repository-local .worktrees directory', () => {
   const command = readCommand();
 
   assert.match(command, /repository root[\s\S]*\.worktrees[\\/]<worktree-name>/i);
+  assert.match(command, /derive `<worktree-name>`[\s\S]*replac(?:e|ing)[\s\S]*`\/`[\s\S]*`-`/i);
 });
 
 test('lets the agent choose appropriate Git operations without a fixed recipe', () => {
