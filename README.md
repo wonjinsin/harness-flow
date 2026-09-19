@@ -250,6 +250,12 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 ---
 
+## Included commands
+
+- **create-worktree** — creates a task branch in `.worktrees/`, using an explicitly requested base branch or the repository default
+
+---
+
 ## Included skills
 
 **Development process**
