@@ -2,28 +2,28 @@
 
 ## Overview
 
-> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work flows through design → planning → TDD → risk-based review → integration, while bug fixes flow through root-cause investigation → regression test → minimal correction.
+> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work flows through design → planning → TDD, with review and durable-memory capture offered as explicit next actions. Bug fixes flow through root-cause investigation → regression test → minimal correction.
 
 ### Problems it solves
 
 - Coding starts before the spec is agreed on, piling up code that's hard to redirect
-- Mixing pre-existing user changes with task changes makes rollback and review difficult
+- Implementation workflows accumulate repository-management ceremony unrelated to the code change
 - Code review and cleanup get skipped or vary from person to person
 
 ### How it solves them
 
 - Agrees the approach through dialogue before coding — a spec (then a plan) only when the work is large enough, with no forced spec gate
-- Stops before implementation when the checkout is dirty, then confirms an immutable `BASE_SHA`, the base branch, and the baseline test. It does not switch branches or worktrees during implementation or review; the selected base merge is the only exception
-- Implements directly in the current session with TDD, supplies SHA-bound verification evidence to a report-only reviewer, validates findings before changing code, and selects the reviewer tier and correction range from pinned risk
+- Keeps `implement` focused on settled scope, TDD, relevant verification, acceptance criteria, and a Conventional Commit
+- Suggests two separate next actions after implementation: `requesting-code-review`, then `llm-md-revise`
 
 ### Who it's for
 
 - Users who want the agent in Claude Code or Codex to not skip required steps
-- Users who want TDD, current-checkout safety, evidence-backed review, and risk-based correction review in one workflow
+- Users who want TDD, verification, and a commit without coupling implementation to review or finalization
 
 ### Foundation
 
-After comparing several Claude Code harnesses ([`design/2026-05-05-comparison.md`](design/2026-05-05-comparison.md)), this project adopted the simplicity-first [superpowers](https://github.com/obra/superpowers) as its foundation. On top of that foundation, it adds a unified `implement` controller that operates in the current checkout and a fresh-context review flow.
+After comparing several Claude Code harnesses ([`design/2026-05-05-comparison.md`](design/2026-05-05-comparison.md)), this project adopted the simplicity-first [superpowers](https://github.com/obra/superpowers) as its foundation. On top of that foundation, it adds a small `implement` executor and an independent fresh-context review flow.
 
 - [Archon](design/reference/archon.md)
 - [everything-claude-code](design/reference/everything-claude-code.md)
@@ -56,33 +56,11 @@ flowchart LR
         IMPL --> TDD --> IMPL
     end
 
-    subgraph SHIP [review & ship]
+    subgraph NEXT [suggested next actions]
         direction LR
         REVIEW(["requesting-code-review<br/>one range · report-only"])
-        EVIDENCE(["SHA-bound<br/>verification evidence"])
-        RISK{"pinned risk"}
-        FIX(["controller<br/>validate → batch fix → test → commit"])
         LMR(["llm-md-revise"])
-        BUDGET(["at most 2 correction reviews"])
-        ESC(["stop and report"])
-        DISPUTE(["stop with finding,<br/>rebuttal, and consequence"])
-        UPGRADE(["validate signal + upgrade<br/>no correction turn"])
-        CHOICE{"PR or base merge?"}
-        PR(["pr-creator"])
-        BASE(["merge into detected base"])
-        LMR -- "settled + clean" --> EVIDENCE --> RISK
-        RISK -- "standard · mid-tier" --> REVIEW
-        RISK -- "high · most-capable" --> REVIEW
-        REVIEW -- "other complete: no" --> ESC
-        REVIEW -- "no blockers" --> CHOICE
-        REVIEW -- "disputed blocker" --> DISPUTE
-        REVIEW -- "valid blocker +<br/>budget remains" --> FIX
-        REVIEW -- "valid blocker +<br/>budget exhausted" --> ESC
-        REVIEW -- "new high-risk signal" --> UPGRADE --> REVIEW
-        FIX -- "fresh evidence<br/>standard: delta · high: full" --> REVIEW
-        BUDGET -. "correction-review limit" .-> FIX
-        CHOICE -- "create PR" --> PR
-        CHOICE -- "merge" --> BASE
+        REVIEW -. "Next 2" .-> LMR
     end
 
     REQ(["user request"]) --> UHF(["using-harness-flow"])
@@ -96,7 +74,7 @@ flowchart LR
     SD -- "confirmed + explicit<br/>plan request" --> WP
     SD -- "confirmed + no<br/>plan request" --> IMPL
 
-    IMPL -- "complete" --> LMR
+    IMPL -. "Next 1" .-> REVIEW
 
     classDef entry fill:#eceff1,stroke:#607d8b,color:#263238
     classDef design fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
@@ -107,12 +85,12 @@ flowchart LR
     class REQ,UHF entry
     class BS,SPEC,WP design
     class TDD,IMPL build
-    class REVIEW,EVIDENCE,RISK,FIX,LMR,BUDGET,ESC,DISPUTE,UPGRADE,CHOICE,PR,BASE ship
+    class REVIEW,LMR ship
     class SD debug
 
     style DESIGN fill:none,stroke:#64b5f6,stroke-dasharray:4 4
     style BUILD fill:none,stroke:#81c784,stroke-dasharray:4 4
-    style SHIP fill:none,stroke:#ffb74d,stroke-dasharray:4 4
+    style NEXT fill:none,stroke:#ffb74d,stroke-dasharray:4 4
 ```
 
 1. **using-harness-flow** — injected at session start. Forces the agent to first ask "which skill applies here?"
@@ -121,12 +99,10 @@ flowchart LR
 
 3. **writing-plans** — decomposes an approved spec, an approved inline design, or a confirmed bug-fix brief with an explicit plan request into bite-sized, tracer-bullet TDD tasks (`### Task N` with Delivers / Touches / Blocked by / acceptance), preserving the human-approval gate. The plan header's `Source` contains the actual spec path, agreed decisions, or a durable summary of confirmed bug evidence and its correction; every source requirement maps to a task's `Delivers` or an acceptance criterion. Output: `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md`.
 
-4. **implement** — accepts an agreed brief, approved plan, or confirmed bug-fix brief as one settled input. It implements with TDD in the current checkout after checking for a dirty tree and pinning `BASE_SHA`, the base branch, and the baseline test. Final verification records exact commands, exit statuses, concise results, and clean pre/post checks at `TO_SHA`. Before fixing a blocker, the controller validates it against requirements, the resulting tree, all relevant tests, and acceptance criteria; a disputed blocker stops the workflow with evidence instead of forcing a code change. Standard-risk corrections review `LAST_REVIEWED_SHA..HEAD`, while high-risk corrections re-review the complete `BASE_SHA..HEAD` range with the most-capable model. The loop permits at most two correction reviews. Task isolation and finalization references load only when needed.
+4. **implement** — accepts an agreed brief, approved plan, or confirmed bug-fix brief as one settled input. It implements the smallest in-scope change with TDD, runs focused checks during the work and relevant full verification at the end, checks every acceptance criterion, and commits the verified change.
    - 4-1. **test-driven-development** — sub-skill each implementer follows. Forces the order Red → confirm fail → Green → confirm pass → Refactor.
-   - 4-2. **llm-md-revise** — always evaluates candidates after implementation is complete; `implement` does not pre-screen them. It proposes project-instruction changes only for surviving candidates, or reports none without an approval or commit prompt. Approved edits are committed before the review range is pinned; a new commit requires fresh full-suite verification evidence at the new `TO_SHA`.
-   - 4-3. **requesting-code-review** — returns one fresh-context, report-only review over the exact `FROM_SHA..TO_SHA` range per invocation. Independent reads use parallel tool calls. Small and medium changes use one reviewer; large, separable changes use two detail reviewers and one integration reviewer concurrently. The package includes inline requirements, SHA-bound `VERIFICATION_EVIDENCE`, pinned `RISK_LEVEL` and `RISK_BASIS`, and bounded prior reports. Standard risk uses a mid-tier reviewer; high risk uses the most-capable reviewer and full-range correction reviews. A new high-risk signal blocks approval until validated and escalated. The only decision fields are `Review complete` and `Blocking findings`. A prepared source packet avoids repeated Git collection. The two detail groups cover every changed file with the full rubric; integration independently checks cross-file behavior and all prior blockers. Exact path, section, and check sets attest coverage. Deterministic report combination preserves findings without a separate aggregation model. The caller's model tier and reasoning effort are preserved; no fixed speedup or unchanged defect recall is established. Incomplete assignments prevent completion, and bounded before/after snapshots detect repository changes when native read-only control is unavailable.
-
-5. **Integration choice** — loads the finalization reference only after review passes. It rechecks a clean checkout and `HEAD == APPROVED_SHA`, then asks whether to create a PR or merge into the detected base branch. The PR path passes the same SHA to `pr-creator`. Neither path automatically deletes a branch or worktree.
+   - **Next 1: requesting-code-review** — reviews the merge-base diff from a user-supplied fixed point to `HEAD` with parallel Standards and Spec axes, or Standards alone when no spec exists.
+   - **Next 2: llm-md-revise** — after review and accepted corrections, proposes durable project-instruction updates for user approval.
 
 > **Mechanical work is not a routing exception.** Keep `brainstorming` proportional
 > — a behavior-preserving move or rename normally needs only a short agreed brief —
@@ -146,7 +122,7 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Parallel track — bug fixing
 
-**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Diagnosis stays non-mutating and confirms root cause before Phase 4 sends a bug-fix brief to `writing-plans` when the user explicitly requested a plan, otherwise to `implement`. Implementation owns TDD, review, revision, and integration. Failed attempts are reverted before their evidence returns to root-cause analysis.
+**systematic-debugging** — separate entry point for bugs, test failures, or unexpected behavior. Diagnosis stays non-mutating and confirms root cause before Phase 4 sends a bug-fix brief to `writing-plans` when the user explicitly requested a plan, otherwise to `implement`. Implementation owns TDD and verification; an invalidated root-cause hypothesis returns with evidence before another fix is attempted.
 
 ---
 
@@ -280,13 +256,13 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **brainstorming** — Socratic design refinement, spec document generation
 - **writing-plans** — task-level implementation plan generation
-- **implement** — single code-change controller: inline TDD, SHA-bound verification evidence, validated blocker handling, risk-based review, and PR/base-merge handoff
-- **pr-creator** — GitHub pull request creation after the user selects the PR path
+- **implement** — settled-work executor: inline TDD, relevant verification, acceptance checking, a Conventional Commit, and ordered next-action suggestions
+- **pr-creator** — standalone GitHub pull request creation
 
 **Quality assurance**
 
 - **test-driven-development** — enforces the Red-Green-Refactor cycle (includes testing-anti-patterns reference)
-- **requesting-code-review** — report-only review contract for one exact commit range with risk-based model selection
+- **requesting-code-review** — parallel Standards and Spec review of the merge-base diff from a user-supplied fixed point to `HEAD`, reported side by side
 
 **Debugging**
 
@@ -296,7 +272,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
 - **writing-skills** — create, edit, and verify skills before deployment
-- **llm-md-revise** — organizes session learnings into candidates for the platform-specific project instruction (`AGENTS.md` / `CLAUDE.md`)
+- **llm-md-revise** — filters session learnings into a user-approved batch for the repository's canonical project instructions
 - **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 
 ---
@@ -307,8 +283,8 @@ Several skills in this repository are derived from MIT-licensed prior work. The 
 copyright notices and the full license text are consolidated in
 [`design/reference/THIRD-PARTY-LICENSES.md`](design/reference/THIRD-PARTY-LICENSES.md) (per-skill `NOTICE` files have been merged into this file).
 
-- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `requesting-code-review`, `implement`, `systematic-debugging`, `test-driven-development`, `using-harness-flow`, `writing-plans`.
-- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, and `writing-plans` from `to-tickets`.
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `implement`, `systematic-debugging`, `test-driven-development`, `using-harness-flow`, `writing-plans`.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, `writing-plans` from `to-tickets`, and `requesting-code-review` from `code-review`.
 - [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT, © 2026 Julius Brussee) — base for `caveman`.
 
 The `llm-md-revise` skill is original to this repository and is not derived from any upstream work.

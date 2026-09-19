@@ -1,20 +1,23 @@
 ---
-name: requesting-code-review
-description: "Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to review changes since a fixed point."
+name: code-review
+description: "Review the changes since a fixed point (commit, branch, tag, or merge-base) along three axes: Standards (does the code follow this repo's documented coding standards?), Spec (does the code match what the originating issue/spec asked for?), and Comments (does the code explain what and how while comments carry only necessary context?). Runs the available reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to \"review since X\"."
 ---
 
-Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
+Three-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
 - **Standards**: does the code conform to this repo's documented coding standards?
 - **Spec**: does the code faithfully implement the originating issue / spec?
+- **Comments**: does the code explain what and how through names and structure, leaving comments only for necessary context the code cannot express?
 
-Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
+The available axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
+
+The issue tracker should have been provided to you. If `docs/agents/issue-tracker.md` is missing, tell the user to run `/setup-matt-pocock-skills`.
 
 ## Process
 
 ### 1. Pin the fixed point
 
-Whatever the user or caller supplied is the fixed point (a commit SHA, branch name, tag, `main`, `HEAD~5`, etc.). If they didn't specify one, ask for it.
+Whatever the user said is the fixed point (a commit SHA, branch name, tag, `main`, `HEAD~5`, etc.). If they didn't specify one, ask for it.
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 
@@ -22,13 +25,12 @@ Before going further, confirm the fixed point resolves (`git rev-parse <fixed-po
 
 ### 2. Identify the spec source
 
-Use inline settled requirements supplied by a caller as the spec when available, with matching files under `docs/harness-flow/specs/` and `docs/harness-flow/plans/` as supporting detail. Otherwise look for the originating spec, in this order:
+Look for the originating spec, in this order:
 
-1. Issue references in the commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.), fetched through the repository's documented issue-tracker workflow.
+1. Issue references in the commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.), fetched via the workflow in `docs/agents/issue-tracker.md`.
 2. A path the user passed as an argument.
-3. A matching spec under `docs/harness-flow/specs/`. When present, also include the corresponding plan under `docs/harness-flow/plans/` as supporting detail; the plan must not override its `Source`.
-4. A spec file elsewhere under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
-5. If nothing is found, ask the user where the spec is. If they say there isn't one, the **Spec** sub-agent will skip and report "no spec available".
+3. A spec file under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
+4. If nothing is found, ask the user where the spec is. If they say there isn't one, the **Spec** sub-agent will skip and report "no spec available".
 
 ### 3. Identify the standards sources
 
@@ -54,7 +56,7 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 - **Middle Man**: a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest**: a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
 
-### 4. Spawn both sub-agents in parallel
+### 4. Spawn all available sub-agents in parallel
 
 **Standards sub-agent prompt** should include:
 
@@ -65,24 +67,30 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 **Spec sub-agent prompt** should include:
 
 - The diff command and commit list.
-- The inline or fetched spec and any supporting harness-flow spec / plan files.
+- The path or fetched contents of the spec.
 - The brief: "Report: (a) requirements the spec asked for that are missing or partial; (b) behaviour in the diff that wasn't asked for (scope creep); (c) requirements that look implemented but where the implementation looks wrong. Quote the spec line for each finding. Under 400 words."
 
-If the spec is missing, skip the Spec sub-agent and note this in the final report.
+**Comments sub-agent prompt** should include:
 
-For Codex, start both axes with `spawn_agent`, `fork_turns: "none"`, and unique task names before waiting for either result. Use one agent when the Spec axis is skipped.
+- The full diff command and commit list.
+- The list of standards-source files you found in step 3.
+- The path or fetched contents of the spec, when one exists.
+- The brief: "Code explains what and how; comments add information code cannot carry. Inspect source comments added, modified, or deleted in the diff, plus nearby comments the change makes stale; do not expand into unrelated legacy cleanup. Report: (a) comments that restate names, types, expressions, or control flow; (b) explanations a straightforward, in-scope rename or extraction can replace; (c) stale, misleading, process-history, or commented-out prose; and (d) deletions that lose necessary information. Quote each comment and give the smallest fix: delete it, clarify the code then delete it, or restore the shortest sufficient text. One valid reason does not justify surrounding narration. Preserve verified rationale, invariants, constraints, deliberate trade-offs, compatibility or security warnings, necessary examples, legal or copyright notices, generated markers, required public-API documentation or contracts, and compiler, type, linter, test, or formatter directives. An unrequired documentation comment that only paraphrases its signature is redundant. A documented repo or spec requirement overrides this baseline. Report only with concrete duplication, improvement, or lost information; unsupported preference passes. Redundancy findings are judgement calls; deleting required information can be a hard violation. Skip comment-format rules tooling already enforces, but treat functional directives as code, not ordinary prose. Under 400 words."
+
+If the spec is missing, skip only the Spec sub-agent, run Standards and Comments in parallel, and note this in the final report.
 
 ### 5. Aggregate
 
-Present the two reports under `## Standards` and `## Spec` headings, verbatim or lightly cleaned. Do **not** merge or rerank findings, because the two axes are deliberately separate (see _Why two axes_).
+Present the reports under `## Standards`, `## Spec`, and `## Comments` headings, verbatim or lightly cleaned. Do **not** merge or rerank findings, because the axes are deliberately separate (see _Why separate axes_). When the Spec axis was skipped, report "no spec available" under its heading.
 
 End with a one-line summary: total findings per axis, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
 
-## Why two axes
+## Why separate axes
 
 A change can pass one axis and fail the other:
 
 - Code that follows every standard but implements the wrong thing → **Standards pass, Spec fail.**
 - Code that does exactly what the issue asked but breaks the project's conventions → **Spec pass, Standards fail.**
+- Code can pass Standards and Spec while narrating obvious operations or preserving stale review history → **Comments fail.**
 
 Reporting them separately stops one axis from masking the other.

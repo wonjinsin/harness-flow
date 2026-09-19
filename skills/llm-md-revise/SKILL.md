@@ -1,180 +1,66 @@
 ---
 name: llm-md-revise
-description: Use when implementation is complete and ready for review; when the user says "remember this" / "add to project memory"; when asked to update AGENTS.md, CLAUDE.md, or project instructions; or when a correction repeats twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole.
+description: Use when the user chooses project-memory revision after a code review; when the user says "remember this" / "add to project memory"; when asked to update AGENTS.md, CLAUDE.md, or project instructions; or when a correction repeats twice. Do NOT use to audit or fix an existing CLAUDE.md/AGENTS.md as a whole.
 ---
 
 # llm-md-revise
 
-Surface session-derived knowledge worth persisting, target the active harness's
-durable instruction surface, place it at the **narrowest applicable scope**, then
-present all candidate diffs together and apply the user's selected set.
+Persist durable project knowledge that future agents cannot reliably derive from
+the repository. Present all candidates together, then apply only the user's
+selected diffs.
 
-**Core principle:** if a future coding agent could derive it by reading the code, it
-does not belong in project instructions. Only persist what project state can't tell.
+## 1. Gather
 
-## Platform Detection
+- Use the current session as the primary source.
+- After a completed code review, inspect the branch diff only when it may reveal
+  a non-obvious reason or constraint behind a change; never persist the change itself.
+- Read the applicable project instructions before proposing additions.
 
-- Codex instructions or Codex-native tools present → target `AGENTS.md`.
-- Claude Code tools/session present → target `CLAUDE.md` and optional `.claude/rules/*.md`.
-- Uncertain → inspect existing root instruction files and ask before writing.
+Do not scrape raw transcript files. If the available context does not support a
+candidate, omit it.
 
-If the chosen file is only a thin re-export of another (e.g. a `CLAUDE.md` whose whole
-body is `@AGENTS.md`), follow the import and write to the real file, so every harness
-sees the change. Target the harness in use — don't create a Claude-only surface in a
-Codex project or vice versa.
+## 2. Filter
 
-## When to use
+- Keep project-specific rules, repeated corrections, external facts, references,
+  and constraints that future agents need but cannot reliably rediscover.
+- Reject code-derivable facts, one-off task state, and semantic duplicates.
+- A frequently reused command may qualify when its source is ambiguous or agents
+  repeatedly waste time rediscovering it.
+- Never persist a secret, credential, private key, sensitive URL, or PII.
+- Treat a single preference as non-durable unless the user explicitly confirms it.
 
-- After every completed implementation, before its review range is pinned.
-  Gather and filter candidates here even when the caller expects none.
-  Approved edits enter the branch before review.
-- User said "remember this" / "add to project memory" / "persist this in CLAUDE.md".
-- User repeated the same correction 2+ times (a real rule, not a one-off).
-- A non-obvious external fact came up (deadline, owner, deprecated path, external system).
+## 3. Place
 
-**Not for:** auditing/fixing a whole CLAUDE.md or AGENTS.md — return that request
-to normal routing; code conventions visible in the code; anything `git log`/`git
-blame` shows; one-off task state; personal preferences unrelated to the project
-(those → `~/.claude/CLAUDE.md`: propose, don't write).
+- Follow the repository's existing canonical instruction surface.
+- If none exists, use the active harness's project default; if that is uncertain, ask.
+- If it is a thin import such as `CLAUDE.md` → `AGENTS.md`, edit the real source file.
+- Before proposing a root edit, estimate its resulting line count.
+- At 200 lines or fewer, keep project-wide guidance in the root instruction file.
+- Above 200 lines, place only new additions in an existing instruction or rules
+  surface that the active harness reliably loads.
+- If that would split or duplicate one topic, propose moving the smallest coherent
+  existing block with the additions as a separate approval item.
+- Use an always-loaded surface for project-wide guidance and a reliable path-scoped
+  surface for narrower guidance.
+- If no alternative loads reliably, keep a path-qualified rule in the root;
+  reliable loading takes priority over the line target.
+- Never reorganize unrelated existing instructions.
+- Do not create a duplicate harness-specific surface or write user-scope files.
 
-## The process
+## 4. Propose
 
-### Step 1 — Gather inputs
+Remove candidates already covered by applicable instructions. Show every survivor
+in one batch with stable numeric IDs:
 
-1. **Current session context** — primary source.
-2. **Branch diff** — `git diff <base>...HEAD` (or the harness's changed-files view),
-   scanned as a memory aid: hunks embodying a workaround, an external quirk, or a
-   constraint discovered while coding point at candidates the dialogue never
-   mentioned. The candidate is the *why* behind the change when the code can't
-   tell it — its scope is wider than the touched file, or a code comment doesn't
-   capture it — never the code change itself.
-3. **Transcript fallback** — only a documented, harness-owned transcript pointer.
-   - Codex: prefer current context and ledger files. Raw `~/.codex` transcript
-     formats are unstable; do not scan them by guessed path.
-   - Claude Code: if context compacted, the original messages may be on disk:
-     ```bash
-     slug=$(pwd | sed 's|/|-|g')
-     ls -t ~/.claude/projects/$slug/*.jsonl | head -1
-     ```
-     Read the most-recent JSONL; filter to `type == "user"`/`"assistant"` (internal
-     types like `attachment`, `system`, `file-history-snapshot` are interleaved).
-4. **Existing project instructions** — read the active platform's files to skip
-   already-covered candidates: every `AGENTS.md`/`CLAUDE.md` from `pwd` up to repo
-   root, plus touched-subdir files and project `.claude/rules/*.md`. Anything under
-   `~/.claude/` is user-owned — read to avoid restating, never write; propose instead.
-   (On Codex there is no stable, documented user-level path — do not guess one.)
+`ID | durable reason | target | exact diff`
 
-### Step 2 — Identify candidates
+Use a concrete session statement, diff path with rationale, or stable external
+reference as the durable reason. Never fabricate evidence. If no candidates remain,
+report that briefly and stop.
 
-| Category | Example | Qualifies? |
-|---|---|---|
-| Rule | "we use bun, never npm" | ✓ if confidence ≥ medium |
-| Fact | "merge freeze starts 2026-05-15" | ✓ — convert relative dates to absolute |
-| Anti-pattern | "don't run hooks that call LLM" | ✓ if user explicitly corrected |
-| Reference | "bugs tracked in Linear INGEST" | ✓ |
-| Code convention | "we use TypeScript" (in package.json) | ✗ — derive, don't document |
-| Task state | "the auth bug we fixed today" | ✗ — git history owns it |
-| Secret / PII | API token, credential, private key, keyed internal URL, personal data | ✗ — **never persist**; drop the candidate or keep only the non-sensitive part (e.g. the hostname without the `key=`) |
+## 5. Apply
 
-### Step 3 — Filter against existing files
-
-Scan all active-platform instruction files from Step 1. Skip candidates already
-covered, even with different wording.
-
-### Step 4 — Decide placement (WHERE + HOW)
-
-Place each survivor at the narrowest scope that still loads when needed. **Codex and
-Claude Code load nested files differently — do not assume Codex's nested `AGENTS.md`
-behaves like Claude's subdir `CLAUDE.md`.** On Codex, the instruction chain is fixed at
-startup as the `AGENTS.md` files from the repo root down to the launch directory
-(cwd); a nested `AGENTS.md` loads only if Codex is launched in that directory or below,
-and touching files under it later does NOT pull it in. On Claude Code, a subdir
-`CLAUDE.md` loads on-demand when you read/edit files in that folder. On Claude Code
-consult [references/placement-decision.md](references/placement-decision.md) for the
-rules/import fork and 200-line spill.
-
-| Candidate scope | Target file | Why |
-|---|---|---|
-| Codex: maps to one subdir **and** Codex is normally launched there or below | that subdir's `AGENTS.md` | it's on the launch→root chain |
-| Codex: maps to one subdir but the launch dir is uncertain (e.g. repo-root launch) | root `AGENTS.md`, scoped in-file ("for `packages/api/`: …") | only the root→cwd chain is guaranteed to load |
-| Codex: project-wide rule/fact | root `AGENTS.md` | always applies in repo |
-| Maps to ONE existing module/subdir | that subdir's `CLAUDE.md` (create if absent) | on-demand load — keeps root lean |
-| Project-wide rule/fact | root `CLAUDE.md` | parent dirs load eagerly |
-| Spans multiple paths, **or** pushes root past 200 lines, **or** large rule bundle | `.claude/rules/<topic>.md` + reference from root | loads per frontmatter (no `paths:` = always-on; `paths:` = per-path) |
-
-**The 200-line split is REACTIVE:** trigger only when *this session's additions*
-push root past 200 lines, and relocate only your own additions — never reformat,
-reorder, or move pre-existing root content. Whole-file cleanup is outside this
-skill's session-derived scope.
-
-### Step 5 — Present all diffs and collect one selection
-
-Show every surviving candidate in one response before asking for a decision.
-Assign stable numeric IDs; keep them unchanged through edits and follow-ups.
-Start with a compact index (`ID | proposed instruction | target`), then include
-each candidate's evidence and exact diff using this template:
-
-```
-[ID] <Category> · confidence <high|medium|low>
-Evidence source: <user | diff | external>
-Evidence: <matching form below>
-  user — "<verbatim user quote>"
-  diff — <path>: <why this implies a durable rule, fact, or constraint>
-  external — <stable source reference>: <relevant fact>
-Target: <file path> · reason: <why this scope + load style, one clause>
-
-Proposed edit:
-  - <old text or insertion point>
-  + <new text>
-```
-
-Use exactly one evidence form per candidate. A diff-only candidate uses its path
-and durable rationale; never fabricate a user quote that did not occur.
-
-The `reason:` clause is annotation, not a second question — placement was decided in
-Step 4. Ask once after the complete batch. Accept selected IDs, all, none, or a
-mixed reply such as `apply 1,3; edit 2: <new wording>; reject 4`. Use one native
-multi-select prompt if available; otherwise accept a single free-text reply.
-Do not turn the batch into separate per-candidate questions or tool calls.
-
-An explicit selection approves those displayed diffs; apply them without asking
-again. Unmentioned IDs remain deferred, never implicitly approved. `all` approves
-the displayed batch; `none` leaves files unchanged. **An edit request is not
-approval** — revise the proposal, re-show all revised diffs together under their
-original IDs, and collect one selection for that revised subset. Do not re-ask
-about unchanged approved, rejected, or deferred candidates.
-
-If no candidates survive filtering, report that briefly and finish without an
-approval or commit prompt.
-
-### Step 6 — Apply and suggest commit
-
-Apply only the approved set, grouping edits by target file (create it if absent).
-Preserve unselected content. Report applied, rejected, and deferred IDs, plus any
-revised proposals still awaiting approval. While revised proposals await selection,
-ask only about that subset; defer commit suggestions and questions until the batch
-is settled. If nothing was applied across the batch, skip the commit suggestion.
-Otherwise summarize once and suggest:
-
-```
-Project instructions updated with N entries. Suggested commit:
-  git add <files>
-  git commit -m "docs: persist session learnings"
-```
-
-Do NOT auto-run the commit — the commit decision is the user's. Within an
-`implement` handoff, ask whether to commit now or leave the edit uncommitted and
-stop before review; integration cannot continue until the approved edit is
-committed and included in the review range. For an independent direct request, ask
-whether to run the commit now or bundle it with other work.
-
-## Guardrails
-
-- **Never persist a secret, token, credential, private key, or PII** — nor a sensitive
-  internal URL with an embedded key. Reject the candidate, or strip the secret and keep
-  only the harmless part. Instruction files are committed and plugin-distributed.
-- A one-time "let's do it this way" is not yet a rule — **defer** it unless the user
-  re-confirms; a single occurrence is a preference, not a durable instruction.
-- A project-wide rule dropped into a subdir `CLAUDE.md` only loads when that folder
-  is touched — so it silently won't apply elsewhere. Narrowest scope means narrowest
-  that *still loads when needed*: project-wide → root or a no-`paths:` rules file.
+Ask once for selected IDs, `all`, or `none`. Apply only selected, exactly displayed
+diffs; leave unmentioned IDs deferred. If the user changes wording, show the revised
+diff again before applying it. Preserve all unrelated content, then report applied
+and deferred IDs. Do not commit automatically.

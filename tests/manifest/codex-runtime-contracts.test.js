@@ -64,354 +64,6 @@ test('caveman starts in lite mode', () => {
   assert.doesNotMatch(caveman, /full \(default\)/);
 });
 
-test('review dispatch documents the Codex direct-call translation', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-  for (const text of [review, template]) {
-    assert.match(text, /spawn_agent/);
-    assert.match(text, /fork_turns[^\n]*none/);
-    assert.match(text, /final_review/);
-    assert.match(text, /unused-ordinal/i);
-    assert.match(text, /TO_SHA-prefix/i);
-  }
-  assert.match(review, /unique[\s\S]*task_name/i);
-});
-
-test('code review is report-only and standalone review has no fix lifecycle', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-  assert.match(review, /one invocation returns one report and stops/i);
-  assert.match(review, /never fixes code, repeats a review,[\s\S]*finishes a branch/i);
-  assert.match(template, /report-only/i);
-  assert.match(template, /do not edit[\s\S]*stage[\s\S]*commit[\s\S]*push/i);
-  assert.match(template, /do not dispatch a fixer/i);
-  assert.match(template, /files, worktree, index, refs,\s+repository config, or remotes/i);
-  assert.match(template, /delete, move[\s\S]*restore[\s\S]*stash[\s\S]*clean/i);
-});
-
-test('code review preflights an immutable commit range', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  assert.match(review, /git merge-base/);
-  assert.match(review, /git symbolic-ref -q HEAD/);
-  assert.match(review, /git status --porcelain=v2 --branch --untracked-files=all --ignored=matching/);
-  assert.match(review, /git for-each-ref/);
-  assert.match(review, /git ls-files --stage --debug/);
-  assert.match(review, /git config --local --list/);
-  assert.match(review, /git remote -v/);
-  assert.match(review, /git diff --quiet/);
-  assert.match(review, /exit 1[\s\S]*non-empty diff/i);
-  assert.match(review, /dirty[\s\S]*stop/i);
-  assert.match(review, /empty[\s\S]*stop/i);
-});
-
-test('review reports prove source and rubric coverage', () => {
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-  const parallel = read('skills/requesting-code-review/parallel-review.md');
-  assert.match(read('skills/requesting-code-review/review-checks.md'), /Stage 1[\s\S]*Requirements compliance/i);
-  assert.match(read('skills/requesting-code-review/review-checks.md'), /Stage 2[\s\S]*Implementation quality/i);
-  assert.match(template, /\{REVIEW_CHECKS\}/);
-  assert.doesNotMatch(template, /Judge each explanatory sentence/);
-  assert.match(template, /do not run tests/i);
-  assert.match(template, /\{REVIEW_EVIDENCE\}/);
-  assert.match(template, /review-report\.schema\.json/);
-  assert.match(template, /reviewedFileIndices[\s\S]*reviewedSections[\s\S]*checksCompleted/);
-  assert.match(template, /packetDigest/);
-  assert.match(template, /every[\s\S]*hunk/i);
-  assert.match(parallel, /every requirement[\s\S]*every earlier blocker/i);
-  assert.doesNotMatch(template, /Finding ID|Gate status|impl-fix|plan-escalate/i);
-});
-
-test('review prompt check sets match deterministic role validation', () => {
-  const { REQUIRED_CHECKS } = require('../../skills/requesting-code-review/scripts/combine-reviews.js');
-  const fragments = read('skills/requesting-code-review/review-checks.md');
-  for (const [heading, roles] of [
-    ['detail and single', ['detail_a', 'detail_b', 'single']],
-    ['integration', ['integration']],
-  ]) {
-    const section = fragments.split(`## ${heading}\n`)[1]?.split('\n## ')[0];
-    const checks = section?.match(/Own exactly: ([\s\S]*?)\./)?.[1]
-      .split(',').map((check) => check.trim());
-    assert.ok(checks, `Missing check fragment: ${heading}`);
-    for (const role of roles) assert.deepEqual([...checks].sort(), [...REQUIRED_CHECKS[role]].sort());
-  }
-});
-
-test('review prepares immutable per-file evidence before parallel dispatch', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-  assert.match(review, /independent snapshot commands[\s\S]*parallel/i);
-  assert.match(review, /every result[\s\S]*before dispatch/i);
-  assert.match(review, /do not overlap[\s\S]*snapshot[\s\S]*review/i);
-  assert.match(review, /GIT_OPTIONAL_LOCKS=0/);
-  assert.match(review, /prepare-review\.js/);
-  assert.match(review, /outside[\s\S]*checkout/i);
-  assert.match(template, /do not[\s\S]*refetch[\s\S]*supplied/i);
-  assert.match(template, /unchanged[\s\S]*interaction/i);
-  assert.match(template, /failed or truncated[\s\S]*incomplete/i);
-});
-
-test('large reviews use three concurrent assignments while smaller reviews stay single', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
-  assert.match(review, /small[\s\S]*medium[\s\S]*single/i);
-  assert.match(review, /large[\s\S]*parallel-review\.md/i);
-  assert.match(parallel, /two non-empty[\s\S]*groups/i);
-  assert.match(parallel, /implementation[\s\S]*tests[\s\S]*together/i);
-  assert.match(parallel, /two detail reviewers[\s\S]*one integration reviewer/i);
-  assert.match(parallel, /start all three[\s\S]*before waiting/i);
-  assert.match(parallel, /fewer than three[\s\S]*single reviewer/i);
-  assert.match(parallel, /same[\s\S]*requirements[\s\S]*range[\s\S]*evidence[\s\S]*risk[\s\S]*prior reports/i);
-  assert.match(parallel, /all[\s\S]*full[\s\S]*manifest/i);
-  assert.match(parallel, /outside[\s\S]*assignment[\s\S]*report/i);
-  assert.match(parallel, /disjoint[\s\S]*union[\s\S]*manifest/i);
-  assert.match(parallel, /reasoning effort/i);
-  assert.doesNotMatch(parallel, /do not repeat another owner's exhaustive checks/i);
-});
-
-test('parallel review validates and combines without an additional model', () => {
-  const parallel = read('skills/requesting-code-review/parallel-review.md').replace(/\s+/g, ' ');
-  assert.match(parallel, /combine-reviews\.js/i);
-  assert.match(parallel, /transport[\s\S]*native[\s\S]*maxBytes/i);
-  assert.match(parallel, /derives[\s\S]*section/i);
-  assert.match(parallel, /do not[\s\S]*aggregation[\s\S]*model/i);
-  assert.match(parallel, /every reviewer[\s\S]*finished[\s\S]*postflight/i);
-  assert.match(parallel, /timeout[\s\S]*incomplete[\s\S]*Review complete: no/i);
-  assert.match(parallel, /new high-risk signals[\s\S]*incomplete/i);
-  assert.match(parallel, /exact[\s\S]*duplicate[\s\S]*highest severity/i);
-  assert.match(parallel, /conflicting[\s\S]*no/i);
-  assert.match(parallel, /do not[\s\S]*full serial re-review/i);
-  assert.match(parallel, /one report[\s\S]*Review complete[\s\S]*Blocking findings/i);
-});
-
-test('code review uses one immutable range contract for initial and incremental review', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-  for (const text of [review, template]) {
-    assert.match(text, /FROM_SHA/);
-    assert.match(text, /TO_SHA/);
-    assert.match(text, /PRIOR_REPORT/);
-    assert.doesNotMatch(text, /verify-fix|REVIEWED_HEAD|FIXED_HEAD|RESOLVED_FINDINGS/i);
-  }
-  assert.match(review, /initial[\s\S]*`BASE_SHA`[\s\S]*`FROM_SHA`/i);
-  assert.match(review, /incremental[\s\S]*`LAST_REVIEWED_SHA`[\s\S]*`FROM_SHA`/i);
-  assert.match(review, /all earlier complete reports in order/i);
-  assert.match(review, /Earlier\s+report N/i);
-  assert.match(implement, /append[\s\S]*whole report[\s\S]*`PRIOR_REPORT`/i);
-  assert.match(review, /fresh-context[\s\S]*every invocation/i);
-  assert.match(read('skills/requesting-code-review/review-checks.md'), /prior reports[\s\S]*every earlier blocking finding/i);
-  assert.doesNotMatch(review, /resume the same reviewer/i);
-});
-
-test('managed review loop batches valid fixes over risk-bounded correction ranges', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const brainstorm = read('skills/brainstorming/SKILL.md');
-  assert.match(implement, /initial[\s\S]*`BASE_SHA` as `FROM_SHA`[\s\S]*current `HEAD` as `TO_SHA`/i);
-  assert.match(implement, /`Review complete: no`[\s\S]*stop/i);
-  assert.match(
-    implement,
-    /blocking findings[\s\S]*batch[\s\S]*TDD[\s\S]*commit[\s\S]*full `VERIFICATION_EVIDENCE`/i,
-  );
-  assert.match(implement, /`LAST_REVIEWED_SHA`[\s\S]*`FROM_SHA`[\s\S]*`PRIOR_REPORT`/i);
-  assert.match(implement, /at most two correction review turns/i);
-  assert.match(implement, /blocking findings[^\n]*none[\s\S]*`APPROVED_SHA`[\s\S]*`TO_SHA`/i);
-  assert.doesNotMatch(implement, /verify-fix|Gate status|finding ledger|semantic expansion/i);
-  assert.doesNotMatch(brainstorm, /verify-fix|Gate status|post-fix reviewer/i);
-});
-
-test('implementation validates blocking findings before changing code', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const validationIndex = implement.indexOf('validate every blocking finding');
-  const turnLimitIndex = implement.indexOf('two correction review turns');
-
-  assert.match(
-    implement,
-    /validate\s+every blocking finding[\s\S]*settled requirements[\s\S]*resulting tree[\s\S]*acceptance/i,
-  );
-  assert.match(implement, /validate[\s\S]*blocking finding[\s\S]*all relevant[\s\S]*tests/i);
-  assert.doesNotMatch(implement, /changed tests/i);
-  assert.match(
-    implement,
-    /valid[\s\S]*batch[\s\S]*TDD[\s\S]*commit[\s\S]*full `VERIFICATION_EVIDENCE`/i,
-  );
-  assert.match(
-    implement,
-    /factually\s+false[\s\S]*contradicts[\s\S]*do not change[\s\S]*approve[\s\S]*stop/i,
-  );
-  assert.match(implement, /correction would violate[\s\S]*acceptance criterion/i);
-  assert.match(
-    implement,
-    /exact finding[\s\S]*rebuttal evidence[\s\S]*correction consequence[\s\S]*user\s+direction/i,
-  );
-  assert.ok(
-    validationIndex >= 0 && turnLimitIndex >= 0 && validationIndex < turnLimitIndex,
-    'blocking findings must be validated before the correction-turn limit is applied',
-  );
-  assert.doesNotMatch(implement, /Handle each returned report mechanically/i);
-});
-
-test('reviewer fallback discloses limits and invalidates detected mutation', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  assert.match(review, /after all reviewers finish[\s\S]*repeat every snapshot check[\s\S]*compare/i);
-  assert.match(review, /native[\s\S]*read-only[\s\S]*when available/i);
-  assert.match(review, /otherwise[\s\S]*snapshot[\s\S]*detection[\s\S]*not fail-closed/i);
-  assert.match(review, /ignored-file[\s\S]*contents[\s\S]*not covered/i);
-  assert.match(review, /snapshot[\s\S]*(?:command|pipeline)[\s\S]*(?:failure|error)[\s\S]*stop/i);
-  assert.match(review, /requires\s+fail-closed[\s\S]*do not\s+dispatch/i);
-  assert.doesNotMatch(review, /Tool-level read-only protection is mandatory/i);
-  assert.doesNotMatch(review, /no write-capable access to the active checkout/i);
-  assert.match(review, /timeout[\s\S]*empty[\s\S]*malformed[\s\S]*not approval/i);
-  assert.match(review, /Review complete: no[\s\S]*plain-language explanation/i);
-  assert.match(review, /state changed[\s\S]*invalid[\s\S]*never\s+revert/i);
-});
-
-test('review packages inline requirements and always uses fresh context', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-
-  assert.match(review, /`REQUIREMENTS`[\s\S]*copied inline/i);
-  assert.doesNotMatch(template, /plan file path/i);
-  assert.match(template, /requirements text copied into this prompt/i);
-  assert.match(review, /fresh-context on\s+every invocation/i);
-  assert.match(review, /do not resume a previous reviewer/i);
-});
-
-test('managed review packages bind verification evidence to TO_SHA', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md')
-    + read('skills/requesting-code-review/review-checks.md');
-
-  for (const text of [review, template]) {
-    assert.match(text, /VERIFICATION_EVIDENCE/);
-    assert.match(text, /verified commit[\s\S]*TO_SHA/i);
-    assert.match(text, /exact command[\s\S]*exit\s+status[\s\S]*observed\s+result/i);
-    assert.match(
-      text,
-      /PRE_CHECK[\s\S]*HEAD == TO_SHA[\s\S]*clean[\s\S]*POST_CHECK[\s\S]*HEAD == TO_SHA[\s\S]*clean/i,
-    );
-  }
-  assert.match(
-    implement,
-    /after commit[\s\S]*HEAD == TO_SHA[\s\S]*clean[\s\S]*VERIFICATION_EVIDENCE/i,
-  );
-  assert.match(implement, /before and after[\s\S]*same `TO_SHA`[\s\S]*clean/i);
-  assert.match(
-    implement,
-    /llm-md-revise[\s\S]*HEAD[\s\S]*differs[\s\S]*rerun[\s\S]*final[\s\S]*verification[\s\S]*VERIFICATION_EVIDENCE/i,
-  );
-  assert.match(review, /managed[\s\S]*must supply[\s\S]*VERIFICATION_EVIDENCE/i);
-  assert.match(
-    review,
-    /preflight[\s\S]*managed[\s\S]*PRE_CHECK[\s\S]*POST_CHECK[\s\S]*missing[\s\S]*stops[\s\S]*dispatch/i,
-  );
-  assert.match(review, /standalone[\s\S]*`None`/i);
-  assert.match(
-    read('skills/requesting-code-review/review-checks.md'),
-    /caller-observed[\s\S]*do not assume[\s\S]*omitted[\s\S]*passed/i,
-  );
-  assert.match(read('skills/requesting-code-review/review-checks.md'), /whether the commands cover the\s+requirements and named risk/i);
-});
-
-test('review model and correction range are selected by pinned risk', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-
-  for (const text of [review, template]) {
-    assert.match(text, /RISK_LEVEL/);
-    assert.match(text, /RISK_BASIS/);
-  }
-  assert.match(
-    review,
-    /authentication[\s\S]*authorization[\s\S]*cryptograph[\s\S]*secret handling[\s\S]*migration[\s\S]*durable[\s\S]*schema[\s\S]*data loss[\s\S]*concurrency[\s\S]*transactions[\s\S]*public compatibility[\s\S]*multiple coupled subsystems/i,
-  );
-  assert.match(review, /large review surface[\s\S]*size or spread[\s\S]*cross-file reasoning/i);
-  assert.match(review, /standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
-  assert.match(review, /each reviewer[\s\S]*standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
-  assert.match(template, /model:\s*\{REVIEW_MODEL\}/);
-  assert.match(read('skills/requesting-code-review/review-checks.md'), /named high-risk basis[\s\S]*security[\s\S]*architecture/i);
-  assert.match(
-    template,
-    /standard[\s\S]*new high-risk signal[\s\S]*complete:[^\n]*false[\s\S]*explain/i,
-  );
-  assert.match(
-    implement,
-    /before the initial review[\s\S]*RISK_LEVEL[\s\S]*never downgrade[\s\S]*upgrade/i,
-  );
-  assert.match(
-    implement,
-    /standard[\s\S]*LAST_REVIEWED_SHA[\s\S]*high[\s\S]*BASE_SHA[\s\S]*full/i,
-  );
-  assert.match(
-    implement,
-    /new[\s\S]*high-risk signal[\s\S]*upgrade[\s\S]*fresh[\s\S]*BASE_SHA[\s\S]*review[\s\S]*do not[\s\S]*spend[\s\S]*correction review turn/i,
-  );
-  assert.match(
-    implement,
-    /high-risk signal[\s\S]*confirm[\s\S]*requirements or diff[\s\S]*upgrade/i,
-  );
-  assert.match(
-    implement,
-    /before any decision branch[\s\S]*`standard` report[\s\S]*high-risk signal[\s\S]*regardless[\s\S]*Review complete/i,
-  );
-  assert.match(
-    review,
-    /standard[\s\S]*new high-risk signal[\s\S]*Review complete:[^\n]*yes[\s\S]*malformed[\s\S]*Review complete:[^\n]*no/i,
-  );
-});
-
-test('canonical guidance mirrors review hardening contracts', () => {
-  const agents = read('AGENTS.md');
-
-  assert.match(agents, /validates every blocker[\s\S]*conflicts[\s\S]*stops/i);
-  assert.match(
-    agents,
-    /acceptance criterion[\s\S]*no code change[\s\S]*correction consequence/i,
-  );
-  assert.match(
-    agents,
-    /VERIFICATION_EVIDENCE[\s\S]*exact commands[\s\S]*exit statuses[\s\S]*TO_SHA/i,
-  );
-  assert.match(
-    agents,
-    /VERIFICATION_EVIDENCE[\s\S]*PRE_CHECK[\s\S]*POST_CHECK[\s\S]*clean/i,
-  );
-  assert.match(agents, /standard[\s\S]*mid-tier[\s\S]*high[\s\S]*most-capable/i);
-  assert.match(
-    agents,
-    /standard[\s\S]*LAST_REVIEWED_SHA[\s\S]*high[\s\S]*full range[\s\S]*BASE_SHA/i,
-  );
-  assert.match(agents, /high-risk signal[\s\S]*upgrades[\s\S]*cannot be downgraded/i);
-  assert.match(
-    agents,
-    /llm-md-revise[\s\S]*new commit[\s\S]*full suite[\s\S]*TO_SHA[\s\S]*regenerate `VERIFICATION_EVIDENCE`/i,
-  );
-  assert.match(agents, /risk signals[\s\S]*large diff[\s\S]*high/i);
-  assert.match(
-    agents,
-    /validated escalation[\s\S]*high-risk full-range review[\s\S]*does not consume[\s\S]*correction-review turn/i,
-  );
-});
-
-test('canonical documentation surfaces are English and describe review hardening', () => {
-  const agents = read('AGENTS.md');
-  const readme = read('README.md');
-
-  for (const document of [agents, readme]) {
-    assert.doesNotMatch(document, /\p{Script=Hangul}/u);
-  }
-  assert.match(readme, /SHA-bound `VERIFICATION_EVIDENCE`/i);
-  assert.match(readme, /disputed blocker[\s\S]*evidence/i);
-  assert.match(readme, /standard risk[\s\S]*mid-tier[\s\S]*high risk[\s\S]*most-capable/i);
-  assert.match(readme, /REVIEW -- "other complete: no" --> ESC/);
-  for (const document of [agents, readme]) {
-    assert.match(document, /small and medium[\s\S]*one reviewer[\s\S]*two detail reviewers[\s\S]*one integration reviewer/i);
-    assert.match(document, /parallel[\s\S]*tool/i);
-    assert.doesNotMatch(document, /dispatches one fresh-context[\s\S]{0,60}per invocation/i);
-  }
-});
-
 test('SessionStart covers Codex resume and Windows hook commands', () => {
   const hooks = read('hooks/hooks.json');
   assert.match(hooks, /startup\|resume\|clear\|compact/);
@@ -425,7 +77,7 @@ test('planning hands approved work to implement without leaking review internals
   assert.match(plans, /There is no\s+group-boundary reviewer/i);
   assert.match(plans, /After the user approves[\s\S]*settled plan[\s\S]*`implement`/i);
   assert.doesNotMatch(plans, /whole-branch|incremental review|reviewer-turn/i);
-  assert.match(reviews, /one immutable commit range/i);
+  assert.match(reviews, /fixed point/i);
 });
 
 test('TDD deletion rule preserves pre-existing user code', () => {
@@ -434,46 +86,46 @@ test('TDD deletion rule preserves pre-existing user code', () => {
   assert.match(tdd, /current TDD cycle/i);
 });
 
-test('TDD owns self-contained comment cleanup and prose-only verification', () => {
-  const tdd = read('skills/test-driven-development/SKILL.md').replace(/\s+/g, ' ');
-  assert.doesNotMatch(tdd, /comment-policy\.md/);
-  assert.match(tdd, /default to no explanatory comments/i);
-  assert.match(tdd, /before every implementation or correction commit/i);
-  assert.match(tdd, /deleted comments[\s\S]*invalidated/i);
-  assert.match(tdd, /shortest[\s\S]*verified[\s\S]*reason/i);
-  assert.match(tdd, /licenses[\s\S]*directives[\s\S]*API documentation/i);
-  assert.match(tdd, /ordinary prose[\s\S]*existing relevant checks/i);
-  assert.match(tdd, /no new failing behavior test/i);
-  assert.match(tdd, /does not cover runtime skill instructions or executable examples/i);
+test('TDD requires self-explanatory code with bounded comment exceptions', () => {
+  const tdd = read('skills/test-driven-development/SKILL.md');
+  const commentsPattern = /^## Comments\s+([\s\S]*?)(?=^## |(?![\s\S]))/m;
+  const comments = (tdd.match(commentsPattern)?.[1] ?? '').replace(/\s+/g, ' ');
+  const finalSection = '## Comments\n\nFinal section content.';
+  const finalComments = finalSection.match(commentsPattern)?.[1] ?? '';
+  const words = comments.trim().split(/\s+/).filter(Boolean).length;
+
+  assert.equal(finalComments.trim(), 'Final section content.');
+  assert.ok(
+    words <= 120,
+    `comment guidance is ${words} words; expected at most 120`,
+  );
+  assert.match(comments, /self-explanatory code/i);
+  assert.match(comments, /names[\s\S]*types[\s\S]*structure[\s\S]*tests/i);
+  assert.match(comments, /do not add[\s\S]*restate[\s\S]*narrate[\s\S]*work history/i);
+  assert.match(
+    comments,
+    /verified rationale[\s\S]*invariant[\s\S]*constraint[\s\S]*trade-off[\s\S]*code cannot express/i,
+  );
+  assert.match(comments, /explain why, not what/i);
+  assert.match(comments, /licenses[\s\S]*directives[\s\S]*API\s+documentation/i);
+  assert.match(comments, /before finishing[\s\S]*changed scope/i);
+  assert.match(
+    comments,
+    /ordinary prose-only[\s\S]*behavior[\s\S]*types[\s\S]*directives[\s\S]*generated documentation[\s\S]*licenses/i,
+  );
+  assert.match(comments, /ordinary prose-only[\s\S]*existing relevant checks/i);
+  assert.match(comments, /no new failing behavior test/i);
+  assert.match(comments, /exception excludes runtime instructions and executable examples/i);
 });
 
-test('comment review guidance travels inside the reviewer prompt', () => {
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-  const prompt = read('skills/requesting-code-review/review-checks.md').replace(/\s+/g, ' ');
-  assert.match(template, /\{REVIEW_CHECKS\}/);
-  assert.match(review, /assigned role[\s\S]*review-checks\.md/i);
-
-  for (const text of [review, template]) {
-    assert.doesNotMatch(text, /test-driven-development|comment-policy\.md/);
-  }
-  assert.match(prompt, /sentence[\s\S]*essential information/i);
-  assert.match(prompt, /redundant sentences[^.]* as Important\./i);
-  assert.match(prompt, /exact deletion or shortest sufficient replacement/i);
-  assert.match(prompt, /licenses[\s\S]*directives[\s\S]*API documentation/i);
-  assert.match(prompt, /deleted[\s\S]*invalidated[\s\S]*unrelated legacy/i);
-  assert.match(prompt, /ordinary prose-only corrections[\s\S]*existing relevant checks/i);
-});
-
-test('implementation delegates comment work without a shared policy handoff', () => {
+test('implementation delegates comment work without duplicating TDD policy', () => {
   const implement = read('skills/implement/SKILL.md');
-  const isolation = read('skills/implement/task-isolation.md');
   assert.equal(fs.existsSync(path.join(ROOT, 'skills/test-driven-development/comment-policy.md')), false);
-  assert.match(implement, /load `test-driven-development`/i);
-  assert.match(isolation, /require TDD/i);
-  for (const text of [implement, isolation]) {
-    assert.doesNotMatch(text, /comment.policy|audit comments|exception evidence|explanatory.comment/i);
-  }
+  assert.match(implement, /load `harness-flow:test-driven-development`/i);
+  assert.doesNotMatch(
+    implement,
+    /comment.policy|audit comments|exception evidence|explanatory.comment/i,
+  );
 });
 
 test('legacy worktree skill is removed from the runtime workflow', () => {
@@ -488,18 +140,22 @@ test('legacy worktree skill is removed from the runtime workflow', () => {
   }
 });
 
-test('implementation preflights the current checkout without creating isolation', () => {
+test('implementation commits verified work before review', () => {
   const plans = read('skills/writing-plans/SKILL.md');
   const implement = read('skills/implement/SKILL.md');
 
   assert.match(plans, /current checkout/i);
   assert.doesNotMatch(plans, /isolated workspace/i);
-  assert.match(implement, /before the first code change[\s\S]*git status/i);
-  assert.match(implement, /pre-existing[\s\S]*uncommitted[\s\S]*stop[\s\S]*user direction/i);
-  assert.match(implement, /BASE_SHA[\s\S]*before[\s\S]*first code\s+change/i);
-  assert.match(implement, /unexpected baseline failure[\s\S]*stop[\s\S]*systematic-debugging/i);
-  assert.match(implement, /base branch[\s\S]*before[\s\S]*editing/i);
-  assert.match(implement, /before the integration choice[\s\S]*do not create or switch[\s\S]*branch[\s\S]*worktree/i);
+  assert.match(implement, /Red[^\n]*Green[^\n]*Refactor/i);
+  assert.match(implement, /focused tests[\s\S]*formatting[\s\S]*typechecking[\s\S]*full test suite/i);
+  assert.match(implement, /every acceptance criterion/i);
+  assert.match(implement, /verification commands and results/i);
+  assert.match(implement, /when blocked[\s\S]*do not list[\s\S]*Next/i);
+  assert.match(implement, /after verification succeeds[\s\S]*Conventional Commit/i);
+  assert.doesNotMatch(
+    implement,
+    /commit SHA|BASE_SHA|TO_SHA|APPROVED_SHA|branch|worktree|finalization/i,
+  );
 });
 
 test('callers normalize settled work before handing it to implement', () => {
@@ -552,65 +208,44 @@ test('spec and plan artifacts have concrete, non-overlapping routes', () => {
   }
 });
 
-test('implementation always delegates memory evaluation before review', () => {
+test('implementation exposes review then memory revision as ordered next actions', () => {
   const implement = read('skills/implement/SKILL.md');
-  const handoff = implement.slice(
-    implement.indexOf('Before pinning the review range'),
-    implement.indexOf('## Bounded review loop'),
-  );
+  const next = implement.indexOf('## Next');
+  const review = implement.indexOf('harness-flow:requesting-code-review', next);
+  const revise = implement.indexOf('harness-flow:llm-md-revise', next);
 
-  assert.match(handoff, /always invoke `harness-flow:llm-md-revise`/i);
-  assert.match(handoff, /candidate evaluation belongs to `llm-md-revise`/i);
-  assert.doesNotMatch(handoff, /invoke[^.]*when|skip when nothing qualifies/i);
+  assert.notEqual(next, -1, 'Next section must exist');
+  assert.ok(next < review, 'review must be listed under Next');
+  assert.ok(review < revise, 'memory revision must follow review');
+  assert.match(implement, /separate next actions/i);
+  assert.doesNotMatch(implement, /always invoke|bounded review|correction review|review loop/i);
+  assert.equal(fs.existsSync(path.join(ROOT, 'skills/implement/finish-reviewed-change.md')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'skills/implement/task-isolation.md')), false);
 });
 
-test('instruction revision is committed before review and finalization is lazy', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const revision = read('skills/llm-md-revise/SKILL.md');
-  const agents = read('AGENTS.md');
-  const finish = read('skills/implement/finish-reviewed-change.md');
+test('PR creation states compact outcome contracts instead of shell recipes', () => {
   const prCreator = read('skills/pr-creator/SKILL.md');
-  const readme = read('README.md');
 
-  const completeness = implement.indexOf('## Before the final review: completeness check');
-  const revise = implement.indexOf('harness-flow:llm-md-revise');
-  const review = implement.indexOf('## Bounded review loop');
-  const finishHandoff = implement.indexOf('## Finish');
-
-  for (const [name, position] of Object.entries({ completeness, revise, review, finishHandoff })) {
-    assert.notEqual(position, -1, `${name} marker must exist`);
-  }
-  assert.ok(completeness < revise, 'revision must follow the completeness check');
-  assert.ok(revise < review, 'revision must precede the review range');
-  assert.ok(review < finishHandoff, 'review must precede finalization');
-  assert.match(implement, /approved\s+instruction edits must be committed[\s\S]*final review includes them/i);
-  assert.match(implement, /`APPROVED_SHA`[\s\S]*finish-reviewed-change\.md/i);
-  assert.match(finish, /do not invoke instruction revision again/i);
-  assert.match(finish, /immediately after the user chooses[\s\S]*`HEAD == APPROVED_SHA`/i);
-  assert.match(finish, /pr-creator[\s\S]*same `APPROVED_SHA`/i);
-  assert.match(prCreator, /managed handoff[\s\S]*`APPROVED_SHA`[\s\S]*`PUBLISH_HEAD`[\s\S]*immediately before[\s\S]*push/i);
+  assert.ok(prCreator.split(/\r?\n/).length <= 50);
+  assert.doesNotMatch(prCreator, /git status --short|git branch --show-current/);
+  assert.doesNotMatch(prCreator, /git rev-parse|git merge-base|git ls-remote/);
+  assert.doesNotMatch(prCreator, /## Quick Reference|## Common Mistakes/);
+  assert.match(prCreator, /uncommitted changes[\s\S]*stop[\s\S]*ask the user/i);
+  assert.match(prCreator, /named branch[\s\S]*base branch/i);
+  assert.match(prCreator, /actual diff[\s\S]*source of truth/i);
+  assert.match(prCreator, /repository(?:'s)? PR template/i);
+  assert.match(prCreator, /complete change set[\s\S]*PR[\s\S]*display/i);
+  assert.match(prCreator, /multiple[\s\S]*templates[\s\S]*ask/i);
+  assert.match(prCreator, /preserve[\s\S]*headings[\s\S]*order/i);
+  assert.match(prCreator, /only[\s\S]*verification[\s\S]*run[\s\S]*observed/i);
+  assert.match(prCreator, /normal,?\s*non-forced push/i);
+  assert.match(prCreator, /publish[\s\S]*exact[\s\S]*publication snapshot/i);
   assert.match(
     prCreator,
-    /immediately before any push and again immediately before `gh pr create`, repeat\s*`git status --short` and resolve `HEAD`\. Stop if the tree is dirty or `HEAD`\s*differs from `PUBLISH_HEAD`/i,
+    /remote branch (?:head|tip)[\s\S]*publication snapshot[\s\S]*before PR creation/i,
   );
-  assert.match(prCreator, /git ls-remote/i);
-  assert.match(prCreator, /remote branch tip[\s\S]*equal `PUBLISH_HEAD`/i);
-  assert.match(prCreator, /after[\s\S]*creation[\s\S]*`headRefOid`[\s\S]*equal[\s\S]*`PUBLISH_HEAD`/i);
-  assert.deepEqual(prCreator.match(/^git push .*$/gm), [
-    'git push origin "<PUBLISH_HEAD>:refs/heads/<branch>"',
-  ]);
-  assert.doesNotMatch(prCreator, /\$PUBLISH_HEAD:/);
-  assert.doesNotMatch(prCreator, /git push -u/);
-  assert.match(prCreator, /replace `<PUBLISH_HEAD>`[\s\S]*verified commit SHA/i);
-  assert.doesNotMatch(prCreator, /only if the branch isn't already pushed/i);
-  assert.match(revision, /before[\s\S]*review range[\s\S]*pinned/i);
-  assert.match(agents, /llm-md-revise[\s\S]*review range[\s\S]*commit/i);
-  assert.match(readme, /IMPL -- "complete" --> LMR/);
-  assert.doesNotMatch(readme, /IMPL[^\n]*--> EVIDENCE/);
-  assert.match(readme, /LMR[^\n]*--> EVIDENCE/);
-  assert.doesNotMatch(readme, /REVIEW[^\n]*--> LMR/);
-  assert.match(finish, /pull request[\s\S]*base[\s\S]*branch/i);
-  assert.doesNotMatch(implement, /finishing-a-development-branch/);
+  assert.match(prCreator, /working tree or\s*`HEAD` changes[\s\S]*stop/i);
+  assert.match(prCreator, /PR[\s\S]*head[\s\S]*base[\s\S]*URL/i);
 });
 
 test('legacy finishing skill is removed from the runtime workflow', () => {
@@ -621,14 +256,15 @@ test('legacy finishing skill is removed from the runtime workflow', () => {
   assert.doesNotMatch(prCreator, /finishing-a-development-branch/);
 });
 
-test('project memory is platform-aware', () => {
+test('project memory follows the existing canonical instruction surface safely', () => {
   const memory = read('skills/llm-md-revise/SKILL.md');
-  assert.match(memory, /Codex[\s\S]*AGENTS\.md/);
-  assert.match(memory, /do not scan them by guessed path/i);
-  // Codex nested-file loading is launch-cwd dependent, not subtree/on-demand
-  assert.match(memory, /launch(ed)?[\s\S]*director/i);
-  // never persist secrets/credentials/PII into instruction files
+
+  assert.match(memory, /existing canonical instruction surface/i);
+  assert.match(memory, /if none exists[\s\S]*active harness[\s\S]*uncertain[\s\S]*ask/i);
+  assert.match(memory, /thin import[\s\S]*real source file/i);
+  assert.match(memory, /active harness\s+reliably loads/i);
   assert.match(memory, /never persist a secret|Secret \/ PII/i);
+  assert.doesNotMatch(memory, /\.codex|\.claude\/projects|\.jsonl/);
 });
 
 test('mechanical changes stay on canonical routing', () => {
@@ -653,88 +289,51 @@ test('bug requests cannot auto-route through brainstorming', () => {
   assert.match(entry, /Bug \/ test failure \/ unexpected behavior[\s\S]*systematic-debugging/i);
 });
 
-test('implementation reaches review with a named branch and clean committed output', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const detachedGuard = implement.indexOf('git symbolic-ref -q --short HEAD');
-  const firstChange = implement.indexOf('## Default: implement inline');
-
-  assert.notEqual(detachedGuard, -1, 'detached-HEAD preflight must exist');
-  assert.ok(detachedGuard < firstChange, 'detached-HEAD preflight must run before editing');
-  assert.match(implement, /detached HEAD[\s\S]*before the first code change[\s\S]*stop/i);
-  assert.match(implement, /formatter[\s\S]*before[\s\S]*(?:task|brief)[\s\S]*commit/i);
-  assert.match(implement, /full suite[\s\S]*format check[\s\S]*typecheck/i);
-  assert.match(implement, /formatter[\s\S]*writes[\s\S]*test[\s\S]*commit[\s\S]*clean/i);
-});
-
-test('reviewed change finalization is lazy-loaded and pins one approved SHA', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const finishPath = path.join(ROOT, 'skills/implement/finish-reviewed-change.md');
-  const pr = read('skills/pr-creator/SKILL.md');
-
-  assert.equal(fs.existsSync(finishPath), true);
-  const finish = fs.readFileSync(finishPath, 'utf8');
-  assert.match(implement, /after[\s\S]*`APPROVED_SHA`[\s\S]*read[\s\S]*finish-reviewed-change\.md/i);
-  assert.doesNotMatch(implement, /`SOURCE_BRANCH`|git merge --abort|harness-flow:pr-creator/i);
-  assert.match(finish, /clean[\s\S]*`HEAD == APPROVED_SHA`/i);
-  assert.match(finish, /pull request[\s\S]*merge into[\s\S]*base\s+branch/i);
-  assert.match(finish, /pr-creator[\s\S]*same `APPROVED_SHA`/i);
-  assert.match(finish, /merge exactly `APPROVED_SHA`/i);
-  assert.match(finish, /merge result[\s\S]*descends from `APPROVED_SHA`/i);
-  assert.match(finish, /conflict[\s\S]*git merge --abort[\s\S]*clean[\s\S]*new review/i);
-  assert.match(pr, /managed handoff[\s\S]*`APPROVED_SHA`[\s\S]*`PUBLISH_HEAD`/i);
-  assert.match(pr, /standalone[\s\S]*current `HEAD`[\s\S]*`PUBLISH_HEAD`/i);
-  assert.match(pr, /remote branch tip[\s\S]*`PUBLISH_HEAD`[\s\S]*`headRefOid`[\s\S]*`PUBLISH_HEAD`/i);
-});
-
-test('implementation task isolation is lazy-loaded from one internal reference', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const isolationPath = path.join(ROOT, 'skills/implement/task-isolation.md');
-  const agents = read('AGENTS.md');
-
-  assert.equal(fs.existsSync(isolationPath), true);
-  const isolation = fs.readFileSync(isolationPath, 'utf8');
-  assert.match(implement, /only when[\s\S]*task isolation[\s\S]*read[\s\S]*task-isolation\.md/i);
-  assert.doesNotMatch(implement, /`EXPECTED_HEAD`|model tier|wrong-checkout commit/i);
-  assert.match(isolation, /git rev-parse --show-toplevel/);
-  assert.match(isolation, /git rev-parse --git-dir/);
-  assert.match(isolation, /immediately before dispatch[\s\S]*`EXPECTED_HEAD`/i);
-  assert.match(isolation, /compare[\s\S]*HEAD[\s\S]*`EXPECTED_HEAD`/i);
-  assert.match(isolation, /checkout identity[\s\S]*mismatch[\s\S]*stop/i);
-  assert.match(isolation, /wrong-checkout commit[\s\S]*user direction/i);
-  assert.doesNotMatch(isolation, /starting commit for any subagent identity check/i);
-  assert.doesNotMatch(agents, /cherry-pick[\s\S]*git reset/i);
-  assert.match(agents, /wrong checkout[\s\S]*report[\s\S]*user direction/i);
-});
-
-test('failed bug attempts are neutralized before another hypothesis', () => {
+test('invalidated bug fixes return evidence to systematic debugging', () => {
   const implement = read('skills/implement/SKILL.md');
 
-  assert.match(implement, /`ATTEMPT_BASE`[\s\S]*failed root-cause correction[\s\S]*revert commit/i);
-  assert.match(implement, /never reset, rebase, or amend/i);
-  assert.match(implement, /clean worktree[\s\S]*systematic-debugging/i);
+  assert.match(implement, /invalidated root-cause hypothesis[\s\S]*systematic-debugging/i);
+  assert.doesNotMatch(implement, /revert|reset|rebase|amend/i);
 });
 
 test('systematic debugging keeps diagnosis mutation-free', () => {
   const debugging = read('skills/systematic-debugging/SKILL.md');
   const tracing = read('skills/systematic-debugging/root-cause-tracing.md');
 
+  assert.ok(debugging.split(/\r?\n/).length <= 55, 'systematic-debugging must stay compact');
+  assert.match(debugging, /not\s+reproducible[\s\S]*gather[\s\S]*evidence[\s\S]*report[\s\S]*gap/i);
   assert.match(debugging, /smallest non-mutating observation/i);
   assert.match(debugging, /retry[\s\S]*bug-fix brief[\s\S]*do not implement it here/i);
+  assert.match(
+    debugging,
+    /implementation or verification fails[\s\S]*stop[\s\S]*count[\s\S]*return here/i,
+  );
+  assert.doesNotMatch(debugging, /```bash|~95%|wrong architecture/i);
   assert.doesNotMatch(debugging, /test it with the \*smallest\*\s*change/i);
   assert.doesNotMatch(debugging, /codesign --sign/i);
   assert.doesNotMatch(tracing, /console\.error/);
 });
 
-test('project-memory candidates use available routes and source-aware evidence', () => {
+test('project-memory candidates keep compact evidence and approval rules', () => {
   const memory = read('skills/llm-md-revise/SKILL.md');
-  const placement = read('skills/llm-md-revise/references/placement-decision.md');
 
-  for (const text of [memory, placement]) {
-    assert.doesNotMatch(text, /claude-md-improver/i);
-  }
-  assert.match(memory, /Evidence source:[\s\S]*user[\s\S]*diff[\s\S]*external/i);
-  assert.match(memory, /diff[\s\S]*path[\s\S]*durable/i);
+  assert.doesNotMatch(memory, /claude-md-improver/i);
+  assert.match(memory, /current session[\s\S]*branch diff/i);
+  assert.match(memory, /code-derivable[\s\S]*one-off[\s\S]*duplicate/i);
+  assert.match(memory, /ID \| durable reason \| target \| exact diff/i);
+  assert.match(memory, /apply only[\s\S]*selected/i);
   assert.doesNotMatch(memory, /systematic-debugging`? Phase 4 verified/i);
+});
+
+test('project memory bounds root growth without implicit cleanup', () => {
+  const memory = read('skills/llm-md-revise/SKILL.md');
+
+  assert.match(memory, /resulting line count/i);
+  assert.match(memory, /200 lines or fewer[\s\S]*root/i);
+  assert.match(memory, /above 200 lines[\s\S]*new additions/i);
+  assert.match(memory, /smallest coherent\s+existing block[\s\S]*separate approval/i);
+  assert.match(memory, /reliable loading[\s\S]*priority/i);
+  assert.match(memory, /never reorganize unrelated existing instructions/i);
 });
 
 test('writing-skills has one cross-harness authoring contract', () => {
@@ -826,23 +425,27 @@ test('condition waiting accepts valid falsy generic values', () => {
   assert.match(waiting, /'DONE event'[\s\S]*'ready state'[\s\S]*'path exists'/);
 });
 
-test('mandatory memory evaluation and canonical docs stay aligned', () => {
+test('post-review memory suggestion and canonical docs stay aligned', () => {
   const memory = read('skills/llm-md-revise/SKILL.md');
   const description = memory.match(/^description:\s*(.+)$/m)?.[1] ?? '';
   const agents = read('AGENTS.md');
   const readme = read('README.md');
   const claude = read('CLAUDE.md');
-  const examples = read('skills/llm-md-revise/references/examples.md');
+  const placementPath = path.join(ROOT, 'skills/llm-md-revise/references/placement-decision.md');
+  const examplesPath = path.join(ROOT, 'skills/llm-md-revise/references/examples.md');
 
-  assert.match(description, /^Use when implementation is complete and ready for review;/);
-  assert.match(memory, /after every completed implementation[\s\S]*gather and filter candidates here even when the caller expects none/i);
-  assert.match(memory, /if no candidates survive filtering[\s\S]*report[\s\S]*without an\s+approval or commit prompt/i);
-  assert.match(agents, /llm-md-revise[^\n]*always runs before the review range is pinned/);
-  assert.match(readme, /IMPL -- "complete" --> LMR/);
-  assert.doesNotMatch(readme, /IMPL[^\n]*--> EVIDENCE/);
+  assert.match(description, /^Use when the user chooses project-memory revision after a code review;/);
+  assert.doesNotMatch(description, /^Use when a code review is complete;/);
+  assert.match(memory, /after a completed code review[\s\S]*branch diff/i);
+  assert.match(memory, /if no candidates remain[\s\S]*report[\s\S]*stop/i);
+  assert.match(agents, /Next[^\n]*requesting-code-review[^\n]*llm-md-revise/i);
+  assert.match(readme, /IMPL -. "Next 1" .-> REVIEW/);
+  assert.match(readme, /REVIEW -. "Next 2" .-> LMR/);
+  assert.doesNotMatch(memory, /before[^\n]*review range|approved edits enter the branch before review/i);
   assert.equal(claude.trim(), '@AGENTS.md');
-  assert.match(examples, /Four calibration scenarios/);
-  assert.equal([...examples.matchAll(/^## \d+\./gm)].length, 4);
+  assert.ok(memory.split(/\r?\n/).length <= 80, 'llm-md-revise must stay at or below 80 lines');
+  assert.equal(fs.existsSync(placementPath), false);
+  assert.equal(fs.existsSync(examplesPath), false);
 });
 
 test('caveman lite keeps articles while stronger modes may drop them', () => {
@@ -874,69 +477,6 @@ test('routing gives unconfirmed bugs priority over explicit plan requests', () =
     agents,
     /Phase 4[\s\S]{0,260}explicit implementation plan[\s\S]{0,120}writing-plans[\s\S]{0,120}otherwise[\s\S]{0,80}implement/i,
   );
-});
-
-test('managed reviews preserve the caller-pinned commit range', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const review = read('skills/requesting-code-review/SKILL.md');
-
-  assert.match(
-    implement,
-    /immutable\s+`BASE_SHA` as `FROM_SHA`[\s\S]*current `HEAD` as `TO_SHA`/i,
-  );
-  assert.match(
-    review,
-    /never recompute a caller-supplied range/i,
-  );
-  assert.match(
-    review,
-    /current `HEAD == TO_SHA`/i,
-  );
-});
-
-test('workflow starts with the whole change and uses risk-bounded correction reviews', () => {
-  const plans = read('skills/writing-plans/SKILL.md');
-  const implement = read('skills/implement/SKILL.md');
-  const review = read('skills/requesting-code-review/SKILL.md');
-
-  assert.doesNotMatch(plans, /whole-branch|delta review|correction review/i);
-  assert.match(implement, /initial range covers the settled branch/i);
-  assert.match(implement, /standard later ranges cover only committed corrections/i);
-  assert.match(implement, /high-risk later[\s\S]*full resulting branch/i);
-  assert.match(implement, /at most two correction review turns/i);
-  assert.match(review, /initial[\s\S]*`BASE_SHA`[\s\S]*`FROM_SHA`/i);
-  assert.match(review, /incremental[\s\S]*`LAST_REVIEWED_SHA`[\s\S]*`FROM_SHA`/i);
-});
-
-test('review reports expose only two decision fields', () => {
-  const implement = read('skills/implement/SKILL.md');
-  const review = read('skills/requesting-code-review/SKILL.md');
-  const template = read('skills/requesting-code-review/code-reviewer.md');
-
-  for (const text of [implement, review, template]) {
-    assert.match(text, /Review complete:/i);
-    assert.match(text, /Blocking findings:/i);
-    assert.doesNotMatch(
-      text,
-      /Gate status|impl-fix|plan-escalate|invalid-package|mutation-detected|coverage-incomplete|finding-not-verifiable|scope-expanded|malformed-report/i,
-    );
-  }
-  assert.match(template, /Review complete:[^\n]*yes[^\n]*no/i);
-  assert.match(template, /Blocking findings:[^\n]*none[^\n]*finding list/i);
-});
-
-test('default implementation, TDD, and review guidance stays compact', () => {
-  const defaultFiles = [
-    'skills/implement/SKILL.md',
-    'skills/test-driven-development/SKILL.md',
-    'skills/requesting-code-review/SKILL.md',
-    'skills/requesting-code-review/code-reviewer.md',
-  ];
-  const words = defaultFiles.reduce(
-    (total, file) => total + read(file).trim().split(/\s+/).length,
-    0,
-  );
-  assert.ok(words <= 4000, `default guidance is ${words} words; expected at most 4000`);
 });
 
 test('skill evaluations run one RED GREEN cycle per case', () => {

@@ -5,74 +5,49 @@ description: Use when encountering any bug, test failure, or unexpected behavior
 
 # Systematic Debugging
 
-Find the root cause before touching a fix. Symptom patches mask the real bug and
-spawn new ones — and under time pressure is exactly when guessing costs the most.
+Prove the root cause before proposing a fix. Keep diagnosis non-mutating.
 
 ## The Iron Law
 
-**No fixes without root-cause investigation first.** If you haven't finished
-Phase 1, you cannot propose a fix — this holds for "simple" bugs too.
+**No fixes without root-cause investigation first.**
 
 ## Phase 1 — Root cause
 
-1. **Read the error.** Whole stack trace, line numbers, codes. It often names the fix.
-2. **Reproduce.** Reliable steps? If not reproducible, gather data — don't guess.
-3. **Check recent changes.** `git diff`, new deps, config/env differences.
-4. **Instrument component boundaries.** When the system has layers (CI → build →
-   sign, API → service → DB), log what enters and exits each boundary, run once,
-   and read *where* it breaks before investigating that component:
-
-   ```bash
-   echo "workflow: IDENTITY=${IDENTITY:+SET}${IDENTITY:-UNSET}"   # layer 1
-   env | grep IDENTITY || echo "not in build env"                 # layer 2
-   security find-identity -v                                       # layer 3
-   codesign --display --verbose=4 "$APP"                            # layer 4
-   ```
-5. **Trace data flow backward.** When the error is deep in the stack, trace the
-   bad value up to its origin and identify the source correction — see
-   `root-cause-tracing.md`.
-
-**Tempted to conclude "no root cause / it's environmental"?** ~95% of such calls are
-incomplete investigation — prove it before exiting. If it genuinely is
-environmental/timing/external, document why, then add a retry/timeout/error-handling
-defense plus monitoring to the confirmed bug-fix brief. Do not implement it here.
+1. Ground the symptom: read the complete error and reproduce it. If it is not
+   reproducible, gather available evidence; report the exact gap only when unavailable.
+2. Locate the failure: inspect recent changes and config/environment differences.
+   For layered systems, observe component boundaries; trace bad data backward.
 
 ## Phase 2 — Pattern
 
-Find similar working code in the same codebase and list every difference from the
-broken path, however small ("that can't matter" is where bugs hide). Reading a
-reference implementation? Read it completely, not skimmed.
+Compare the closest working path when it can narrow the cause.
 
 ## Phase 3 — Hypothesis
 
-State one hypothesis: "X is the root cause because Y." Test it with the smallest non-mutating observation:
-a focused reproducer, alternate input or environment,
-existing logs, or a debugger/tracepoint. Do not edit production, test, or config
-files in this skill. Confirmed → Phase 4. Wrong → form a new hypothesis; don't
-stack fixes. If evidence cannot distinguish hypotheses, report the gap.
+State one falsifiable hypothesis and test it with the smallest non-mutating observation.
+If false, replace it; never stack speculative fixes.
+
+Stop once the cause is proven; do not perform techniques mechanically. If evidence
+cannot distinguish hypotheses, report the gap. For environmental or timing causes,
+record only evidence-backed retry, timeout, error-handling, or monitoring needs in
+the confirmed bug-fix brief. Do not implement it here.
 
 ## Phase 4 — Confirmed fix handoff
 
-1. Capture a **confirmed bug-fix brief**: the reproducer, root-cause evidence,
-   minimal correction, boundaries, and acceptance checks. The reproducer becomes
-   the first failing test during implementation.
-2. If the user explicitly requested an implementation plan, invoke
-   `harness-flow:writing-plans` with the confirmed bug-fix brief; after approval,
-   that plan hands off to `harness-flow:implement`. Otherwise invoke
-   `harness-flow:implement` directly. It owns TDD, implementation, verification,
-   review, revisions, and the integration decision. Do not change code in this
-   skill.
-3. **If implementation or verification fails, stop and count.** Return here with
-   the new evidence, then go back to Phase 1. <3 attempted fixes → form a new
-   hypothesis. **≥3 failed fixes = wrong architecture, not a failed hypothesis** —
-   each fix surfacing new coupling elsewhere is the tell. Stop guessing and raise
-   the design question with the human before any fix #4.
+Capture the reproducer, root-cause evidence, minimal correction, boundaries, and
+acceptance checks. The reproducer becomes the first failing test during implementation.
 
-Record needed validation layers in the bug-fix brief; `implement` owns their code
-and tests. See `defense-in-depth.md`.
+If the user explicitly requested an implementation plan, invoke
+`harness-flow:writing-plans`; otherwise invoke `harness-flow:implement`. Those
+skills own TDD, code changes, verification, and completeness checking.
+
+If implementation or verification fails, stop, count the failed correction, and
+return here with the new evidence. Form a new hypothesis instead of layering a fix.
+After three failed corrections or evidence of broad coupling, raise the architecture
+question before another fix.
 
 ## Supporting techniques
 
-- `root-cause-tracing.md` — trace a bug backward through the call stack to its trigger.
-- `defense-in-depth.md` — validate at every layer so the bug can't recur.
-- `condition-based-waiting.md` — replace arbitrary timeouts with condition polling.
+- `root-cause-tracing.md` — deep or indirect failures.
+- `defense-in-depth.md` — validation layers needed by the confirmed correction.
+- `condition-based-waiting.md` — timing-dependent or flaky behavior.
