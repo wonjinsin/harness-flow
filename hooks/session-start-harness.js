@@ -13,9 +13,9 @@
 //       wrapped in <EXTREMELY_IMPORTANT> tags. A compatible plugin runtime injects
 //       this string into the LLM's context for the new session.
 //
-// WHY:  harness-flow's core rule — "if there's even a 1% chance a skill applies,
-//       you MUST load it with the platform-native skill mechanism" — cannot be
-//       left to LLM autonomy.
+// WHY:  harness-flow requires loading the relevant skill before responding,
+//       including before clarifying questions. This rule cannot be left to
+//       LLM autonomy.
 //       The using-harness-flow skill is the meta-skill that teaches the LLM how to
 //       use the brainstorming → writing-plans → implement chain.
 //       It must be present in context at every session boundary, so we inject it here.
@@ -42,8 +42,8 @@ try {
 }
 
 // The <EXTREMELY_IMPORTANT> wrapper signals to the LLM that this is a hard
-// behavioral rule, not optional guidance. The skill body itself contains the
-// "1% rule" enforcement language and platform-native skill instructions.
+// behavioral rule, not optional guidance. The skill body defines request routing
+// and harness-neutral skill loading instructions.
 const sessionContext =
   '<EXTREMELY_IMPORTANT>\n' +
   'You have harness-flow.\n\n' +
