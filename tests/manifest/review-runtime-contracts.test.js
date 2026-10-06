@@ -92,6 +92,21 @@ test('Codex starts fresh axes before waiting', () => {
   assert.match(skill, /use one agent when the Spec axis is skipped/i);
 });
 
+test('OMP maps both review axes to one parallel task batch', () => {
+  const skill = read('skills/requesting-code-review/SKILL.md');
+  const omp = read('skills/requesting-code-review/omp-task-dispatch.md');
+
+  assert.match(skill, /For OMP/i);
+  assert.match(skill, /omp-task-dispatch\.md/);
+  assert.match(omp, /one `task` call/i);
+  assert.match(omp, /`tasks` array/i);
+  assert.match(omp, /StandardsAxis/);
+  assert.match(omp, /SpecAxis/);
+  assert.match(omp, /"isolated": false/i);
+  assert.match(omp, /do not invoke OMP `\/review`/i);
+  assert.match(omp, /Spec axis is skipped[\s\S]*one-item `tasks` array/i);
+});
+
 test('review guidance stays compact and self-contained', () => {
   const skill = read('skills/requesting-code-review/SKILL.md');
   const words = skill.trim().split(/\s+/).length;

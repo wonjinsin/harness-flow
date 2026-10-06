@@ -5,6 +5,7 @@ const {
   PATTERNS,
   ALLOWLIST,
   matchFilePath,
+  matchPathPattern,
   matchBashCommand,
 } = require('../../hooks/pre-secrets.js');
 
@@ -68,6 +69,57 @@ test('allowlist: .env.schema returns null', () => {
 });
 test('allowlist: .env.defaults returns null', () => {
   assert.equal(matchFilePath('/proj/.env.defaults'), null);
+});
+
+test('path normalization: Windows separators are matched', () => {
+  assert.equal(matchFilePath('C:\\repo\\.env').id, 'read-dotenv');
+});
+
+test('path patterns: protected brace, wildcard, and character-class branches match', () => {
+  const patterns = [
+    '/repo/{.env,safe.txt}',
+    '/repo/{safe.txt,{nested,.env}}',
+    '/repo/{.env.example,.env}',
+    '/repo/**/.env*',
+    '/repo/**/[.]env',
+    '/repo/.en?',
+    '/repo/.en[!x]',
+    '/repo/.e*v',
+    '/repo/.e?v',
+    '/repo/.[a-z]nv',
+    '/home/u/.ssh/id_[a-z]sa',
+    '/home/u/.ssh/id_{rsa,ed25519}',
+    '/repo/.aws/credentia?s',
+    '/repo/.config/gcloud/credentials.[d]b',
+    '/repo/prod-serviceaccount-[0-9].json',
+    '/home/u/.config/gcloud/access_tok?ns.db',
+    '/home/u/.config/gcloud/access_toke[n]s.db',
+    '/home/u/.config/gcloud/a?c.json',
+    '/home/u/.config/gcloud/application_defaul?.json',
+    '/repo/.config/gcloud/user_creden*/archive.txt',
+    '/repo/prod-serviceacc?unt.json',
+    '/repo/private.p?m',
+    '/home/u/.netr?',
+    '/repo/.en[]v]',
+    '/repo/**/*.json',
+  ];
+  for (const pattern of patterns) assert.ok(matchPathPattern(pattern), pattern);
+});
+
+test('path patterns: unsafe expansion complexity fails closed', () => {
+  const alternatives = Array.from({ length: 129 }, (_, index) => `safe-${index}`).join(',');
+  assert.equal(matchPathPattern(`/repo/{${alternatives}}`).id, 'read-secret-pattern');
+  assert.equal(matchPathPattern(`/repo/${'*'.repeat(4097)}`).id, 'read-secret-pattern');
+  assert.equal(matchPathPattern('/repo/.en[[:lower:]]').id, 'read-secret-pattern');
+  assert.equal(matchPathPattern('/repo/.e{n..n}v').id, 'read-secret-pattern');
+});
+
+test('path patterns: safe brace unions and concrete templates remain allowed', () => {
+  assert.equal(matchPathPattern('src/{foo,bar}.js'), null);
+  assert.equal(matchPathPattern('src/app-*.js'), null);
+  assert.equal(matchPathPattern('src/[a-z].js'), null);
+  assert.equal(matchPathPattern('/repo/.env.example'), null);
+  assert.ok(matchPathPattern('/repo/.env.example*'));
 });
 
 // ---------- matchFilePath: read-ssh-key ----------
@@ -183,6 +235,26 @@ test('bash read-dotenv: matches cat .env.local', () => {
 });
 test('bash read-dotenv: matches less ./.env.production', () => {
   assert.equal(matchBashCommand('less ./.env.production').id, 'read-dotenv');
+});
+test('bash read-dotenv: matches quoted paths and paths containing spaces', () => {
+  const commands = [
+    'cat "/repo/.env"',
+    "cat '/repo/.env'",
+    'cat "/repo/my dir/.env"',
+    'cat "/repo/.env">/tmp/out',
+    'cat /repo/.env*',
+    'cat /repo/.en?',
+    'cat /repo/.en[!x]',
+    'cat /repo/.e"n"v',
+    'cat /repo/.e\\nv',
+    "cat /repo/$'\\x2e'env",
+    'cat /repo/$".e"nv',
+    'cat /repo/{safe.txt,.env}',
+  ];
+  for (const command of commands) assert.equal(matchBashCommand(command).id, 'read-dotenv', command);
+  assert.equal(matchBashCommand('cat /repo/.e{n..n}v').id, 'read-secret-pattern');
+  assert.equal(matchBashCommand('cat /home/u/.config/gcloud/access_tok?ns.db').id, 'read-gcp-credentials');
+  assert.equal(matchBashCommand('cat /home/u/.ssh/id_[a-z]sa').id, 'read-ssh-key');
 });
 test('bash read-ssh-key: matches cat ~/.ssh/id_rsa', () => {
   assert.equal(matchBashCommand('cat ~/.ssh/id_rsa').id, 'read-ssh-key');
@@ -365,6 +437,13 @@ test('apply_patch touching id_rsa is caught', () => {
 test('apply_patch touching .env.example is allowed', () => {
   const patch = '*** Begin Patch\n*** Update File: .env.example\n*** End Patch';
   assert.equal(matchBashCommand(patch), null);
+  const heredoc = "<<'EOF'\n*** Begin Patch\n*** Update File: .env.example\n*** End Patch\nEOF";
+  assert.equal(matchBashCommand(heredoc), null);
+});
+
+test('apply_patch heredoc wrapper still checks protected targets', () => {
+  const patch = "<<'EOF'\n*** Begin Patch\n*** Update File: config/.env\n+X=1\n*** End Patch\nEOF";
+  assert.equal(matchBashCommand(patch).id, 'read-dotenv');
 });
 
 // ---------- apply_patch end-to-end deny via spawnSync ----------

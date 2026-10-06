@@ -68,28 +68,453 @@ const PATTERNS = [
   },
 ];
 
+const MAX_PATTERN_EXPANSIONS = 128;
+const MAX_PATTERN_LENGTH = 4096;
+const COMPLEX_PATTERN_MATCH = {
+  id: 'read-secret-pattern',
+  reason: 'Path pattern is too complex to verify safely. Use explicit non-secret paths instead.',
+};
+
+function stripOuterQuotes(value) {
+  const trimmed = value.trim();
+  if (trimmed.length < 2) return trimmed;
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  return (first === '"' || first === "'") && first === last ? trimmed.slice(1, -1) : trimmed;
+}
+
+function normalizeConcretePath(filePath) {
+  return stripOuterQuotes(String(filePath == null ? '' : filePath)).replace(/\\/g, '/');
+}
+
+function isAllowlistedPath(filePath) {
+  return ALLOWLIST.some((allow) => allow.test(filePath));
+}
+
 function matchFilePath(filePath) {
-  const text = String(filePath == null ? '' : filePath);
+  const text = normalizeConcretePath(filePath);
   if (!text) return null;
-  for (const allow of ALLOWLIST) {
-    if (allow.test(text)) return null;
-  }
+  if (isAllowlistedPath(text)) return null;
   for (const p of PATTERNS) {
     if (p.regex.test(text)) return p;
   }
   return null;
 }
 
+function splitBraceAlternatives(body) {
+  const alternatives = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < body.length; index += 1) {
+    const character = body[index];
+    if (character === '\\' && index + 1 < body.length) {
+      index += 1;
+      continue;
+    }
+    if (character === '{') depth += 1;
+    else if (character === '}') depth -= 1;
+    else if (character === ',' && depth === 0) {
+      alternatives.push(body.slice(start, index));
+      start = index + 1;
+    }
+  }
+  alternatives.push(body.slice(start));
+  return alternatives.length > 1 ? alternatives : null;
+}
+
+function firstExpandableBrace(value) {
+  const stack = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '\\' && index + 1 < value.length) {
+      index += 1;
+      continue;
+    }
+    if (character === '{') {
+      stack.push(index);
+      continue;
+    }
+    if (character !== '}' || stack.length === 0) continue;
+    const start = stack.pop();
+    const alternatives = splitBraceAlternatives(value.slice(start + 1, index));
+    if (alternatives) return { start, end: index, alternatives };
+  }
+  return null;
+}
+
+function expandBraces(value) {
+  const queue = [value];
+  const expanded = [];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const group = firstExpandableBrace(current);
+    if (!group) {
+      expanded.push(current);
+      continue;
+    }
+    if (queue.length + expanded.length + group.alternatives.length > MAX_PATTERN_EXPANSIONS) {
+      return { values: expanded.concat(queue, current), truncated: true };
+    }
+    for (const alternative of group.alternatives) {
+      queue.push(current.slice(0, group.start) + alternative + current.slice(group.end + 1));
+    }
+  }
+  return { values: expanded, truncated: false };
+}
+
+const MAX_CODE_UNIT = 0xffff;
+const SLASH_CODE_UNIT = '/'.charCodeAt(0);
+const NO_SLASH_RANGES = [
+  [0, SLASH_CODE_UNIT - 1],
+  [SLASH_CODE_UNIT + 1, MAX_CODE_UNIT],
+];
+const ALL_RANGES = [[0, MAX_CODE_UNIT]];
+const PROTECTED_GLOBS = [
+  { id: 'read-dotenv', caseInsensitive: false, patterns: ['.env', '**/.env', '.env.*', '**/.env.*'] },
+  {
+    id: 'read-ssh-key',
+    caseInsensitive: false,
+    patterns: ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', '**/id_rsa', '**/id_dsa', '**/id_ecdsa', '**/id_ed25519'],
+  },
+  {
+    id: 'read-aws-credentials',
+    caseInsensitive: false,
+    patterns: ['.aws/credentials', '**/.aws/credentials'],
+  },
+  {
+    id: 'read-gcp-credentials',
+    caseInsensitive: true,
+    patterns: ['credentials', 'tokens', 'adc', 'application_default'].flatMap((marker) => [
+      `.config/gcloud/*${marker}*`,
+      `.config/gcloud/*${marker}*/**`,
+      `**/.config/gcloud/*${marker}*`,
+      `**/.config/gcloud/*${marker}*/**`,
+    ]),
+  },
+  {
+    id: 'read-gcp-service-account',
+    caseInsensitive: true,
+    patterns: [
+      '*service-account*.json',
+      '*service_account*.json',
+      '*serviceaccount*.json',
+      'service_account_key.json',
+      '**/*service-account*.json',
+      '**/*service_account*.json',
+      '**/*serviceaccount*.json',
+      '**/service_account_key.json',
+    ],
+  },
+  {
+    id: 'read-key-material',
+    caseInsensitive: true,
+    patterns: ['*.pem', '*.key', '**/*.pem', '**/*.key'],
+  },
+  { id: 'read-netrc', caseInsensitive: false, patterns: ['.netrc', '**/.netrc'] },
+];
+
+function normalizeRanges(ranges) {
+  const sorted = ranges
+    .map(([start, end]) => [Math.max(0, Math.min(start, end)), Math.min(MAX_CODE_UNIT, Math.max(start, end))])
+    .filter(([start, end]) => start <= end)
+    .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+  const merged = [];
+  for (const range of sorted) {
+    const previous = merged[merged.length - 1];
+    if (!previous || range[0] > previous[1] + 1) merged.push([...range]);
+    else previous[1] = Math.max(previous[1], range[1]);
+  }
+  return merged;
+}
+
+function subtractRanges(base, excluded) {
+  let result = normalizeRanges(base);
+  for (const [excludeStart, excludeEnd] of normalizeRanges(excluded)) {
+    const next = [];
+    for (const [start, end] of result) {
+      if (excludeEnd < start || excludeStart > end) next.push([start, end]);
+      else {
+        if (excludeStart > start) next.push([start, excludeStart - 1]);
+        if (excludeEnd < end) next.push([excludeEnd + 1, end]);
+      }
+    }
+    result = next;
+  }
+  return result;
+}
+
+function rangesIntersect(left, right) {
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const [leftStart, leftEnd] = left[leftIndex];
+    const [rightStart, rightEnd] = right[rightIndex];
+    if (Math.max(leftStart, rightStart) <= Math.min(leftEnd, rightEnd)) return true;
+    if (leftEnd < rightEnd) leftIndex += 1;
+    else rightIndex += 1;
+  }
+  return false;
+}
+
+function literalRanges(character, caseInsensitive) {
+  const variants = new Set([character]);
+  if (caseInsensitive && /[A-Za-z]/.test(character)) {
+    variants.add(character.toLowerCase());
+    variants.add(character.toUpperCase());
+  }
+  return normalizeRanges([...variants].map((value) => {
+    const code = value.charCodeAt(0);
+    return [code, code];
+  }));
+}
+
+function parseCharacterClass(pattern, start) {
+  let searchFrom = start + 1;
+  if (pattern[searchFrom] === '!' || pattern[searchFrom] === '^') searchFrom += 1;
+  if (pattern[searchFrom] === ']') searchFrom += 1;
+  let end = searchFrom;
+  while (end < pattern.length && pattern[end] !== ']') end += 1;
+  if (end >= pattern.length) return null;
+
+  let body = pattern.slice(start + 1, end);
+  let negated = false;
+  if (body.startsWith('!') || body.startsWith('^')) {
+    negated = true;
+    body = body.slice(1);
+  }
+  if (!body) return null;
+
+  const ranges = [];
+  for (let index = 0; index < body.length; index += 1) {
+    const startCode = body.charCodeAt(index);
+    if (index + 2 < body.length && body[index + 1] === '-') {
+      ranges.push([startCode, body.charCodeAt(index + 2)]);
+      index += 2;
+    } else {
+      ranges.push([startCode, startCode]);
+    }
+  }
+  const normalized = normalizeRanges(ranges);
+  return {
+    end,
+    ranges: negated ? subtractRanges(NO_SLASH_RANGES, normalized) : subtractRanges(normalized, [[SLASH_CODE_UNIT, SLASH_CODE_UNIT]]),
+  };
+}
+
+function tokenizeGlob(pattern, caseInsensitive = false) {
+  const tokens = [];
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (character === '*') {
+      let end = index;
+      while (pattern[end + 1] === '*') end += 1;
+      const recursive = end > index;
+      tokens.push({ star: true, ranges: recursive ? ALL_RANGES : NO_SLASH_RANGES });
+      index = end;
+      continue;
+    }
+    if (character === '?') {
+      tokens.push({ star: false, ranges: NO_SLASH_RANGES });
+      continue;
+    }
+    if (character === '[') {
+      const characterClass = parseCharacterClass(pattern, index);
+      if (characterClass) {
+        tokens.push({ star: false, ranges: characterClass.ranges });
+        index = characterClass.end;
+        continue;
+      }
+    }
+    tokens.push({ star: false, ranges: literalRanges(character, caseInsensitive) });
+  }
+  return tokens;
+}
+
+function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive) {
+  const left = tokenizeGlob(leftPattern);
+  const right = tokenizeGlob(rightPattern, rightCaseInsensitive);
+  const queue = [[0, 0]];
+  const seen = new Set();
+  let queueIndex = 0;
+
+  while (queueIndex < queue.length) {
+    const [leftIndex, rightIndex] = queue[queueIndex];
+    queueIndex += 1;
+    const key = `${leftIndex}:${rightIndex}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (leftIndex === left.length && rightIndex === right.length) return true;
+
+    const leftToken = left[leftIndex];
+    const rightToken = right[rightIndex];
+    if (leftToken?.star) queue.push([leftIndex + 1, rightIndex]);
+    if (rightToken?.star) queue.push([leftIndex, rightIndex + 1]);
+    if (!leftToken || !rightToken || !rangesIntersect(leftToken.ranges, rightToken.ranges)) continue;
+
+    queue.push([
+      leftToken.star ? leftIndex : leftIndex + 1,
+      rightToken.star ? rightIndex : rightIndex + 1,
+    ]);
+  }
+  return false;
+}
+
+function matchPathPattern(filePath) {
+  const normalized = normalizeConcretePath(filePath);
+  const direct = matchFilePath(normalized);
+  if (direct || !/[*?[\]{}]/.test(normalized)) return direct;
+  if (
+    normalized.length > MAX_PATTERN_LENGTH
+    || normalized.includes('[[:')
+    || normalized.includes('[[.')
+    || normalized.includes('[[=')
+  ) return COMPLEX_PATTERN_MATCH;
+
+  const braces = expandBraces(normalized);
+  if (braces.truncated) return COMPLEX_PATTERN_MATCH;
+  for (const expanded of braces.values) {
+    if (/[{}]/.test(expanded)) return COMPLEX_PATTERN_MATCH;
+    if (isAllowlistedPath(expanded)) continue;
+    const exact = matchFilePath(expanded);
+    if (exact) return exact;
+    if (!/[*?[\]]/.test(expanded)) continue;
+    for (const protectedGroup of PROTECTED_GLOBS) {
+      for (const protectedPattern of protectedGroup.patterns) {
+        if (globPatternsIntersect(expanded, protectedPattern, protectedGroup.caseInsensitive)) {
+          return PATTERNS.find((pattern) => pattern.id === protectedGroup.id) || COMPLEX_PATTERN_MATCH;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeShellToken(token) {
+  return token.replace(/^[('"`]+/, '').replace(/[)'"`,]+$/, '');
+}
+
+function decodeCodePoint(value, radix) {
+  const codePoint = Number.parseInt(value, radix);
+  return Number.isSafeInteger(codePoint) && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : '\uFFFD';
+}
+
+function decodeAnsiCString(value) {
+  const escapes = { a: '\x07', b: '\b', e: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v' };
+  return value
+    .replace(/\\x([0-9a-fA-F]{1,2})/g, (_match, hex) => decodeCodePoint(hex, 16))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) => decodeCodePoint(hex, 16))
+    .replace(/\\U([0-9a-fA-F]{8})/g, (_match, hex) => decodeCodePoint(hex, 16))
+    .replace(/\\([0-7]{1,3})/g, (_match, octal) => decodeCodePoint(octal, 8))
+    .replace(/\\([abefnrtv\\'"?])/g, (_match, escaped) => escapes[escaped] ?? escaped);
+}
+
+function expandShellLiteralQuotes(text) {
+  return text
+    .replace(/\$'((?:\\.|[^'])*)'/g, (_match, body) => decodeAnsiCString(body))
+    .replace(/\$"/g, '"');
+}
+
+function tokenizeShellWords(text) {
+  const source = expandShellLiteralQuotes(text);
+  const tokens = [];
+  let token = '';
+  let quote = '';
+  const push = () => {
+    if (token) tokens.push(token);
+    token = '';
+  };
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote === "'") {
+      if (character === "'") quote = '';
+      else token += character;
+      continue;
+    }
+    if (quote === '"' || quote === '`') {
+      if (character === quote) {
+        quote = '';
+        continue;
+      }
+      if (character === '\\' && index + 1 < source.length) {
+        const next = source[index + 1];
+        if (next === '\n') {
+          index += 1;
+          continue;
+        }
+        if (quote === '`' || '$`"\\'.includes(next)) {
+          token += next;
+          index += 1;
+          continue;
+        }
+      }
+      token += character;
+      continue;
+    }
+
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character;
+      continue;
+    }
+    if (character === '\\' && index + 1 < source.length) {
+      const next = source[index + 1];
+      if (next !== '\n') token += next;
+      index += 1;
+      continue;
+    }
+    if (/[\s|;&<>()]/.test(character)) {
+      push();
+      continue;
+    }
+    token += character;
+  }
+  push();
+  return tokens;
+}
+
+function unwrapApplyPatchHeredoc(lines) {
+  let start = 0;
+  let end = lines.length;
+  while (start < end && lines[start].trim() === '') start += 1;
+  while (end > start && lines[end - 1].trim() === '') end -= 1;
+  const trimmed = lines.slice(start, end);
+  const first = trimmed[0]?.trim();
+  const last = trimmed[trimmed.length - 1]?.trim();
+  if (trimmed.length >= 2 && ['<<EOF', "<<'EOF'", '<<"EOF"'].includes(first) && last === 'EOF') {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function matchApplyPatchPayload(text) {
+  const lines = unwrapApplyPatchHeredoc(text.split('\n').map((line) => line.replace(/\r$/, '')));
+  const firstContentLine = lines.find((line) => line.trim() !== '') || '';
+  if (!/^\s*\*{3}\s+Begin Patch\s*$/.test(firstContentLine)) return { recognized: false, hit: null };
+
+  for (const line of lines) {
+    const target = /^\s*\*{3}\s+(?:Add|Update|Delete) File:\s*(.*?)\s*$/.exec(line)?.[1]
+      || /^\s*\*{3}\s+Move to:\s*(.*?)\s*$/.exec(line)?.[1];
+    if (!target) continue;
+    const hit = matchPathPattern(target);
+    if (hit) return { recognized: true, hit };
+  }
+  return { recognized: true, hit: null };
+}
+
 function matchBashCommand(command) {
   const text = String(command == null ? '' : command);
   if (!text) return null;
-  // Tokenize on whitespace + shell separators, then apply the same path
-  // matcher (which consults ALLOWLIST) to each token. Any reference to a
-  // secret path — read, write, move, delete, list — is treated as a hit.
-  const tokens = text.split(/[\s|;&]+/).filter(Boolean);
-  for (const tok of tokens) {
-    const hit = matchFilePath(tok);
-    if (hit) return hit;
+  const patch = matchApplyPatchPayload(text);
+  if (patch.recognized) return patch.hit;
+  // Parse shell words so adjacent quoted fragments and backslash escapes are
+  // inspected as the path Bash will actually pass to the command.
+  const tokens = tokenizeShellWords(text);
+  for (const token of tokens) {
+    const candidates = [token, ...token.split(/\s+/)].filter(Boolean);
+    for (const candidate of candidates) {
+      const hit = matchPathPattern(normalizeShellToken(candidate));
+      if (hit) return hit;
+    }
   }
   return null;
 }
@@ -136,4 +561,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { PATTERNS, ALLOWLIST, matchFilePath, matchBashCommand };
+module.exports = { PATTERNS, ALLOWLIST, matchFilePath, matchPathPattern, matchBashCommand };
