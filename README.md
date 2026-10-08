@@ -139,6 +139,8 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) plus an OMP-native ESM 
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
+The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes and key-material extensions remain protected. JSON query text is separate from its file target, and URI targets are percent-decoded once before matching. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
+
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
 ---
@@ -163,6 +165,8 @@ omp plugin install harness-flow@harness-flow
 ```
 
 OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule applies only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`, so the native adapter provides the Bash and secret guards. The caveman SessionStart hook remains Claude/Codex-only.
+
+Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native rules and hooks without changing the installed plugin.
 
 ### Claude Code A) Git marketplace (recommended)
 

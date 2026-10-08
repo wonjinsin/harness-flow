@@ -7,8 +7,9 @@ const { matchBashCommand, matchPathPattern } = secretGuard;
 const FILE_TOOLS = new Set(['read', 'grep', 'glob', 'edit', 'write', 'multiedit', 'multi_edit', 'delete', 'ast_edit']);
 const PATCH_TOOLS = new Set(['apply_patch', 'patch']);
 const HASHLINE_PATH_TOOLS = new Set(['edit', 'write', 'multiedit', 'multi_edit', 'delete']);
-const RECURSIVE_BARE_GLOB_TOOLS = new Set(['grep', 'glob', 'ast_edit']);
+const SEARCH_TOOLS = new Set(['grep', 'glob', 'ast_edit']);
 const READ_SELECTOR_RE = /:(?:raw|conflicts|img|-\d+|L?\d+(?:(?:\.\.|[-+])L?\d*)?(?:,L?\d+(?:(?:\.\.|[-+])L?\d*)?)*)$/i;
+const QUERY_START_RE = /^\?[a-z_][\w-]*=/i;
 const HASHLINE_TAG_RE = /#[0-9a-fA-F]{4}$/;
 const EDIT_FILE_HEADER_RE = /^\s*\*{3}\s+(?:Add|Update|Delete)\s+File\s*:\s*(.+?)\s*$/i;
 const EDIT_MOVE_HEADER_RE = /^\s*\*{3}\s+Move\s+to\s*:\s*(.+?)\s*$/i;
@@ -79,6 +80,8 @@ function stripReadSelectors(value) {
 function splitTopLevelPathList(value) {
   const parts = [];
   let braceDepth = 0;
+  let quote = '';
+  let query = false;
   let start = 0;
 
   for (let index = 0; index < value.length; index += 1) {
@@ -87,6 +90,15 @@ function splitTopLevelPathList(value) {
       index += 1;
       continue;
     }
+    if (quote) {
+      if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '?' && QUERY_START_RE.test(value.slice(index))) query = true;
     if (character === '{') {
       braceDepth += 1;
       continue;
@@ -95,9 +107,10 @@ function splitTopLevelPathList(value) {
       if (braceDepth > 0) braceDepth -= 1;
       continue;
     }
-    if (braceDepth !== 0 || (!/[\s,;]/.test(character))) continue;
+    if (braceDepth !== 0 || (query ? character !== ';' : !/[\s,;]/.test(character))) continue;
     parts.push(value.slice(start, index));
     start = index + 1;
+    query = false;
   }
 
   parts.push(value.slice(start));
@@ -223,16 +236,30 @@ function collectPathValues(toolName, input) {
   });
 }
 
+function stripPathQuery(toolName, value) {
+  const index = value.indexOf('?');
+  if (index < 0) return value;
+  const uri = /^[a-z][a-z\d+.-]*:\/\//i.test(value);
+  const fileQuery = (toolName === 'read' || toolName === 'grep') && QUERY_START_RE.test(value.slice(index));
+  return uri || fileQuery ? value.slice(0, index) : value;
+}
+
 function canonicalizePath(toolName, value) {
   let path = decodeQuotedPathLiteral(value);
   if (HASHLINE_PATH_TOOLS.has(toolName)) path = unwrapHashlineHeader(path);
-  return stripReadSelectors(decodeQuotedPathLiteral(path)).trim();
+  path = stripReadSelectors(stripPathQuery(toolName, decodeQuotedPathLiteral(path))).trim();
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(path)) {
+    try {
+      return decodeURIComponent(path);
+    } catch {
+      // Malformed URI encodings are rejected by the runtime before file access.
+    }
+  }
+  return path;
 }
 
 function expandCompoundPathTargets(value) {
   const targets = new Set([value]);
-  const queryIndex = value.indexOf('?');
-  if (queryIndex > 0) targets.add(value.slice(0, queryIndex));
   for (let index = 0; index < value.length; index += 1) {
     if (value[index] !== ':') continue;
     const suffix = value.slice(index + 1).replace(/^:+/, '');
@@ -241,25 +268,14 @@ function expandCompoundPathTargets(value) {
   return targets;
 }
 
-function recursiveBareGlob(toolName, value) {
-  const normalized = value.replace(/\\/g, '/');
-  return RECURSIVE_BARE_GLOB_TOOLS.has(toolName)
-    && !normalized.includes('/')
-    && /[*?[{]/.test(normalized)
-    ? `**/${normalized}`
-    : null;
-}
 
 function matchProtectedPath(toolName, input) {
   for (const path of collectPathValues(toolName, input)) {
     const canonical = canonicalizePath(toolName, path);
     for (const target of expandCompoundPathTargets(canonical)) {
       const normalizedTarget = stripReadSelectors(target);
-      const candidates = [normalizedTarget, recursiveBareGlob(toolName, normalizedTarget)].filter(Boolean);
-      for (const candidate of candidates) {
-        const match = matchPathPattern(candidate);
-        if (match) return match;
-      }
+      const match = matchPathPattern(normalizedTarget, { search: SEARCH_TOOLS.has(toolName) });
+      if (match) return match;
     }
   }
   return null;

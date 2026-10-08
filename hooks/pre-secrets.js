@@ -345,7 +345,7 @@ function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive, 
   return false;
 }
 
-function matchPathPattern(filePath, shellEncoded = false) {
+function matchPathPattern(filePath, { shellEncoded = false, search = false } = {}) {
   const normalized = normalizeConcretePath(filePath);
   const direct = matchFilePath(normalized);
   if (direct || !/[*?[\]{}]/.test(normalized)) return direct;
@@ -358,16 +358,31 @@ function matchPathPattern(filePath, shellEncoded = false) {
 
   const braces = expandBraces(normalized);
   if (braces.truncated) return COMPLEX_PATTERN_MATCH;
+  // Search traversal does not establish a protected directory scope. Inspect
+  // the components the caller actually names instead of inventing hidden
+  // credential directories under every recursive wildcard.
   for (const expanded of braces.values) {
     if (/[{}]/.test(expanded)) return COMPLEX_PATTERN_MATCH;
     if (isAllowlistedPath(expanded)) continue;
     const exact = matchFilePath(expanded);
     if (exact) return exact;
     if (!/[*?[\]]/.test(expanded)) continue;
+    const inspected = search ? expanded.split('/').filter((part) => part !== '**').join('/') : expanded;
+    const basename = inspected.slice(inspected.lastIndexOf('/') + 1);
+    const extensionIndex = basename.lastIndexOf('.');
+    const hasExtension = extensionIndex > 0;
+    const stem = hasExtension ? basename.slice(0, extensionIndex) : basename;
+    const broadBasename = search && !stem.replace(/\[[^\]]*\]|[*?]/g, '');
     const wildcardExclusions = shellEncoded ? SHELL_LITERAL_GLOB_RANGES : [];
     for (const pattern of PATTERNS) {
       for (const protectedGlob of pattern.globs) {
-        if (globPatternsIntersect(expanded, protectedGlob, pattern.caseInsensitive, wildcardExclusions)) return pattern;
+        const protectedName = protectedGlob.replace(/^\*\*\//, '');
+        if (
+          broadBasename
+          && !protectedName.includes('/')
+          && !(hasExtension && protectedName.startsWith('*.'))
+        ) continue;
+        if (globPatternsIntersect(inspected, protectedGlob, pattern.caseInsensitive, wildcardExclusions)) return pattern;
       }
     }
   }
@@ -697,7 +712,7 @@ function matchBashCommand(command, substitutionDepth = 0) {
   for (const token of tokens) {
     const value = normalizeShellToken(token.value);
     const hit = token.hasUnquotedGlob
-      ? matchPathPattern(normalizeShellToken(token.globPattern), true)
+      ? matchPathPattern(normalizeShellToken(token.globPattern), { shellEncoded: true })
       : matchFilePath(value);
     if (hit) return hit;
 

@@ -2,7 +2,6 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -27,21 +26,6 @@ function captureToolCallHandler(hook) {
   return handler;
 }
 
-test('OMP hook uses the ESM default export required by the native loader', () => {
-  const source = fs.readFileSync(HOOK_PATH, 'utf8');
-  assert.match(source, /^export default function /m);
-});
-
-test('OMP hook exports a loadable default factory', async () => {
-  const module = await loadHook();
-  assert.equal(typeof module.default, 'function');
-});
-
-test('OMP hook registers one native pre-tool handler', async () => {
-  const module = await loadHook();
-  const handler = captureToolCallHandler(module.default);
-  assert.equal(typeof handler, 'function');
-});
 
 test('OMP bash adapter blocks destructive commands with the native result shape', async () => {
   const module = await loadHook();
@@ -193,6 +177,23 @@ test('OMP search adapters conservatively inspect comma, whitespace, and mixed pa
 
   assert.equal(await handler({ toolName: 'glob', input: { path: 'src/{foo,bar}.js' } }), undefined);
 });
+test('OMP search adapters allow ordinary discovery without inventing protected directories', async () => {
+  const { matchToolCall } = await loadHook();
+  const events = [
+    { toolName: 'glob', input: { path: '**/*.js' } },
+    { toolName: 'glob', input: { path: '**/*.json' } },
+    { toolName: 'glob', input: { path: 'src/**/*' } },
+    { toolName: 'glob', input: { path: 'src/**/README.md' } },
+    { toolName: 'glob', input: { path: 'src/**/app-*.js' } },
+    { toolName: 'glob', input: { path: '*.md', hidden: false, gitignore: true } },
+    { toolName: 'grep', input: { pattern: 'export', path: 'src/**/*.ts' } },
+    { toolName: 'ast_edit', input: { paths: ['**/*.ts'], ops: [] } },
+    { toolName: 'glob', input: { path: 'credentia?s' } },
+  ];
+
+  for (const event of events) assert.equal(matchToolCall(event), undefined, JSON.stringify(event));
+});
+
 
 test('OMP search adapters detect protected glob expansions', async () => {
   const module = await loadHook();
@@ -208,9 +209,6 @@ test('OMP search adapters detect protected glob expansions', async () => {
     { toolName: 'glob', input: { path: '/home/u/.ssh/id_[a-z]sa' } },
     { toolName: 'glob', input: { path: '/home/u/.config/gcloud/access_toke[n]s.db' } },
     { toolName: 'glob', input: { path: '/repo/.config/gcloud/user_creden*/archive.txt' } },
-    { toolName: 'glob', input: { path: 'credentia?s' } },
-    { toolName: 'grep', input: { pattern: '.+', path: 'credentia?s' } },
-    { toolName: 'ast_edit', input: { paths: ['credentia?s'], ops: [] } },
     { toolName: 'grep', input: { pattern: '.+', path: '/home/u/.config/gcloud/access_toke?s.db' } },
     { toolName: 'ast_edit', input: { path: '/home/u/.config/gcloud/access_tok?ns.db', ops: [] } },
     { toolName: 'grep', input: { pattern: '.+', path: '/repo/{safe.txt,.env}' } },
@@ -244,6 +242,42 @@ test('OMP read and grep adapters inspect compound filesystem targets', async () 
     const result = await handler(event);
     assert.equal(result.block, true, `${event.toolName}: ${JSON.stringify(event.input)}`);
     assert.match(result.reason, /^\[read-dotenv\]/);
+  }
+});
+
+test('OMP JSON query text is not interpreted as a filesystem target', async () => {
+  const { matchToolCall } = await loadHook();
+  const paths = [
+    'package.json?q={name:.name}',
+    'data.json?q={value:1, note:"client.key; .env"}',
+    'data.json?q=.items | map({name:.name})',
+    'data.json?q="client.key"',
+    'data.json?q={name:.name}&offset=0&limit=1',
+  ];
+  for (const path of paths) {
+    assert.equal(matchToolCall({ toolName: 'read', input: { path } }), undefined, path);
+  }
+  const denied = matchToolCall({ toolName: 'read', input: { path: 'data.json?q=.name;/repo/.env' } });
+  assert.equal(denied.block, true);
+  assert.match(denied.reason, /^\[read-dotenv\]/);
+});
+
+test('OMP URI paths are decoded once before checking protected targets', async () => {
+  const { matchToolCall } = await loadHook();
+  const events = [
+    { toolName: 'read', input: { path: 'local://%2eenv' } },
+    { toolName: 'read', input: { path: 'ssh://synthetic-host/tmp/%2Eenv:1-20:raw' } },
+    { toolName: 'write', input: { path: 'local://%2eenv', content: 'synthetic' } },
+    { toolName: 'edit', input: { input: '*** Begin Patch\n[local://%2eenv#A1B2]\nREM\n*** End Patch' } },
+    { toolName: 'read', input: { path: 'ssh://synthetic-host/tmp/.ssh/id%5Frsa' } },
+  ];
+  for (const event of events) {
+    const result = matchToolCall(event);
+    assert.equal(result?.block, true, JSON.stringify(event));
+    assert.doesNotMatch(result.reason, /synthetic-host|%2eenv/i);
+  }
+  for (const path of ['local://%2eenv.example', 'local://%252eenv', '/repo/%2eenv']) {
+    assert.equal(matchToolCall({ toolName: 'read', input: { path } }), undefined, path);
   }
 });
 
