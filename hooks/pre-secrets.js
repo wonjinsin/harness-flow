@@ -114,8 +114,8 @@ function escapeGlobLiteral(value) {
   return value.replace(/\[/g, '[[]').replace(/\*/g, '[*]').replace(/\?/g, '[?]');
 }
 
-function matchFilePath(filePath) {
-  const text = normalizeConcretePath(filePath);
+function matchFilePath(filePath, { literal = false } = {}) {
+  const text = literal ? String(filePath == null ? '' : filePath) : normalizeConcretePath(filePath);
   if (!text) return null;
   if (isAllowlistedPath(text)) return null;
   const literalPattern = escapeGlobLiteral(text);
@@ -356,6 +356,12 @@ for (const pattern of PATTERNS) {
   }
 }
 
+function hasLiteralGlobText(value) {
+  return tokenizeGlob(value).some((token) => (
+    !token.star && token.ranges.length === 1 && token.ranges[0][0] === token.ranges[0][1]
+  ));
+}
+
 function inspectSearchPattern(value) {
   const parts = value.split('/');
   const inspected = [];
@@ -368,7 +374,7 @@ function inspectSearchPattern(value) {
       continue;
     }
     inspected.push(part);
-    if (!scoped && part.replace(/\[[^\]]*\]|[*?]/g, '')) {
+    if (!scoped && hasLiteralGlobText(part)) {
       const prefix = inspected.join('/');
       for (const { scope, caseInsensitive } of SEARCH_SCOPES.values()) {
         if (
@@ -394,7 +400,8 @@ function matchPathPattern(filePath, { shellEncoded = false, search = false, uri 
       return null;
     }
   }
-  const direct = matchFilePath(normalized);
+  const literal = uri && process.platform !== 'win32';
+  const direct = matchFilePath(normalized, { literal });
   if (direct || !/[*?[\]{}]/.test(normalized)) return direct;
   if (
     normalized.length > MAX_PATTERN_LENGTH
@@ -411,7 +418,7 @@ function matchPathPattern(filePath, { shellEncoded = false, search = false, uri 
   for (const expanded of braces.values) {
     if (/[{}]/.test(expanded)) return COMPLEX_PATTERN_MATCH;
     if (isAllowlistedPath(expanded)) continue;
-    const exact = matchFilePath(expanded);
+    const exact = matchFilePath(expanded, { literal });
     if (exact) return exact;
     if (!/[*?[\]]/.test(expanded)) continue;
     const inspected = search ? inspectSearchPattern(expanded) : expanded;
@@ -419,7 +426,7 @@ function matchPathPattern(filePath, { shellEncoded = false, search = false, uri 
     const extensionIndex = basename.lastIndexOf('.');
     const hasExtension = extensionIndex > 0;
     const stem = hasExtension ? basename.slice(0, extensionIndex) : basename;
-    const broadBasename = search && !stem.replace(/\[[^\]]*\]|[*?]/g, '');
+    const broadBasename = search && !hasLiteralGlobText(stem);
     const wildcardExclusions = shellEncoded || uri ? SHELL_LITERAL_GLOB_RANGES : [];
     for (const pattern of PATTERNS) {
       for (const protectedGlob of pattern.globs) {

@@ -127,7 +127,7 @@ function splitTopLevelPathList(value) {
   return parts.map((part) => part.trim()).filter(Boolean);
 }
 
-function expandStringPathValue(value) {
+function expandStringPathValue(value, toolName) {
   const trimmed = value.trim();
   if (
     (trimmed.startsWith('[') && trimmed.endsWith(']'))
@@ -135,21 +135,28 @@ function expandStringPathValue(value) {
   ) {
     try {
       const parsed = JSON.parse(trimmed);
-      if (typeof parsed === 'string') return expandStringPathValue(parsed);
+      if (typeof parsed === 'string') return expandStringPathValue(parsed, toolName);
       if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
-        return parsed.flatMap(expandStringPathValue);
+        return parsed.flatMap((item) => expandStringPathValue(item, toolName));
       }
     } catch {
       // Preserve non-JSON quoted paths and hashline headers for list parsing.
     }
   }
   if (trimmed.startsWith("'") && trimmed.endsWith("'") && !trimmed.slice(1, -1).includes("'")) {
-    return expandStringPathValue(trimmed.slice(1, -1));
+    return expandStringPathValue(trimmed.slice(1, -1), toolName);
   }
-  // Only real list entries carry URI decoding semantics; never inspect the
-  // unsplit list as an additional URI containing unrelated filesystem names.
+  if (
+    URI_RE.test(trimmed)
+    && (!trimmed.includes(';') || (toolName !== 'read' && !SEARCH_TOOLS.has(toolName)))
+  ) return [{ path: trimmed, literal: false }];
   const parts = splitTopLevelPathList(trimmed);
-  return parts.length > 0 ? parts : [trimmed];
+  // Existing literal paths take precedence over delimiter recovery. Inspect
+  // that spelling without transferring URI decoding to unrelated list entries.
+  return [
+    ...(parts.length > 1 && !URI_RE.test(trimmed) ? [{ path: trimmed, literal: true }] : []),
+    ...(parts.length > 0 ? parts : [trimmed]).map((path) => ({ path, literal: false })),
+  ];
 }
 
 function unwrapEditHeredoc(lines) {
@@ -242,19 +249,26 @@ function collectPathValues(toolName, input) {
   }
 
   return values.flatMap((value) => {
-    if (typeof value === 'string') return expandStringPathValue(value);
+    if (typeof value === 'string') return expandStringPathValue(value, toolName);
     if (Array.isArray(value)) {
-      return value.filter((item) => typeof item === 'string').flatMap(expandStringPathValue);
+      return value.filter((item) => typeof item === 'string').flatMap((item) => expandStringPathValue(item, toolName));
     }
     return [];
   });
 }
 
 function stripPathQuery(toolName, value) {
-  const index = value.search(QUERY_START_RE);
+  const uri = URI_RE.test(value);
+  const index = uri && SEARCH_TOOLS.has(toolName) ? value.search(QUERY_START_RE) : value.indexOf('?');
   if (index < 0) return value;
-  const supportsQuery = URI_RE.test(value) || toolName === 'read' || toolName === 'grep';
-  return supportsQuery ? value.slice(0, index) : value;
+  const target = value.slice(0, index);
+  const query = value.slice(index + 1);
+  const json = /\.(?:jsonl?|ndjson)$/i.test(target);
+  const supportsQuery = uri || (toolName === 'read' && (json
+    ? Boolean(/(?:^|&)(?:q|query)=([^&]*)/.exec(query)?.[1])
+    : !/\.(?:sqlite3?|db3?)(?::|$)/i.test(target) && Boolean(new URLSearchParams(query).get('q'))
+  ));
+  return supportsQuery ? target : value;
 }
 
 function canonicalizePath(toolName, value) {
@@ -265,7 +279,7 @@ function canonicalizePath(toolName, value) {
 
 function decodeUriTarget(value) {
   try {
-    return decodeURIComponent(value);
+    return decodeURIComponent(value.replace(/\\/g, '/'));
   } catch {
     // Malformed URI encodings are rejected by the runtime before file access.
     return value;
@@ -284,14 +298,19 @@ function expandCompoundPathTargets(value) {
 
 
 function matchProtectedPath(toolName, input) {
-  for (const path of collectPathValues(toolName, input)) {
+  for (const { path, literal } of collectPathValues(toolName, input)) {
     const canonical = canonicalizePath(toolName, path);
     for (const target of expandCompoundPathTargets(canonical)) {
       const normalizedTarget = stripReadSelectors(target);
+      if (literal) {
+        const match = matchFilePath(normalizedTarget);
+        if (match) return match;
+        continue;
+      }
       const search = SEARCH_TOOLS.has(toolName);
       const uri = URI_RE.test(canonical) || URI_RE.test(target);
       const match = uri && !search
-        ? matchFilePath(decodeUriTarget(normalizedTarget))
+        ? matchFilePath(decodeUriTarget(normalizedTarget), { literal: process.platform !== 'win32' })
         : matchPathPattern(normalizedTarget, { search, uri });
       if (match) return match;
     }

@@ -139,7 +139,9 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) plus an OMP-native ESM 
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
-The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes retain recursive matching, and key-material extensions remain protected. JSON query text is separate from its file target; `?` remains a search wildcard unless it starts a `key=value` query. Path-list and URI syntax are split before each URI target is percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
+The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes retain recursive matching and literal paths containing delimiters. Singleton character classes preserve secret targeting, and key-material extensions remain protected.
+
+Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. In URI searches, `?` remains a wildcard unless it starts a `key=value` query. Path-list and URI syntax are split before each URI target is percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 

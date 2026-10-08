@@ -218,6 +218,19 @@ test('OMP traversal within a credential scope cannot hide protected subtrees', a
   }
 });
 
+test('OMP singleton character classes retain narrow secret targeting', async () => {
+  const { matchToolCall } = await loadHook();
+  const cases = [
+    ['/synthetic/.ssh/[i][d][_][r][s][a]', 'read-ssh-key'],
+    ['/synthetic/[.][c][o][n][f][i][g]/[g][c][l][o][u][d]/**/archive.txt', 'read-gcp-credentials'],
+  ];
+  for (const [path, id] of cases) {
+    const result = matchToolCall({ toolName: 'glob', input: { path, gitignore: false } });
+    assert.equal(result?.block, true, path);
+    assert.ok(result.reason.startsWith(`[${id}]`));
+  }
+});
+
 
 test('OMP search adapters detect protected glob expansions', async () => {
   const module = await loadHook();
@@ -286,6 +299,24 @@ test('OMP JSON query text is not interpreted as a filesystem target', async () =
   assert.match(denied.reason, /^\[read-dotenv\]/);
 });
 
+test('OMP query stripping respects native target eligibility', async () => {
+  const { matchToolCall } = await loadHook();
+  for (const path of [
+    '/synthetic/.config/gcloud/access?tag=tokens.txt',
+    '/synthetic/.config/gcloud/access.json?tag=adc.txt',
+  ]) {
+    const literal = matchToolCall({ toolName: 'read', input: { path } });
+    assert.equal(literal?.block, true, path);
+    assert.match(literal.reason, /^\[read-gcp-credentials\]/);
+  }
+  const uri = matchToolCall({
+    toolName: 'write',
+    input: { path: 'local://.env?ignored', content: 'synthetic' },
+  });
+  assert.equal(uri?.block, true);
+  assert.match(uri.reason, /^\[read-dotenv\]/);
+});
+
 test('OMP mixed path lists do not decode literal filesystem names as URI targets', async () => {
   const { matchToolCall } = await loadHook();
   const result = matchToolCall({
@@ -293,6 +324,19 @@ test('OMP mixed path lists do not decode literal filesystem names as URI targets
     input: { path: 'local://safe.txt;/synthetic/%2eenv' },
   });
   assert.equal(result, undefined);
+});
+
+test('OMP literal credential paths retain scope across path-list delimiters', async () => {
+  const { matchToolCall } = await loadHook();
+  for (const path of [
+    '/synthetic/.config/gcloud/user credentials/archive.txt',
+    '/synthetic/.config/gcloud/access,tokens.txt',
+    '/synthetic/.config/gcloud/adc;backup/archive.txt',
+  ]) {
+    const result = matchToolCall({ toolName: 'read', input: { path } });
+    assert.equal(result?.block, true, path);
+    assert.match(result.reason, /^\[read-gcp-credentials\]/);
+  }
 });
 
 test('OMP URI paths are decoded once before checking protected targets', async () => {
@@ -323,6 +367,15 @@ test('OMP encoded URI punctuation remains literal filename syntax', async () => 
     { toolName: 'glob', input: { path: 'local://reports/.en%3F' } },
   ];
   for (const event of events) assert.equal(matchToolCall(event), undefined, JSON.stringify(event));
+});
+
+test('OMP encoded URI backslashes remain literal POSIX filename characters', { skip: process.platform === 'win32' }, async () => {
+  const { matchToolCall } = await loadHook();
+  const result = matchToolCall({
+    toolName: 'write',
+    input: { path: 'local://reports/note%5C.env', content: 'synthetic' },
+  });
+  assert.equal(result, undefined);
 });
 
 test('OMP URI query markers do not erase active question-mark search globs', async () => {
