@@ -2,7 +2,7 @@ import bashGuard from '../pre-bash-commands.js';
 import secretGuard from '../pre-secrets.js';
 
 const { matchDangerous } = bashGuard;
-const { matchBashCommand, matchPathPattern } = secretGuard;
+const { matchBashCommand, matchFilePath, matchPathPattern } = secretGuard;
 
 const FILE_TOOLS = new Set(['read', 'grep', 'glob', 'edit', 'write', 'multiedit', 'multi_edit', 'delete', 'ast_edit']);
 const PATCH_TOOLS = new Set(['apply_patch', 'patch']);
@@ -10,6 +10,7 @@ const HASHLINE_PATH_TOOLS = new Set(['edit', 'write', 'multiedit', 'multi_edit',
 const SEARCH_TOOLS = new Set(['grep', 'glob', 'ast_edit']);
 const READ_SELECTOR_RE = /:(?:raw|conflicts|img|-\d+|L?\d+(?:(?:\.\.|[-+])L?\d*)?(?:,L?\d+(?:(?:\.\.|[-+])L?\d*)?)*)$/i;
 const QUERY_START_RE = /^\?[a-z_][\w-]*=/i;
+const URI_RE = /^[a-z][a-z\d+.-]*:\/\//i;
 const HASHLINE_TAG_RE = /#[0-9a-fA-F]{4}$/;
 const EDIT_FILE_HEADER_RE = /^\s*\*{3}\s+(?:Add|Update|Delete)\s+File\s*:\s*(.+?)\s*$/i;
 const EDIT_MOVE_HEADER_RE = /^\s*\*{3}\s+Move\s+to\s*:\s*(.+?)\s*$/i;
@@ -239,7 +240,7 @@ function collectPathValues(toolName, input) {
 function stripPathQuery(toolName, value) {
   const index = value.indexOf('?');
   if (index < 0) return value;
-  const uri = /^[a-z][a-z\d+.-]*:\/\//i.test(value);
+  const uri = URI_RE.test(value);
   const fileQuery = (toolName === 'read' || toolName === 'grep') && QUERY_START_RE.test(value.slice(index));
   return uri || fileQuery ? value.slice(0, index) : value;
 }
@@ -247,15 +248,16 @@ function stripPathQuery(toolName, value) {
 function canonicalizePath(toolName, value) {
   let path = decodeQuotedPathLiteral(value);
   if (HASHLINE_PATH_TOOLS.has(toolName)) path = unwrapHashlineHeader(path);
-  path = stripReadSelectors(stripPathQuery(toolName, decodeQuotedPathLiteral(path))).trim();
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(path)) {
-    try {
-      return decodeURIComponent(path);
-    } catch {
-      // Malformed URI encodings are rejected by the runtime before file access.
-    }
+  return stripReadSelectors(stripPathQuery(toolName, decodeQuotedPathLiteral(path))).trim();
+}
+
+function decodeUriTarget(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    // Malformed URI encodings are rejected by the runtime before file access.
+    return value;
   }
-  return path;
 }
 
 function expandCompoundPathTargets(value) {
@@ -274,7 +276,11 @@ function matchProtectedPath(toolName, input) {
     const canonical = canonicalizePath(toolName, path);
     for (const target of expandCompoundPathTargets(canonical)) {
       const normalizedTarget = stripReadSelectors(target);
-      const match = matchPathPattern(normalizedTarget, { search: SEARCH_TOOLS.has(toolName) });
+      const search = SEARCH_TOOLS.has(toolName);
+      const uri = URI_RE.test(canonical) || URI_RE.test(target);
+      const match = uri && !search
+        ? matchFilePath(decodeUriTarget(normalizedTarget))
+        : matchPathPattern(normalizedTarget, { search, uri });
       if (match) return match;
     }
   }

@@ -139,7 +139,7 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) plus an OMP-native ESM 
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
-The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes and key-material extensions remain protected. JSON query text is separate from its file target, and URI targets are percent-decoded once before matching. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
+The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes and key-material extensions remain protected. JSON query text is separate from its file target. URI syntax is split before percent-decoding targets once, so encoded filename punctuation stays literal. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 

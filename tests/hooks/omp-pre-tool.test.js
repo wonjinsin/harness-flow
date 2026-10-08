@@ -194,6 +194,16 @@ test('OMP search adapters allow ordinary discovery without inventing protected d
   for (const event of events) assert.equal(matchToolCall(event), undefined, JSON.stringify(event));
 });
 
+test('OMP recursive search tails retain explicitly named credential scopes', async () => {
+  const { matchToolCall } = await loadHook();
+  for (const path of ['/synthetic/.aws/**', '/synthetic/.config/gcloud/**']) {
+    assert.equal(matchToolCall({ toolName: 'glob', input: { path } })?.block, true, path);
+  }
+  for (const path of ['**', 'src/**']) {
+    assert.equal(matchToolCall({ toolName: 'glob', input: { path } }), undefined, path);
+  }
+});
+
 
 test('OMP search adapters detect protected glob expansions', async () => {
   const module = await loadHook();
@@ -279,6 +289,17 @@ test('OMP URI paths are decoded once before checking protected targets', async (
   for (const path of ['local://%2eenv.example', 'local://%252eenv', '/repo/%2eenv']) {
     assert.equal(matchToolCall({ toolName: 'read', input: { path } }), undefined, path);
   }
+});
+
+test('OMP encoded URI punctuation remains literal filename syntax', async () => {
+  const { matchToolCall } = await loadHook();
+  const events = [
+    { toolName: 'write', input: { path: 'local://reports/%2A.json', content: 'synthetic' } },
+    { toolName: 'write', input: { path: 'local://reports/note%3A.env', content: 'synthetic' } },
+    { toolName: 'read', input: { path: 'local://reports/.env%3Araw' } },
+    { toolName: 'glob', input: { path: 'local://reports/.en%3F' } },
+  ];
+  for (const event of events) assert.equal(matchToolCall(event), undefined, JSON.stringify(event));
 });
 
 test('OMP canonical edit adapter scans apply-patch, sloppy, and rename targets', async () => {

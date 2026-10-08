@@ -345,8 +345,16 @@ function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive, 
   return false;
 }
 
-function matchPathPattern(filePath, { shellEncoded = false, search = false } = {}) {
-  const normalized = normalizeConcretePath(filePath);
+function matchPathPattern(filePath, { shellEncoded = false, search = false, uri = false } = {}) {
+  let normalized = normalizeConcretePath(filePath);
+  if (uri) {
+    try {
+      normalized = normalized.replace(/(?:%[0-9a-f]{2})+/gi, (run) => encodeShellLiteralGlobs(decodeURIComponent(run)));
+    } catch {
+      // The runtime rejects malformed URI encodings before searching files.
+      return null;
+    }
+  }
   const direct = matchFilePath(normalized);
   if (direct || !/[*?[\]{}]/.test(normalized)) return direct;
   if (
@@ -367,13 +375,18 @@ function matchPathPattern(filePath, { shellEncoded = false, search = false } = {
     const exact = matchFilePath(expanded);
     if (exact) return exact;
     if (!/[*?[\]]/.test(expanded)) continue;
-    const inspected = search ? expanded.split('/').filter((part) => part !== '**').join('/') : expanded;
+    const inspected = search
+      ? expanded.split('/')
+        .filter((part, index, parts) => part !== '**' || index === parts.length - 1)
+        .map((part) => part === '**' ? '*' : part)
+        .join('/')
+      : expanded;
     const basename = inspected.slice(inspected.lastIndexOf('/') + 1);
     const extensionIndex = basename.lastIndexOf('.');
     const hasExtension = extensionIndex > 0;
     const stem = hasExtension ? basename.slice(0, extensionIndex) : basename;
     const broadBasename = search && !stem.replace(/\[[^\]]*\]|[*?]/g, '');
-    const wildcardExclusions = shellEncoded ? SHELL_LITERAL_GLOB_RANGES : [];
+    const wildcardExclusions = shellEncoded || uri ? SHELL_LITERAL_GLOB_RANGES : [];
     for (const pattern of PATTERNS) {
       for (const protectedGlob of pattern.globs) {
         const protectedName = protectedGlob.replace(/^\*\*\//, '');
