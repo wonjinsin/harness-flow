@@ -204,6 +204,20 @@ test('OMP recursive search tails retain explicitly named credential scopes', asy
   }
 });
 
+test('OMP traversal within a credential scope cannot hide protected subtrees', async () => {
+  const { matchToolCall } = await loadHook();
+  const paths = [
+    '/synthetic/.config/gcloud/**/archive.txt',
+    '/synthetic/.CONFIG/GCLOUD/**/archive.txt',
+    '/synthetic/.co[n]fig/gcloud/**/archive.txt',
+  ];
+  for (const path of paths) {
+    const result = matchToolCall({ toolName: 'grep', input: { path, pattern: 'SYNTHETIC' } });
+    assert.equal(result?.block, true, path);
+    assert.match(result.reason, /^\[read-gcp-credentials\]/);
+  }
+});
+
 
 test('OMP search adapters detect protected glob expansions', async () => {
   const module = await loadHook();
@@ -272,6 +286,15 @@ test('OMP JSON query text is not interpreted as a filesystem target', async () =
   assert.match(denied.reason, /^\[read-dotenv\]/);
 });
 
+test('OMP mixed path lists do not decode literal filesystem names as URI targets', async () => {
+  const { matchToolCall } = await loadHook();
+  const result = matchToolCall({
+    toolName: 'read',
+    input: { path: 'local://safe.txt;/synthetic/%2eenv' },
+  });
+  assert.equal(result, undefined);
+});
+
 test('OMP URI paths are decoded once before checking protected targets', async () => {
   const { matchToolCall } = await loadHook();
   const events = [
@@ -300,6 +323,16 @@ test('OMP encoded URI punctuation remains literal filename syntax', async () => 
     { toolName: 'glob', input: { path: 'local://reports/.en%3F' } },
   ];
   for (const event of events) assert.equal(matchToolCall(event), undefined, JSON.stringify(event));
+});
+
+test('OMP URI query markers do not erase active question-mark search globs', async () => {
+  const { matchToolCall } = await loadHook();
+  const events = [
+    { toolName: 'glob', input: { path: 'local://synthetic/.en?' } },
+    { toolName: 'glob', input: { path: 'local://synthetic/.en??limit=1' } },
+    { toolName: 'grep', input: { path: 'ssh://synthetic-host/tmp/.aws/credentia?s', pattern: 'SYNTHETIC' } },
+  ];
+  for (const event of events) assert.equal(matchToolCall(event)?.block, true, JSON.stringify(event));
 });
 
 test('OMP canonical edit adapter scans apply-patch, sloppy, and rename targets', async () => {

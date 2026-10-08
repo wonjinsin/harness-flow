@@ -345,6 +345,45 @@ function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive, 
   return false;
 }
 
+// Directory scopes are derived from the canonical rules, never a second policy.
+const SEARCH_SCOPES = new Map();
+for (const pattern of PATTERNS) {
+  for (const glob of pattern.globs) {
+    const directories = glob.replace(/^\*\*\//, '').split('/').slice(0, -1);
+    const firstWildcard = directories.findIndex((part) => /[*?[\]{}]/.test(part));
+    const scope = (firstWildcard < 0 ? directories : directories.slice(0, firstWildcard)).join('/');
+    if (scope) SEARCH_SCOPES.set(`${pattern.caseInsensitive}:${scope}`, { scope, caseInsensitive: pattern.caseInsensitive });
+  }
+}
+
+function inspectSearchPattern(value) {
+  const parts = value.split('/');
+  const inspected = [];
+  let scoped = false;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part === '**') {
+      if (scoped) inspected.push(part);
+      else if (index === parts.length - 1) inspected.push('*');
+      continue;
+    }
+    inspected.push(part);
+    if (!scoped && part.replace(/\[[^\]]*\]|[*?]/g, '')) {
+      const prefix = inspected.join('/');
+      for (const { scope, caseInsensitive } of SEARCH_SCOPES.values()) {
+        if (
+          globPatternsIntersect(prefix, scope, caseInsensitive)
+          || globPatternsIntersect(prefix, `**/${scope}`, caseInsensitive)
+        ) {
+          scoped = true;
+          break;
+        }
+      }
+    }
+  }
+  return inspected.join('/');
+}
+
 function matchPathPattern(filePath, { shellEncoded = false, search = false, uri = false } = {}) {
   let normalized = normalizeConcretePath(filePath);
   if (uri) {
@@ -375,12 +414,7 @@ function matchPathPattern(filePath, { shellEncoded = false, search = false, uri 
     const exact = matchFilePath(expanded);
     if (exact) return exact;
     if (!/[*?[\]]/.test(expanded)) continue;
-    const inspected = search
-      ? expanded.split('/')
-        .filter((part, index, parts) => part !== '**' || index === parts.length - 1)
-        .map((part) => part === '**' ? '*' : part)
-        .join('/')
-      : expanded;
+    const inspected = search ? inspectSearchPattern(expanded) : expanded;
     const basename = inspected.slice(inspected.lastIndexOf('/') + 1);
     const extensionIndex = basename.lastIndexOf('.');
     const hasExtension = extensionIndex > 0;

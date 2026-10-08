@@ -9,7 +9,7 @@ const PATCH_TOOLS = new Set(['apply_patch', 'patch']);
 const HASHLINE_PATH_TOOLS = new Set(['edit', 'write', 'multiedit', 'multi_edit', 'delete']);
 const SEARCH_TOOLS = new Set(['grep', 'glob', 'ast_edit']);
 const READ_SELECTOR_RE = /:(?:raw|conflicts|img|-\d+|L?\d+(?:(?:\.\.|[-+])L?\d*)?(?:,L?\d+(?:(?:\.\.|[-+])L?\d*)?)*)$/i;
-const QUERY_START_RE = /^\?[a-z_][\w-]*=/i;
+const QUERY_START_RE = /\?[\w.-]*=/;
 const URI_RE = /^[a-z][a-z\d+.-]*:\/\//i;
 const HASHLINE_TAG_RE = /#[0-9a-fA-F]{4}$/;
 const EDIT_FILE_HEADER_RE = /^\s*\*{3}\s+(?:Add|Update|Delete)\s+File\s*:\s*(.+?)\s*$/i;
@@ -81,6 +81,7 @@ function stripReadSelectors(value) {
 function splitTopLevelPathList(value) {
   const parts = [];
   let braceDepth = 0;
+  let bracketDepth = 0;
   let quote = '';
   let query = false;
   let start = 0;
@@ -99,7 +100,7 @@ function splitTopLevelPathList(value) {
       quote = character;
       continue;
     }
-    if (character === '?' && QUERY_START_RE.test(value.slice(index))) query = true;
+    if (character === '?' && value.slice(index).search(QUERY_START_RE) === 0) query = true;
     if (character === '{') {
       braceDepth += 1;
       continue;
@@ -108,7 +109,15 @@ function splitTopLevelPathList(value) {
       if (braceDepth > 0) braceDepth -= 1;
       continue;
     }
-    if (braceDepth !== 0 || (query ? character !== ';' : !/[\s,;]/.test(character))) continue;
+    if (character === '[') {
+      bracketDepth += 1;
+      continue;
+    }
+    if (character === ']') {
+      if (bracketDepth > 0) bracketDepth -= 1;
+      continue;
+    }
+    if (braceDepth !== 0 || bracketDepth !== 0 || (query ? character !== ';' : !/[\s,;]/.test(character))) continue;
     parts.push(value.slice(start, index));
     start = index + 1;
     query = false;
@@ -120,23 +129,27 @@ function splitTopLevelPathList(value) {
 
 function expandStringPathValue(value) {
   const trimmed = value.trim();
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+  if (
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    || (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
     try {
       const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'string') return expandStringPathValue(parsed);
       if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
         return parsed.flatMap(expandStringPathValue);
       }
     } catch {
-      // Preserve non-JSON bracketed paths for hashline handling below.
+      // Preserve non-JSON quoted paths and hashline headers for list parsing.
     }
   }
-
-  const sources = [...new Set([trimmed, stripOuterQuotes(trimmed)])];
-  const candidates = new Set(sources);
-  for (const source of sources) {
-    for (const part of splitTopLevelPathList(source)) candidates.add(part);
+  if (trimmed.startsWith("'") && trimmed.endsWith("'") && !trimmed.slice(1, -1).includes("'")) {
+    return expandStringPathValue(trimmed.slice(1, -1));
   }
-  return candidates.size > 0 ? [...candidates] : [trimmed];
+  // Only real list entries carry URI decoding semantics; never inspect the
+  // unsplit list as an additional URI containing unrelated filesystem names.
+  const parts = splitTopLevelPathList(trimmed);
+  return parts.length > 0 ? parts : [trimmed];
 }
 
 function unwrapEditHeredoc(lines) {
@@ -238,11 +251,10 @@ function collectPathValues(toolName, input) {
 }
 
 function stripPathQuery(toolName, value) {
-  const index = value.indexOf('?');
+  const index = value.search(QUERY_START_RE);
   if (index < 0) return value;
-  const uri = URI_RE.test(value);
-  const fileQuery = (toolName === 'read' || toolName === 'grep') && QUERY_START_RE.test(value.slice(index));
-  return uri || fileQuery ? value.slice(0, index) : value;
+  const supportsQuery = URI_RE.test(value) || toolName === 'read' || toolName === 'grep';
+  return supportsQuery ? value.slice(0, index) : value;
 }
 
 function canonicalizePath(toolName, value) {
