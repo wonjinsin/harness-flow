@@ -11,13 +11,15 @@ const {
 
 // ---------- shape ----------
 
-test('PATTERNS is a non-empty array of {id, regex, reason}', () => {
+test('PATTERNS is the single non-empty rule list', () => {
   assert.ok(Array.isArray(PATTERNS));
   assert.equal(PATTERNS.length, 7);
-  for (const p of PATTERNS) {
-    assert.equal(typeof p.id, 'string');
-    assert.ok(p.regex instanceof RegExp);
-    assert.equal(typeof p.reason, 'string');
+  for (const pattern of PATTERNS) {
+    assert.equal(typeof pattern.id, 'string');
+    assert.equal(typeof pattern.caseInsensitive, 'boolean');
+    assert.ok(Array.isArray(pattern.globs));
+    assert.ok(pattern.globs.length > 0);
+    assert.equal(typeof pattern.reason, 'string');
   }
 });
 
@@ -351,6 +353,29 @@ test('bash: cat account.json does not match service-account', () => {
 });
 test('bash: ls -la returns null', () => {
   assert.equal(matchBashCommand('ls -la'), null);
+});
+
+test('bash: quoted regex and code arguments are not treated as path globs', () => {
+  assert.equal(matchBashCommand("rg 'foo.*' src"), null);
+  assert.equal(matchBashCommand("node -e 'console.log({ok:true})'"), null);
+  assert.equal(matchBashCommand("cat '/repo/.en?'"), null);
+});
+
+test('bash: quoted and escaped glob fragments stay literal beside active globs', () => {
+  const commands = [
+    "cat /repo/.e'*'v*",
+    'cat /repo/.e\\*v*',
+    "cat *'.en?'",
+    'cat *.en\\?',
+    "cat *$'.en?'",
+    'cat *$".en?"',
+  ];
+  for (const command of commands) assert.equal(matchBashCommand(command), null, command);
+});
+
+test('bash: recursive protected paths still cross quoted literal directory metacharacters', () => {
+  assert.equal(matchBashCommand("cat '/repo/*'/.env*")?.id, 'read-dotenv');
+  assert.equal(matchBashCommand("cat '/repo/?'/.ssh/id_[a-z]sa")?.id, 'read-ssh-key');
 });
 
 // ---------- matchBashCommand: key material + netrc ----------

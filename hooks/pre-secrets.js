@@ -33,37 +33,56 @@ const ALLOWLIST = [
 const PATTERNS = [
   {
     id: 'read-dotenv',
-    regex: /(?:^|\/)\.env(?:\.[^/]*)?$/,
+    caseInsensitive: false,
+    globs: ['.env', '**/.env', '.env.*', '**/.env.*'],
     reason: 'Reading/writing .env files exposes or corrupts secrets. Use environment variables or a secrets manager.',
   },
   {
     id: 'read-ssh-key',
-    regex: /(?:^|\/)(id_rsa|id_ed25519|id_ecdsa|id_dsa)$/,
+    caseInsensitive: false,
+    globs: ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', '**/id_rsa', '**/id_dsa', '**/id_ecdsa', '**/id_ed25519'],
     reason: 'Accessing SSH private key. There is no safe LLM use case.',
   },
   {
     id: 'read-aws-credentials',
-    regex: /(?:^|\/)\.aws\/credentials$/,
+    caseInsensitive: false,
+    globs: ['.aws/credentials', '**/.aws/credentials'],
     reason: 'Accessing AWS credentials. Use AWS_PROFILE or credential helpers instead.',
   },
   {
     id: 'read-gcp-credentials',
-    regex: /(?:^|\/)\.config\/gcloud\/[^/]*(credentials|tokens|adc|application_default)/i,
+    caseInsensitive: true,
+    globs: ['credentials', 'tokens', 'adc', 'application_default'].flatMap((marker) => [
+      `.config/gcloud/*${marker}*`,
+      `.config/gcloud/*${marker}*/**`,
+      `**/.config/gcloud/*${marker}*`,
+      `**/.config/gcloud/*${marker}*/**`,
+    ]),
     reason: 'Accessing GCloud credentials. Use gcloud auth or ADC properly instead.',
   },
   {
     id: 'read-gcp-service-account',
-    regex: /service[_-]?account[^/]*\.json$/i,
+    caseInsensitive: true,
+    globs: [
+      '*service-account*.json',
+      '*service_account*.json',
+      '*serviceaccount*.json',
+      '**/*service-account*.json',
+      '**/*service_account*.json',
+      '**/*serviceaccount*.json',
+    ],
     reason: 'Accessing GCP service account JSON. Use workload identity or env-injected credentials instead.',
   },
   {
     id: 'read-key-material',
-    regex: /\.(pem|key)$/i,
+    caseInsensitive: true,
+    globs: ['*.pem', '*.key', '**/*.pem', '**/*.key'],
     reason: 'Accessing key material (.pem/.key). There is no safe LLM use case.',
   },
   {
     id: 'read-netrc',
-    regex: /(?:^|\/)\.netrc$/,
+    caseInsensitive: false,
+    globs: ['.netrc', '**/.netrc'],
     reason: 'Accessing .netrc exposes stored credentials. Use a credential helper instead.',
   },
 ];
@@ -91,12 +110,19 @@ function isAllowlistedPath(filePath) {
   return ALLOWLIST.some((allow) => allow.test(filePath));
 }
 
+function escapeGlobLiteral(value) {
+  return value.replace(/\[/g, '[[]').replace(/\*/g, '[*]').replace(/\?/g, '[?]');
+}
+
 function matchFilePath(filePath) {
   const text = normalizeConcretePath(filePath);
   if (!text) return null;
   if (isAllowlistedPath(text)) return null;
-  for (const p of PATTERNS) {
-    if (p.regex.test(text)) return p;
+  const literalPattern = escapeGlobLiteral(text);
+  for (const pattern of PATTERNS) {
+    if (pattern.globs.some((glob) => globPatternsIntersect(literalPattern, glob, pattern.caseInsensitive))) {
+      return pattern;
+    }
   }
   return null;
 }
@@ -169,50 +195,6 @@ const NO_SLASH_RANGES = [
   [SLASH_CODE_UNIT + 1, MAX_CODE_UNIT],
 ];
 const ALL_RANGES = [[0, MAX_CODE_UNIT]];
-const PROTECTED_GLOBS = [
-  { id: 'read-dotenv', caseInsensitive: false, patterns: ['.env', '**/.env', '.env.*', '**/.env.*'] },
-  {
-    id: 'read-ssh-key',
-    caseInsensitive: false,
-    patterns: ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', '**/id_rsa', '**/id_dsa', '**/id_ecdsa', '**/id_ed25519'],
-  },
-  {
-    id: 'read-aws-credentials',
-    caseInsensitive: false,
-    patterns: ['.aws/credentials', '**/.aws/credentials'],
-  },
-  {
-    id: 'read-gcp-credentials',
-    caseInsensitive: true,
-    patterns: ['credentials', 'tokens', 'adc', 'application_default'].flatMap((marker) => [
-      `.config/gcloud/*${marker}*`,
-      `.config/gcloud/*${marker}*/**`,
-      `**/.config/gcloud/*${marker}*`,
-      `**/.config/gcloud/*${marker}*/**`,
-    ]),
-  },
-  {
-    id: 'read-gcp-service-account',
-    caseInsensitive: true,
-    patterns: [
-      '*service-account*.json',
-      '*service_account*.json',
-      '*serviceaccount*.json',
-      'service_account_key.json',
-      '**/*service-account*.json',
-      '**/*service_account*.json',
-      '**/*serviceaccount*.json',
-      '**/service_account_key.json',
-    ],
-  },
-  {
-    id: 'read-key-material',
-    caseInsensitive: true,
-    patterns: ['*.pem', '*.key', '**/*.pem', '**/*.key'],
-  },
-  { id: 'read-netrc', caseInsensitive: false, patterns: ['.netrc', '**/.netrc'] },
-];
-
 function normalizeRanges(ranges) {
   const sorted = ranges
     .map(([start, end]) => [Math.max(0, Math.min(start, end)), Math.min(MAX_CODE_UNIT, Math.max(start, end))])
@@ -301,26 +283,30 @@ function parseCharacterClass(pattern, start) {
   };
 }
 
-function tokenizeGlob(pattern, caseInsensitive = false) {
+function tokenizeGlob(pattern, caseInsensitive = false, excludedWildcardRanges = []) {
   const tokens = [];
+  const nonSlashWildcardRanges = subtractRanges(NO_SLASH_RANGES, excludedWildcardRanges);
+  // A recursive ** represents directory prefixes, so it must still traverse
+  // directories whose literal names contain quoted glob metacharacters.
+  const recursiveWildcardRanges = ALL_RANGES;
   for (let index = 0; index < pattern.length; index += 1) {
     const character = pattern[index];
     if (character === '*') {
       let end = index;
       while (pattern[end + 1] === '*') end += 1;
       const recursive = end > index;
-      tokens.push({ star: true, ranges: recursive ? ALL_RANGES : NO_SLASH_RANGES });
+      tokens.push({ star: true, ranges: recursive ? recursiveWildcardRanges : nonSlashWildcardRanges });
       index = end;
       continue;
     }
     if (character === '?') {
-      tokens.push({ star: false, ranges: NO_SLASH_RANGES });
+      tokens.push({ star: false, ranges: nonSlashWildcardRanges });
       continue;
     }
     if (character === '[') {
       const characterClass = parseCharacterClass(pattern, index);
       if (characterClass) {
-        tokens.push({ star: false, ranges: characterClass.ranges });
+        tokens.push({ star: false, ranges: subtractRanges(characterClass.ranges, excludedWildcardRanges) });
         index = characterClass.end;
         continue;
       }
@@ -330,9 +316,9 @@ function tokenizeGlob(pattern, caseInsensitive = false) {
   return tokens;
 }
 
-function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive) {
+function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive, rightWildcardExclusions = []) {
   const left = tokenizeGlob(leftPattern);
-  const right = tokenizeGlob(rightPattern, rightCaseInsensitive);
+  const right = tokenizeGlob(rightPattern, rightCaseInsensitive, rightWildcardExclusions);
   const queue = [[0, 0]];
   const seen = new Set();
   let queueIndex = 0;
@@ -359,7 +345,7 @@ function globPatternsIntersect(leftPattern, rightPattern, rightCaseInsensitive) 
   return false;
 }
 
-function matchPathPattern(filePath) {
+function matchPathPattern(filePath, shellEncoded = false) {
   const normalized = normalizeConcretePath(filePath);
   const direct = matchFilePath(normalized);
   if (direct || !/[*?[\]{}]/.test(normalized)) return direct;
@@ -378,11 +364,10 @@ function matchPathPattern(filePath) {
     const exact = matchFilePath(expanded);
     if (exact) return exact;
     if (!/[*?[\]]/.test(expanded)) continue;
-    for (const protectedGroup of PROTECTED_GLOBS) {
-      for (const protectedPattern of protectedGroup.patterns) {
-        if (globPatternsIntersect(expanded, protectedPattern, protectedGroup.caseInsensitive)) {
-          return PATTERNS.find((pattern) => pattern.id === protectedGroup.id) || COMPLEX_PATTERN_MATCH;
-        }
+    const wildcardExclusions = shellEncoded ? SHELL_LITERAL_GLOB_RANGES : [];
+    for (const pattern of PATTERNS) {
+      for (const protectedGlob of pattern.globs) {
+        if (globPatternsIntersect(expanded, protectedGlob, pattern.caseInsensitive, wildcardExclusions)) return pattern;
       }
     }
   }
@@ -408,27 +393,61 @@ function decodeAnsiCString(value) {
     .replace(/\\([abefnrtv\\'"?])/g, (_match, escaped) => escapes[escaped] ?? escaped);
 }
 
-function expandShellLiteralQuotes(text) {
-  return text
-    .replace(/\$'((?:\\.|[^'])*)'/g, (_match, body) => decodeAnsiCString(body))
-    .replace(/\$"/g, '"');
+const SHELL_LITERAL_GLOB_SENTINELS = new Map([
+  ['*', '\uE000'],
+  ['?', '\uE001'],
+  ['[', '\uE002'],
+  [']', '\uE003'],
+  ['{', '\uE004'],
+  ['}', '\uE005'],
+]);
+const SHELL_LITERAL_GLOB_RANGES = [...SHELL_LITERAL_GLOB_SENTINELS.values()]
+  .map((character) => {
+    const code = character.charCodeAt(0);
+    return [code, code];
+  });
+
+function encodeShellLiteralGlobs(value) {
+  return [...value].map((character) => SHELL_LITERAL_GLOB_SENTINELS.get(character) || character).join('');
 }
 
 function tokenizeShellWords(text) {
-  const source = expandShellLiteralQuotes(text);
   const tokens = [];
   let token = '';
+  let globPattern = '';
   let quote = '';
+  let ansiBuffer = '';
+  let hasUnquotedGlob = false;
+  const append = (value, patternActive = false) => {
+    token += value;
+    globPattern += patternActive ? value : encodeShellLiteralGlobs(value);
+    if (patternActive && /[*?[{]/.test(value)) hasUnquotedGlob = true;
+  };
   const push = () => {
-    if (token) tokens.push(token);
+    if (token) tokens.push({ value: token, globPattern, hasUnquotedGlob });
     token = '';
+    globPattern = '';
+    hasUnquotedGlob = false;
   };
 
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index];
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote === 'ansi') {
+      if (character === '\\' && index + 1 < text.length) {
+        ansiBuffer += character + text[index + 1];
+        index += 1;
+      } else if (character === "'") {
+        append(decodeAnsiCString(ansiBuffer));
+        ansiBuffer = '';
+        quote = '';
+      } else {
+        ansiBuffer += character;
+      }
+      continue;
+    }
     if (quote === "'") {
       if (character === "'") quote = '';
-      else token += character;
+      else append(character);
       continue;
     }
     if (quote === '"' || quote === '`') {
@@ -436,29 +455,40 @@ function tokenizeShellWords(text) {
         quote = '';
         continue;
       }
-      if (character === '\\' && index + 1 < source.length) {
-        const next = source[index + 1];
+      if (character === '\\' && index + 1 < text.length) {
+        const next = text[index + 1];
         if (next === '\n') {
           index += 1;
           continue;
         }
         if (quote === '`' || '$`"\\'.includes(next)) {
-          token += next;
+          append(next);
           index += 1;
           continue;
         }
       }
-      token += character;
+      append(character);
       continue;
     }
 
+    if (character === '$' && text[index + 1] === "'") {
+      quote = 'ansi';
+      ansiBuffer = '';
+      index += 1;
+      continue;
+    }
+    if (character === '$' && text[index + 1] === '"') {
+      quote = '"';
+      index += 1;
+      continue;
+    }
     if (character === "'" || character === '"' || character === '`') {
       quote = character;
       continue;
     }
-    if (character === '\\' && index + 1 < source.length) {
-      const next = source[index + 1];
-      if (next !== '\n') token += next;
+    if (character === '\\' && index + 1 < text.length) {
+      const next = text[index + 1];
+      if (next !== '\n') append(next);
       index += 1;
       continue;
     }
@@ -466,8 +496,9 @@ function tokenizeShellWords(text) {
       push();
       continue;
     }
-    token += character;
+    append(character, true);
   }
+  if (quote === 'ansi') append(`$'${ansiBuffer}`);
   push();
   return tokens;
 }
@@ -510,10 +541,18 @@ function matchBashCommand(command) {
   // inspected as the path Bash will actually pass to the command.
   const tokens = tokenizeShellWords(text);
   for (const token of tokens) {
-    const candidates = [token, ...token.split(/\s+/)].filter(Boolean);
-    for (const candidate of candidates) {
-      const hit = matchPathPattern(normalizeShellToken(candidate));
-      if (hit) return hit;
+    const value = normalizeShellToken(token.value);
+    const hit = token.hasUnquotedGlob
+      ? matchPathPattern(normalizeShellToken(token.globPattern), true)
+      : matchFilePath(value);
+    if (hit) return hit;
+
+    // Whitespace can only survive inside a quoted shell word. Preserve the
+    // historical conservative check for explicit secret basenames in prose,
+    // but never reinterpret those quoted fragments as active globs.
+    for (const candidate of value.split(/\s+/).filter(Boolean)) {
+      const concreteHit = matchFilePath(candidate);
+      if (concreteHit) return concreteHit;
     }
   }
   return null;

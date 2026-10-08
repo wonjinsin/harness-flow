@@ -93,7 +93,7 @@ Secret-file access guard. Single hook, single `PATTERNS` array (path-shape).
 Dispatch by `tool_name`:
 
 - `Read|Edit|Write|MultiEdit` → match `tool_input.file_path` directly against `PATTERNS` (ALLOWLIST first)
-- `Bash` → split `tool_input.command` on whitespace + shell separators, then apply the same matcher to each token
+- `Bash` → parse shell words with quoting/escaping preserved, match concrete tokens against `PATTERNS`, and apply glob intersection only to unquoted shell expansions
 
 Posture: any reference to a secret-bearing path is blocked — read (`cat .env`), write (`echo X > .env`), move (`mv ~/.aws/credentials …`), edit (`vim ~/.ssh/id_rsa`), or stage (`git add .env`). No reader-verb whitelist: the file is treated as untouchable. Trade-off: descriptive uses like `echo "use .env file"` are also blocked; deemed acceptable because the deny message instructs the LLM to stop and ask.
 
