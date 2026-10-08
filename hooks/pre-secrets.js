@@ -384,13 +384,42 @@ function decodeCodePoint(value, radix) {
 }
 
 function decodeAnsiCString(value) {
-  const escapes = { a: '\x07', b: '\b', e: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v' };
-  return value
-    .replace(/\\x([0-9a-fA-F]{1,2})/g, (_match, hex) => decodeCodePoint(hex, 16))
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) => decodeCodePoint(hex, 16))
-    .replace(/\\U([0-9a-fA-F]{8})/g, (_match, hex) => decodeCodePoint(hex, 16))
-    .replace(/\\([0-7]{1,3})/g, (_match, octal) => decodeCodePoint(octal, 8))
-    .replace(/\\([abefnrtv\\'"?])/g, (_match, escaped) => escapes[escaped] ?? escaped);
+  const escapes = { a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v' };
+  let decoded = '';
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character !== '\\' || index + 1 >= value.length) {
+      decoded += character;
+      continue;
+    }
+
+    const escape = value[index + 1];
+    const limits = { x: [16, 2], u: [16, 4], U: [16, 8] };
+    if (limits[escape]) {
+      const [radix, maximum] = limits[escape];
+      const matcher = radix === 16 ? /[0-9a-fA-F]/ : /[0-7]/;
+      let end = index + 2;
+      while (end < value.length && end < index + 2 + maximum && matcher.test(value[end])) end += 1;
+      if (end > index + 2) {
+        decoded += decodeCodePoint(value.slice(index + 2, end), radix);
+        index = end - 1;
+        continue;
+      }
+    } else if (/[0-7]/.test(escape)) {
+      let end = index + 1;
+      while (end < value.length && end < index + 4 && /[0-7]/.test(value[end])) end += 1;
+      decoded += decodeCodePoint(value.slice(index + 1, end), 8);
+      index = end - 1;
+      continue;
+    }
+
+    if (Object.hasOwn(escapes, escape)) decoded += escapes[escape];
+    else if ('\\\'"?'.includes(escape)) decoded += escape;
+    else if (escape === '\n') decoded += '';
+    else decoded += `\\${escape}`;
+    index += 1;
+  }
+  return decoded;
 }
 
 const SHELL_LITERAL_GLOB_SENTINELS = new Map([
@@ -503,6 +532,123 @@ function tokenizeShellWords(text) {
   return tokens;
 }
 
+function findCommandSubstitutionEnd(text, bodyStart) {
+  let depth = 1;
+  let quote = '';
+  for (let index = bodyStart; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote === "'") {
+      if (character === "'") quote = '';
+      continue;
+    }
+    if (quote === '"') {
+      if (character === '\\' && index + 1 < text.length) {
+        index += 1;
+        continue;
+      }
+      if (character === '"') {
+        quote = '';
+        continue;
+      }
+      if (character === '$' && text[index + 1] === '(' && text[index + 2] !== '(') {
+        const nestedEnd = findCommandSubstitutionEnd(text, index + 2);
+        if (nestedEnd < 0) return -1;
+        index = nestedEnd;
+      } else if (character === '`') {
+        const nestedEnd = findBacktickEnd(text, index + 1);
+        if (nestedEnd < 0) return -1;
+        index = nestedEnd;
+      }
+      continue;
+    }
+    if (character === '\\' && index + 1 < text.length) {
+      index += 1;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === '(') depth += 1;
+    else if (character === ')') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function findBacktickEnd(text, bodyStart) {
+  for (let index = bodyStart; index < text.length; index += 1) {
+    if (text[index] === '\\' && index + 1 < text.length) {
+      index += 1;
+      continue;
+    }
+    if (text[index] === '`') return index;
+  }
+  return -1;
+}
+
+function extractCommandSubstitutions(text) {
+  const substitutions = [];
+  let quote = '';
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote === "'") {
+      if (character === "'") quote = '';
+      continue;
+    }
+    if (quote === 'ansi') {
+      if (character === '\\' && index + 1 < text.length) index += 1;
+      else if (character === "'") quote = '';
+      continue;
+    }
+    if (quote === '"') {
+      if (character === '\\' && index + 1 < text.length) {
+        index += 1;
+        continue;
+      }
+      if (character === '"') {
+        quote = '';
+        continue;
+      }
+    } else {
+      if (character === '\\' && index + 1 < text.length) {
+        index += 1;
+        continue;
+      }
+      if (character === '$' && text[index + 1] === "'") {
+        quote = 'ansi';
+        index += 1;
+        continue;
+      }
+      if (character === "'") {
+        quote = "'";
+        continue;
+      }
+      if (character === '"') {
+        quote = '"';
+        continue;
+      }
+    }
+
+    if (character === '$' && text[index + 1] === '(' && text[index + 2] !== '(') {
+      const end = findCommandSubstitutionEnd(text, index + 2);
+      if (end < 0) continue;
+      substitutions.push(text.slice(index + 2, end));
+      index = end;
+      continue;
+    }
+    if (character === '`') {
+      const end = findBacktickEnd(text, index + 1);
+      if (end < 0) continue;
+      substitutions.push(text.slice(index + 1, end));
+      index = end;
+    }
+  }
+  return substitutions;
+}
+
 function unwrapApplyPatchHeredoc(lines) {
   let start = 0;
   let end = lines.length;
@@ -532,11 +678,19 @@ function matchApplyPatchPayload(text) {
   return { recognized: true, hit: null };
 }
 
-function matchBashCommand(command) {
+function matchBashCommand(command, substitutionDepth = 0) {
   const text = String(command == null ? '' : command);
   if (!text) return null;
   const patch = matchApplyPatchPayload(text);
   if (patch.recognized) return patch.hit;
+
+  const substitutions = extractCommandSubstitutions(text);
+  if (substitutions.length > 0 && substitutionDepth >= 8) return COMPLEX_PATTERN_MATCH;
+  for (const substitution of substitutions) {
+    const nestedHit = matchBashCommand(substitution, substitutionDepth + 1);
+    if (nestedHit) return nestedHit;
+  }
+
   // Parse shell words so adjacent quoted fragments and backslash escapes are
   // inspected as the path Bash will actually pass to the command.
   const tokens = tokenizeShellWords(text);

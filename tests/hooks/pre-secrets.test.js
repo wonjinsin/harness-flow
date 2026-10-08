@@ -378,6 +378,17 @@ test('bash: recursive protected paths still cross quoted literal directory metac
   assert.equal(matchBashCommand("cat '/repo/?'/.ssh/id_[a-z]sa")?.id, 'read-ssh-key');
 });
 
+test('bash: nested command substitutions cannot hide active protected globs', () => {
+  assert.equal(matchBashCommand('echo "$(cat /repo/.env*)"')?.id, 'read-dotenv');
+  assert.equal(matchBashCommand('echo `cat /repo/.env*`')?.id, 'read-dotenv');
+  assert.equal(matchBashCommand(`echo "$(printf '%s' "$(cat /repo/.env*)")"`)?.id, 'read-dotenv');
+});
+
+test('bash: short Bash ANSI-C Unicode escapes cannot construct protected paths', () => {
+  assert.equal(matchBashCommand(String.raw`cat /repo/$'\u2e'env`)?.id, 'read-dotenv');
+  assert.equal(matchBashCommand(String.raw`cat /repo/$'\U2e'env`)?.id, 'read-dotenv');
+});
+
 // ---------- matchBashCommand: key material + netrc ----------
 
 test('bash: cat ~/.netrc hits read-netrc', () => {
