@@ -2,7 +2,7 @@
 
 ## Overview
 
-> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work flows through design → planning → TDD, with review and durable-memory capture offered as explicit next actions. Bug fixes flow through root-cause investigation → regression test → minimal correction.
+> A cross-harness plugin that provides the same workflow in Claude Code, Codex, and OMP. Feature work flows through design → planning → TDD, with review and durable-memory capture offered as explicit next actions. Bug fixes flow through root-cause investigation → regression test → minimal correction.
 
 ### Problems it solves
 
@@ -18,7 +18,7 @@
 
 ### Who it's for
 
-- Users who want the agent in Claude Code or Codex to not skip required steps
+- Users who want the agent in Claude Code, Codex, or OMP to not skip required steps
 - Users who want TDD, verification, and a commit without coupling implementation to review or finalization
 
 ### Foundation
@@ -128,14 +128,20 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Hooks
 
-Provides four Node.js hooks (Node 18+, no npm dependencies). Claude Code and Codex use the same `hooks/hooks.json`.
+Provides four Claude Code/Codex Node.js hooks (Node 18+) plus an OMP-native ESM pre-tool hook, all with no npm dependencies. Claude Code and Codex use `hooks/hooks.json`; OMP discovers its native rule and pre-tool adapter directly.
 
 - **`session-start-harness.js`** — injects `using-harness-flow` on new session, resume, clear, and compaction.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
+- **`rules/using-harness-flow.md`** — OMP always-apply rule that loads `using-harness-flow` for the main agent before it responds.
+- **`hooks/pre/harness-flow.js`** — OMP native `tool_call` adapter that reuses the Bash and secret matchers across Bash, file, grep, glob, and patch inputs without copying command or secret contents into its block result.
 
-A blocking hook emits `permissionDecision: "deny"` JSON to stdout and exits 0. This way both Codex and Claude Code interpret the deny result, and the protected command is not run by mistake.
+Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
+
+The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes retain recursive matching and literal paths containing delimiters. Singleton character classes preserve secret targeting, and key-material extensions remain protected.
+
+Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. In URI searches, `?` remains a wildcard unless it starts a `key=value` query. Path-list and URI syntax are split before each URI target is percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
 Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
 
@@ -152,6 +158,17 @@ codex plugin marketplace add wonjinsin/harness-flow
 ```
 
 After installing, review and trust the command hooks under `/hooks`. Enabling the plugin alone does not auto-trust the command hooks, and you must review them again whenever the hook contents change.
+
+### OMP
+
+```bash
+omp plugin marketplace add wonjinsin/harness-flow
+omp plugin install harness-flow@harness-flow
+```
+
+OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule applies only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`, so the native adapter provides the Bash and secret guards. The caveman SessionStart hook remains Claude/Codex-only.
+
+Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native rules and hooks without changing the installed plugin.
 
 ### Claude Code A) Git marketplace (recommended)
 

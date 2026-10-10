@@ -4,26 +4,28 @@ Canonical guidance for **harness-flow** — the single source of truth for every
 
 ## What This Repo Is
 
-`harness-flow` is a Claude Code plugin that ships a personal **skills library**.
+`harness-flow` is a cross-harness plugin that ships a personal **skills library**.
 
 The repo is simultaneously:
 
 - A plugin (`.claude-plugin/plugin.json`)
 - Its own marketplace (`.claude-plugin/marketplace.json` points `source: ./`)
+- A Codex plugin and marketplace (`.codex-plugin/`, `.agents/plugins/`)
+- An OMP-compatible marketplace plugin with native rules and hooks
 
 So the same checkout can be installed locally as a plugin for testing.
 
-**Cross-harness (Claude Code + Codex).** The repo is also a Codex plugin: `.codex-plugin/plugin.json` mirrors the Claude manifest (same name/version), `.agents/plugins/marketplace.json` is the Codex marketplace. This `AGENTS.md` is the canonical guidance both harnesses share — Codex reads it directly, and the repo's `CLAUDE.md` is a one-line `@AGENTS.md` import so Claude Code loads the same content. Both harnesses read the **same** `hooks/hooks.json` (`CLAUDE_PLUGIN_ROOT` is a Codex compat alias) — do NOT duplicate hooks per harness. Skill bodies are written in **harness-neutral** wording rather than shipping per-harness tool-translation files.
+**Cross-harness (Claude Code + Codex + OMP).** `.codex-plugin/plugin.json` mirrors the Claude manifest (same name/version), `.agents/plugins/marketplace.json` is the Codex marketplace, and OMP installs through the Claude-compatible marketplace catalog. This `AGENTS.md` is the canonical guidance all three harnesses share — Codex and OMP read it directly, and `CLAUDE.md` is a one-line `@AGENTS.md` import. Claude Code and Codex read the same `hooks/hooks.json`; OMP instead discovers `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. Reuse the canonical matchers rather than duplicating guard patterns. Skill bodies remain harness-neutral except for explicit native dispatch templates.
 
 ## The Skill Chain (architectural backbone)
 
-Skills under `skills/` are designed to be invoked **in order**. A new Claude instance must understand this chain before touching skill content — editing one link affects the whole flow.
+Skills under `skills/` are designed to be invoked **in order**. A new agent instance must understand this chain before touching skill content — editing one link affects the whole flow.
 
 **Request-type routing (no tier classification).** `using-harness-flow` applies the first matching rule. An approved plan or agreed brief goes to `implement`, while an approved spec goes to `writing-plans`. Skill-only creation, editing, or verification takes priority over generic read-only analysis and goes directly to `writing-skills` outside the code-mutation chain. An unconfirmed bug, test failure, or unexpected behavior goes to `systematic-debugging` first, even when paired with an explicit implementation plan request. After the root cause is confirmed, an explicit plan request sends the confirmed bug-fix brief to `writing-plans`; otherwise, it goes to `implement`. An explicit code review goes to `requesting-code-review`, an explicit spec goes to `brainstorming` in explicit-spec mode, and an explicit non-bug implementation plan goes to `writing-plans`. Other feature, refactor, script, or change-intent requests, along with read-only research, analysis, or reporting on an in-scope codebase, repository, or technical artifact, go to `brainstorming`. General-knowledge questions stay outside the chain. **Dual-mode principle:** every chain skill is also independently invocable — the chain is the default route, and a skill's preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first) rather than bouncing the user back through the chain.
 
 **Spec is optional (Model B).** `brainstorming` recommends an exit and the user picks: **small/clear** → capture the agreed brief and hand it to `implement`; **large/ambiguous** → save a spec, write an approved plan, then hand it to `implement`. No `<HARD-GATE>` or forced spec file; the selected artifact's review gate remains. Both exits converge before any code changes.
 
-1. `using-harness-flow` — bootstrap, injected at SessionStart. Requires invoking the relevant skill before responding, including before clarifying questions. Routes by request type (above).
+1. `using-harness-flow` — bootstrap, injected at SessionStart by Claude Code/Codex and loaded through OMP's always-apply rule. Requires invoking the relevant skill before responding, including before clarifying questions. Routes by request type (above).
 2. `brainstorming` — turns a change idea into an agreed approach through dialogue, then recommends an exit (Model B above). The small exit sends an agreed brief directly to `implement`; the large exit saves a spec at `docs/harness-flow/specs/YYYY-MM-DD-<topic>.md` and continues through `writing-plans`. For an explicit spec request, it follows the same rules to save only the spec and request review, then stops unless the user also requests follow-on work. In read-only mode, it investigates a codebase or technical question, reports evidence, and stops without forcing implementation.
 3. `writing-plans` — produces an implementation plan in the current checkout at `docs/harness-flow/plans/YYYY-MM-DD-<feature>.md` from an approved spec, approved inline design, or confirmed bug-fix brief when the user explicitly requested a plan after root-cause confirmation. Tasks are bite-sized tracer bullets (`### Task N` with Delivers / Touches / Blocked by / acceptance checkboxes — no line numbers, no code blocks). The header's `Source` contains the spec path, agreed decisions, or a durable summary of confirmed bug evidence and its correction; it never points to a nonexistent spec path or the conversation itself. Every source requirement maps to a task's `Delivers` or an acceptance criterion, and source-wide rules are inherited as `Constraints`. Preserves the human-approval gate ("Iterate until the user approves; after the user approves, hand off to implement"). No Task-Group / dispatch machinery.
 4. `implement` — executes an agreed brief, approved plan, or confirmed bug-fix brief directly in the current checkout. It uses TDD, runs focused checks during the work and relevant full verification at the end, checks every acceptance criterion, commits the verified change, and reports blockers with evidence. It does not own review, instruction revision, or integration. Its `Next` section suggests `requesting-code-review`, followed by `llm-md-revise`; those are separate follow-up actions.
@@ -49,11 +51,11 @@ orthogonal entry point for bug/test-failure/unexpected-behavior tasks.
 When the user describes a symptom (not a feature), enter via systematic-debugging
 instead of brainstorming.
 
-## Hooks (Node.js, Claude Code + Codex compatibility)
+## Hooks (Claude Code + Codex + OMP)
 
-Four hooks (2 SessionStart + 2 PreToolUse guards). All require Node.js 18+ and have zero npm dependencies. Registered in `hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`. Disable all hooks with `HARNESS_FLOW_HOOKS_OFF=1`.
+Claude Code and Codex share four CommonJS hooks (2 SessionStart + 2 PreToolUse guards) registered in `hooks/hooks.json` via `${CLAUDE_PLUGIN_ROOT}`. They require Node.js 18+ and have zero npm dependencies. OMP discovers one native ESM pre-tool hook plus the always-apply bootstrap rule. Disable all hooks with `HARNESS_FLOW_HOOKS_OFF=1`.
 
-Hooks are the plugin's ONLY guard-distribution mechanism: plugins cannot ship `permissions.allow/deny/ask` rules (plugin `settings.json` supports only the `agent` and `subagentStatusLine` keys — code.claude.com/docs/en/plugins-reference). Do not propose "move this pattern to permissions" for plugin-shipped guards; declarative deny rules belong in the user's own settings as a complementary layer.
+Hooks are the plugin's guard-distribution mechanism: `hooks/hooks.json` for Claude Code/Codex and `hooks/pre/harness-flow.js` for OMP. Plugins cannot ship Claude `permissions.allow/deny/ask` rules (plugin `settings.json` supports only `agent` and `subagentStatusLine` — code.claude.com/docs/en/plugins-reference). Do not propose moving plugin guards to permissions; user settings may add declarative denies as a complementary layer.
 
 ### `hooks/session-start-harness.js` — SessionStart
 
@@ -91,7 +93,7 @@ Secret-file access guard. Single hook, single `PATTERNS` array (path-shape).
 Dispatch by `tool_name`:
 
 - `Read|Edit|Write|MultiEdit` → match `tool_input.file_path` directly against `PATTERNS` (ALLOWLIST first)
-- `Bash` → split `tool_input.command` on whitespace + shell separators, then apply the same matcher to each token
+- `Bash` → parse shell words with quoting/escaping preserved, match concrete tokens against `PATTERNS`, and apply glob intersection only to unquoted shell expansions
 
 Posture: any reference to a secret-bearing path is blocked — read (`cat .env`), write (`echo X > .env`), move (`mv ~/.aws/credentials …`), edit (`vim ~/.ssh/id_rsa`), or stage (`git add .env`). No reader-verb whitelist: the file is treated as untouchable. Trade-off: descriptive uses like `echo "use .env file"` are also blocked; deemed acceptable because the deny message instructs the LLM to stop and ask.
 
@@ -113,6 +115,10 @@ Both hooks share `hooks/lib/guard.js` (`emitDeny` + `runGuard` parameterized by 
 
 Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-secrets.js`
 
+### `hooks/pre/harness-flow.js` — OMP native `tool_call`
+
+The native OMP hook is an ESM default factory. It reuses `matchDangerous`, `matchBashCommand`, and `matchFilePath`, returning OMP's `{ block: true, reason }` shape without echoing the command or target path. It covers Bash, direct and normalized multi-file paths for read/grep/glob/edit/write/delete/ast-edit, read selectors, and patch payloads. `rules/using-harness-flow.md` is `alwaysApply: true` and `agents: main`, so sub-agents receive only their explicit task briefs.
+
 ### Hook registration env var conventions
 
 - Plugin install → `hooks/hooks.json` uses `${CLAUDE_PLUGIN_ROOT}`, auto-injected by Claude Code's plugin runtime.
@@ -121,15 +127,15 @@ Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-secrets.js`
 
 ### Hook code conventions
 
-CommonJS (`require`), `'use strict'` at top, `node:*` built-ins only. stderr messages in English (LLM-readable). An external linter auto-formats JS files (notably converts single → double quotes) — don't fight it.
+Claude Code/Codex hook files use CommonJS (`require`) and `'use strict'`; the native OMP hook under `hooks/pre/` uses ESM with a default factory (`hooks/pre/package.json` sets `type: module`). Use `node:*` built-ins only and keep messages in English (LLM-readable). An external linter may reformat JS files — don't fight it.
 
 ## Cross-Platform Tool Names
 
-Skills use Claude Code tool names (`Task`/`Agent`, `TodoWrite`, `Skill`) only where a concrete dispatch template needs them; skill **bodies** are written in harness-neutral wording so Codex and other harnesses map the generic mechanism to their native tool. There are no per-harness tool-translation reference files.
+Skills use harness-specific tool names only where a concrete dispatch template needs them; core skill bodies stay harness-neutral so each runtime maps generic mechanisms to native tools. Keep substantial native mappings in adjacent reference files rather than duplicating whole skills.
 
 **Exception — the entry skill.** `skills/using-harness-flow/SKILL.md` is injected at SessionStart on every harness, before anything else can be consulted, so naming one harness's tools there would misinstruct the others. It uses harness-neutral wording (e.g. "native skill loading"). `tests/manifest/codex-runtime-contracts.test.js` pins this — it asserts the entry skill does NOT contain `TodoWrite`.
 
-**Dispatch templates are the opposite case.** `requesting-code-review/SKILL.md` carries an explicit **Codex translation** using `spawn_agent`, `fork_turns: none`, and unique axis task names because runtime tests match those strings.
+**Dispatch templates are the opposite case.** `requesting-code-review/SKILL.md` carries an explicit Codex translation using `spawn_agent`, `fork_turns: none`, and unique axis task names. For OMP it points to `omp-task-dispatch.md`, which starts both axes in one `task` call with a `tasks` array and keeps their outputs separate.
 
 ## No design/ references inside skills
 
@@ -139,9 +145,9 @@ Skills use Claude Code tool names (`Task`/`Agent`, `TodoWrite`, `Skill`) only wh
 
 - **Add a skill**: create `skills/<name>/SKILL.md` with frontmatter `name:` and `description:`. The `description` is the auto-invocation trigger — write it as a precise activation condition (when to use, not what it does), matching the tone of existing skills.
 - **Edit a skill**: invoke `harness-flow:writing-skills` first — it applies to `SKILL.md` files and skill prompt templates (e.g. `*-prompt.md`). Do not break the chain order above; keep cross-references (e.g. `harness-flow:writing-plans`) stable.
-- **Reinstall plugin locally for testing**: use Claude Code's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself.
+- **Reinstall plugin locally for testing**: use the target harness's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself. OMP uses `omp plugin marketplace add <repo>` then `omp plugin install harness-flow@harness-flow`.
 - **Run tests**: `node --test` (Node 18+ built-in runner; hook unit/smoke tests, manifest/runtime-contract tests, and skill-script tests).
-- **Add a hook**: register in `hooks/hooks.json`, gate on `HARNESS_FLOW_HOOKS_OFF=1`, add unit tests for any new `lib/`, add a smoke test that spawns the hook with `spawnSync('node', [SCRIPT], { input: JSON.stringify(payload) })` and asserts on `status`/`stderr`.
+- **Add a hook**: register Claude Code/Codex hooks in `hooks/hooks.json`; place native OMP pre/post factories under `hooks/pre/` or `hooks/post/`. Gate on `HARNESS_FLOW_HOOKS_OFF=1`, reuse shared matchers, and add unit plus harness-native smoke coverage.
 - **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array). Add match + non-match cases in the matching `tests/hooks/*.test.js`.
 
 ## Output Paths
