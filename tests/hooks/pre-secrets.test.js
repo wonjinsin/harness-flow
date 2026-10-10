@@ -389,6 +389,25 @@ test('bash: short Bash ANSI-C Unicode escapes cannot construct protected paths',
   assert.equal(matchBashCommand(String.raw`cat /repo/$'\U2e'env`)?.id, 'read-dotenv');
 });
 
+test('bash: ANSI-C NUL escapes are removed before protected-path matching', () => {
+  for (const escape of ['\\0', '\\x00', '\\u0', '\\U0', '\\c@']) {
+    const command = `cat /repo/$'${escape}'.env`;
+    assert.equal(matchBashCommand(command)?.id, 'read-dotenv', command);
+  }
+});
+
+test('bash: command substitution parsing survives case delimiters and ANSI-C escaped quotes', () => {
+  assert.equal(matchBashCommand('echo "$(case x in x) cat /repo/.env*;; esac)"')?.id, 'read-dotenv');
+  assert.equal(matchBashCommand(String.raw`echo "$(printf $'\')'; cat /repo/.env*)"`)?.id, 'read-dotenv');
+});
+
+test('bash: command substitution complexity fails closed before parser recursion overflows', () => {
+  let command = 'true';
+  for (let index = 0; index < 10000; index += 1) command = `echo "$(${command})"`;
+  assert.doesNotThrow(() => matchBashCommand(command));
+  assert.equal(matchBashCommand(command)?.id, 'read-secret-pattern');
+});
+
 // ---------- matchBashCommand: key material + netrc ----------
 
 test('bash: cat ~/.netrc hits read-netrc', () => {

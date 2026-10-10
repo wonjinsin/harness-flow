@@ -449,6 +449,7 @@ function normalizeShellToken(token) {
 
 function decodeCodePoint(value, radix) {
   const codePoint = Number.parseInt(value, radix);
+  if (codePoint === 0) return '';
   return Number.isSafeInteger(codePoint) && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : '\uFFFD';
 }
 
@@ -463,6 +464,13 @@ function decodeAnsiCString(value) {
     }
 
     const escape = value[index + 1];
+    if (escape === 'c' && index + 2 < value.length) {
+      const controlCode = value[index + 2].toUpperCase().charCodeAt(0) & 0x1f;
+      if (controlCode !== 0) decoded += String.fromCodePoint(controlCode);
+      index += 2;
+      continue;
+    }
+
     const limits = { x: [16, 2], u: [16, 4], U: [16, 8] };
     if (limits[escape]) {
       const [radix, maximum] = limits[escape];
@@ -601,65 +609,7 @@ function tokenizeShellWords(text) {
   return tokens;
 }
 
-function findCommandSubstitutionEnd(text, bodyStart) {
-  let depth = 1;
-  let quote = '';
-  for (let index = bodyStart; index < text.length; index += 1) {
-    const character = text[index];
-    if (quote === "'") {
-      if (character === "'") quote = '';
-      continue;
-    }
-    if (quote === '"') {
-      if (character === '\\' && index + 1 < text.length) {
-        index += 1;
-        continue;
-      }
-      if (character === '"') {
-        quote = '';
-        continue;
-      }
-      if (character === '$' && text[index + 1] === '(' && text[index + 2] !== '(') {
-        const nestedEnd = findCommandSubstitutionEnd(text, index + 2);
-        if (nestedEnd < 0) return -1;
-        index = nestedEnd;
-      } else if (character === '`') {
-        const nestedEnd = findBacktickEnd(text, index + 1);
-        if (nestedEnd < 0) return -1;
-        index = nestedEnd;
-      }
-      continue;
-    }
-    if (character === '\\' && index + 1 < text.length) {
-      index += 1;
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      continue;
-    }
-    if (character === '(') depth += 1;
-    else if (character === ')') {
-      depth -= 1;
-      if (depth === 0) return index;
-    }
-  }
-  return -1;
-}
-
-function findBacktickEnd(text, bodyStart) {
-  for (let index = bodyStart; index < text.length; index += 1) {
-    if (text[index] === '\\' && index + 1 < text.length) {
-      index += 1;
-      continue;
-    }
-    if (text[index] === '`') return index;
-  }
-  return -1;
-}
-
-function extractCommandSubstitutions(text) {
-  const substitutions = [];
+function extractFirstCommandSubstitutionTail(text) {
   let quote = '';
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index];
@@ -702,20 +652,11 @@ function extractCommandSubstitutions(text) {
     }
 
     if (character === '$' && text[index + 1] === '(' && text[index + 2] !== '(') {
-      const end = findCommandSubstitutionEnd(text, index + 2);
-      if (end < 0) continue;
-      substitutions.push(text.slice(index + 2, end));
-      index = end;
-      continue;
+      return text.slice(index + 2);
     }
-    if (character === '`') {
-      const end = findBacktickEnd(text, index + 1);
-      if (end < 0) continue;
-      substitutions.push(text.slice(index + 1, end));
-      index = end;
-    }
+    if (character === '`') return text.slice(index + 1);
   }
-  return substitutions;
+  return null;
 }
 
 function unwrapApplyPatchHeredoc(lines) {
@@ -753,10 +694,10 @@ function matchBashCommand(command, substitutionDepth = 0) {
   const patch = matchApplyPatchPayload(text);
   if (patch.recognized) return patch.hit;
 
-  const substitutions = extractCommandSubstitutions(text);
-  if (substitutions.length > 0 && substitutionDepth >= 8) return COMPLEX_PATTERN_MATCH;
-  for (const substitution of substitutions) {
-    const nestedHit = matchBashCommand(substitution, substitutionDepth + 1);
+  const substitutionTail = extractFirstCommandSubstitutionTail(text);
+  if (substitutionTail != null) {
+    if (substitutionDepth >= 8) return COMPLEX_PATTERN_MATCH;
+    const nestedHit = matchBashCommand(substitutionTail, substitutionDepth + 1);
     if (nestedHit) return nestedHit;
   }
 
