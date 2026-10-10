@@ -1,5 +1,8 @@
 import bashGuard from '../pre-bash-commands.js';
 import secretGuard from '../pre-secrets.js';
+import harnessBootloader from '../session-start-harness.js';
+import cavemanBootloader from '../session-start-caveman.js';
+import { fileURLToPath } from 'node:url';
 
 const { matchDangerous } = bashGuard;
 const { matchBashCommand, matchFilePath, matchPathPattern } = secretGuard;
@@ -341,5 +344,47 @@ export function matchToolCall(event) {
 }
 
 export default function registerHarnessFlowPreToolHook(pi) {
+  const pluginRoot = fileURLToPath(new URL('../../', import.meta.url));
+  const sessionContextType = 'harness-flow-session-start';
+
+  function canInject(ctx) {
+    return process.env.HARNESS_FLOW_HOOKS_OFF !== '1' && ctx.agent?.kind !== 'sub';
+  }
+
+  function needsResetContext(ctx) {
+    const branch = ctx.sessionManager.getBranch();
+    for (let index = branch.length - 1; index >= 0; index -= 1) {
+      const entry = branch[index];
+      if (entry.type === 'custom_message' && entry.customType === sessionContextType) return false;
+      if (entry.type === 'reset_boundary') return true;
+    }
+    return false;
+  }
+
+  function sessionMessage() {
+    return {
+      customType: sessionContextType,
+      content: harnessBootloader.getSessionContext(pluginRoot) + '\n' + cavemanBootloader.getSessionContext(pluginRoot),
+      display: false,
+      attribution: 'agent',
+    };
+  }
+
+  function injectSessionContext(_event, ctx) {
+    if (!canInject(ctx)) return;
+    pi.sendMessage(sessionMessage());
+  }
+
+  pi.on('session_start', injectSessionContext);
+  pi.on('session_switch', (event, ctx) => {
+    if (event.reason === 'new' || event.reason === 'resume') injectSessionContext(event, ctx);
+  });
+  pi.on('session_compact', injectSessionContext);
+  pi.on('before_agent_start', (_event, ctx) => {
+    if (!canInject(ctx) || !needsResetContext(ctx)) return;
+    // /clear emits no lifecycle event. Only a persisted bootstrap consumes the
+    // reset, so an abandoned prompt cannot leave the next turn uninitialized.
+    return { message: sessionMessage() };
+  });
   pi.on('tool_call', async (event) => matchToolCall(event));
 }

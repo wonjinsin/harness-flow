@@ -30,37 +30,34 @@ const path = require('node:path');
 // CLAUDE_PLUGIN_ROOT is auto-injected by Claude Code's plugin runtime when this
 // hook is registered via hooks/hooks.json. The __dirname fallback covers direct
 // invocation (smoke tests, manual runs).
-const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
-const skillFile = path.join(pluginRoot, 'skills', 'caveman', 'SKILL.md');
+function getSessionContext(pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..')) {
+  const skillFile = path.join(pluginRoot, 'skills', 'caveman', 'SKILL.md');
 
-let skillContent;
-try {
-  skillContent = fs.readFileSync(skillFile, 'utf-8');
-} catch (err) {
-  // Fallback keeps the session alive even if the skill file is missing/unreadable.
-  skillContent = 'Error reading caveman skill';
+  let skillContent;
+  try {
+    skillContent = fs.readFileSync(skillFile, 'utf-8');
+  } catch (err) {
+    // A missing skill must not block session creation.
+    skillContent = 'Error reading caveman skill';
+  }
+
+  return (
+    '<EXTREMELY_IMPORTANT>\n' +
+    'You have caveman mode pre-activated for token efficiency.\n\n' +
+    "**Below is the full content of the 'caveman' skill — apply it to every response from this session start until explicitly disabled by the user (\"stop caveman\" / \"normal mode\"):**\n\n" +
+    skillContent +
+    '\n</EXTREMELY_IMPORTANT>'
+  );
 }
 
-// The <EXTREMELY_IMPORTANT> wrapper signals to the LLM that this is a hard
-// behavioral rule, not optional guidance. The skill body itself contains the
-// caveman rules, intensity levels, and auto-clarity exceptions.
-const sessionContext =
-  '<EXTREMELY_IMPORTANT>\n' +
-  'You have caveman mode pre-activated for token efficiency.\n\n' +
-  "**Below is the full content of the 'caveman' skill — apply it to every response from this session start until explicitly disabled by the user (\"stop caveman\" / \"normal mode\"):**\n\n" +
-  skillContent +
-  '\n</EXTREMELY_IMPORTANT>';
+module.exports = { getSessionContext };
 
-// Claude Code's hookSpecificOutput.additionalContext schema: the string in
-// `additionalContext` is appended to the system prompt for the new session.
-// JSON.stringify handles all escaping (newlines, quotes, etc.) automatically —
-// no manual sed/awk escape gymnastics needed.
-const output = {
-  hookSpecificOutput: {
-    hookEventName: 'SessionStart',
-    additionalContext: sessionContext,
-  },
-};
-
-process.stdout.write(JSON.stringify(output, null, 2) + '\n');
-process.exit(0);
+if (require.main === module && process.env.HARNESS_FLOW_HOOKS_OFF !== '1') {
+  const output = {
+    hookSpecificOutput: {
+      hookEventName: 'SessionStart',
+      additionalContext: getSessionContext(),
+    },
+  };
+  process.stdout.write(JSON.stringify(output, null, 2) + '\n');
+}

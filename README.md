@@ -128,16 +128,18 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Hooks
 
-Provides four Claude Code/Codex Node.js hooks (Node 18+) plus an OMP-native ESM pre-tool hook, all with no npm dependencies. Claude Code and Codex use `hooks/hooks.json`; OMP discovers its native rule and pre-tool adapter directly.
+Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM adapter for the same session bootstraps and pre-tool guards, all with no npm dependencies. Claude Code and Codex use `hooks/hooks.json`; OMP discovers its native rule and adapter directly.
 
 - **`session-start-harness.js`** — injects `using-harness-flow` on new session, resume, clear, and compaction.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
 - **`rules/using-harness-flow.md`** — OMP always-apply rule that loads `using-harness-flow` for the main agent before it responds.
-- **`hooks/pre/harness-flow.js`** — OMP native `tool_call` adapter that reuses the Bash and secret matchers across Bash, file, grep, glob, and patch inputs without copying command or secret contents into its block result.
+- **`hooks/pre/harness-flow.js`** — OMP native adapter that reuses both SessionStart context builders and the Bash/secret matchers. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
+
+On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
 
 The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes retain recursive matching and literal paths containing delimiters. Singleton character classes preserve secret targeting, and key-material extensions remain protected.
 
@@ -166,7 +168,7 @@ omp plugin marketplace add wonjinsin/harness-flow
 omp plugin install harness-flow@harness-flow
 ```
 
-OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule applies only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`, so the native adapter provides the Bash and secret guards. The caveman SessionStart hook remains Claude/Codex-only.
+OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule and session bootstraps apply only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`, so the native adapter supplies equivalent behavior for all four hooks, including caveman activation at session boundaries.
 
 Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native rules and hooks without changing the installed plugin.
 

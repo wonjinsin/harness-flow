@@ -18,8 +18,7 @@ function captureToolCallHandler(hook) {
   let handler;
   hook({
     on(event, candidate) {
-      assert.equal(event, 'tool_call');
-      handler = candidate;
+      if (event === 'tool_call') handler = candidate;
     },
   });
   assert.equal(typeof handler, 'function');
