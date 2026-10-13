@@ -18,7 +18,10 @@ async function createSession() {
   });
   const context = {
     agent: { kind: 'main' },
-    sessionManager: { getBranch: () => branch },
+    sessionManager: {
+      getBranch: () => branch,
+      getLeafId: () => branch.at(-1)?.id ?? null,
+    },
   };
   return {
     messages,
@@ -55,6 +58,28 @@ test('an abandoned post-clear prompt does not consume the next bootstrap', async
   const retry = await session.emit('before_agent_start', { prompt: 'Replacement prompt' });
   assert.equal(abandoned?.message.customType, 'harness-flow-session-start');
   assert.equal(retry?.message.customType, 'harness-flow-session-start');
+});
+
+test('OMP resume survives message replacement until the bootstrap is persisted', async () => {
+  const session = await createSession();
+  const stopped = { role: 'user', content: 'stop caveman' };
+  session.branch.push(
+    { type: 'custom_message', id: 'old-bootstrap', customType: 'harness-flow-session-start' },
+    { type: 'message', id: 'stop', message: stopped },
+  );
+
+  await session.emit('session_switch', { reason: 'resume' });
+  // OMP replaces live messages with its pre-event snapshot after session_switch.
+  session.messages.splice(0, session.messages.length, stopped);
+  const abandoned = await session.emit('before_agent_start', { prompt: 'Cancelled prompt' });
+  const retry = await session.emit('before_agent_start', { prompt: 'Continue' });
+  assert.equal(abandoned?.message.customType, 'harness-flow-session-start');
+  assert.equal(retry?.message.customType, 'harness-flow-session-start');
+  assert.match(retry.message.content, /using-harness-flow/);
+  assert.match(retry.message.content, /caveman/);
+
+  session.branch.push({ type: 'custom_message', id: 'resumed-bootstrap', ...retry.message });
+  assert.equal(await session.emit('before_agent_start', { prompt: 'stop caveman' }), undefined);
 });
 
 test('session bootstraps leave subagent task context alone', async () => {

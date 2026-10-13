@@ -56,19 +56,24 @@ export function matchToolCall(event) {
 export default function registerHarnessFlowPreToolHook(pi) {
   const pluginRoot = fileURLToPath(new URL('../../', import.meta.url));
   const sessionContextType = 'harness-flow-session-start';
+  let resumeBoundary;
 
   function canInject(ctx) {
     return process.env.HARNESS_FLOW_HOOKS_OFF !== '1' && ctx.agent?.kind !== 'sub';
   }
 
-  function needsResetContext(ctx) {
+  function needsSessionContext(ctx) {
     const branch = ctx.sessionManager.getBranch();
     for (let index = branch.length - 1; index >= 0; index -= 1) {
       const entry = branch[index];
-      if (entry.type === 'custom_message' && entry.customType === sessionContextType) return false;
+      if (resumeBoundary !== undefined && entry.id === resumeBoundary) return true;
+      if (entry.type === 'custom_message' && entry.customType === sessionContextType) {
+        resumeBoundary = undefined;
+        return false;
+      }
       if (entry.type === 'reset_boundary') return true;
     }
-    return false;
+    return resumeBoundary === null;
   }
 
   function commandSessionContext(name) {
@@ -90,18 +95,24 @@ export default function registerHarnessFlowPreToolHook(pi) {
 
   function injectSessionContext(_event, ctx) {
     if (!canInject(ctx)) return;
+    resumeBoundary = undefined;
     pi.sendMessage(sessionMessage());
   }
 
   pi.on('session_start', injectSessionContext);
   pi.on('session_switch', (event, ctx) => {
-    if (event.reason === 'new' || event.reason === 'resume') injectSessionContext(event, ctx);
+    resumeBoundary = undefined;
+    if (event.reason === 'resume' && canInject(ctx)) {
+      // OMP replaces live messages after session_switch; inject on the next turn.
+      resumeBoundary = ctx.sessionManager.getLeafId();
+    } else if (event.reason === 'new') {
+      injectSessionContext(event, ctx);
+    }
   });
   pi.on('session_compact', injectSessionContext);
   pi.on('before_agent_start', (_event, ctx) => {
-    if (!canInject(ctx) || !needsResetContext(ctx)) return;
-    // /clear emits no lifecycle event. Only a persisted bootstrap consumes the
-    // reset, so an abandoned prompt cannot leave the next turn uninitialized.
+    if (!canInject(ctx) || !needsSessionContext(ctx)) return;
+    // Only persistence consumes a reset or resume, so abandoned prompts can retry.
     return { message: sessionMessage() };
   });
   pi.on('tool_call', async (event) => matchToolCall(event));

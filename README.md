@@ -142,7 +142,7 @@ The existing Claude Code/Codex hooks stay unchanged. OMP directly imports `match
 
 The original guard limitations remain unchanged: string-based matching does not expand Bash quoting or ANSI-C escapes, normalize Windows separators, or resolve wildcard expressions to secret paths. References using those forms, including ANSI-C NUL escapes, can evade detection.
 
-On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
+On OMP, `session_start` and `session_switch` (`new`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. A `resume` defers injection until `before_agent_start`, after OMP restores the session's message snapshot. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Resume and `/clear` injections remain pending until persisted, allowing abandoned prompts to retry. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
 
 OMP uses the same secret rules and allowlist as the command hooks. Explicit references such as `.env` and `**/.env` are checked, while ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*` is allowed.
 

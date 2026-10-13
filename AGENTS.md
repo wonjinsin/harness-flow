@@ -117,7 +117,9 @@ Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-secrets.js`
 
 ### `hooks/pre/harness-flow.js` — OMP native adapter
 
-The native OMP hook is an ESM default factory. It directly imports `matchDangerous` from `pre-bash-commands.js` and `matchFilePath` / `matchBashCommand` from `pre-secrets.js`, leaving those files unchanged. It has no separate shell/glob parser and inherits the original matchers' limitations. Session bootstraps run the original SessionStart scripts in child processes. Tool-call guards return `{ block: true, reason }` without echoing the command or target path. Native input normalization covers direct and multi-file paths for read/grep/glob/edit/write/delete/ast-edit, read selectors, URI targets, and patch payloads. Session bootstraps apply only to the main agent, so sub-agents receive only their explicit task briefs.
+The native OMP hook is an ESM default factory. It directly imports `matchDangerous` from `pre-bash-commands.js` and `matchFilePath` / `matchBashCommand` from `pre-secrets.js`, leaving those files unchanged. It checks supplied path fields and structured edit move destinations, and token-scans edit/patch text using `getPatch` from `lib/payload.js`. It does not parse edit syntax or path-list strings, strip selectors/queries, or decode URIs. These forms can evade detection, while secret references in patch content can cause false positives. Tool-call guards return `{ block: true, reason }` without echoing the command or target path.
+
+Session bootstraps run the original SessionStart scripts in child processes and apply only to the main agent; sub-agents receive only their explicit task briefs. Resume injection waits until `before_agent_start` because OMP replaces live messages after `session_switch`. A resume or `/clear` remains pending until its bootstrap is persisted, so abandoned prompts can retry without reactivating the skills on later ordinary turns.
 
 ### Hook registration env var conventions
 
