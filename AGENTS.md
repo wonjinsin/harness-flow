@@ -135,7 +135,7 @@ Skills use harness-specific tool names only where a concrete dispatch template n
 
 **Exception — the entry skill.** `skills/using-harness-flow/SKILL.md` is injected at SessionStart on every harness, before anything else can be consulted, so naming one harness's tools there would misinstruct the others. It uses harness-neutral wording (e.g. "native skill loading"). `tests/manifest/codex-runtime-contracts.test.js` pins this — it asserts the entry skill does NOT contain `TodoWrite`.
 
-**Dispatch templates are the opposite case.** `requesting-code-review/SKILL.md` carries an explicit Codex translation using `spawn_agent`, `fork_turns: none`, and unique axis task names. Its OMP mapping starts both axes in one `task` call with a `tasks` array and keeps their outputs separate.
+**Review dispatch stays harness-neutral.** `requesting-code-review/SKILL.md` defines parallel axes, unique task names, fresh contexts with complete evidence and prompts, and separate reports. Map these requirements to the harness's native sub-agent mechanism rather than prescribing platform-specific APIs or substituting a built-in review workflow.
 
 ## No design/ references inside skills
 

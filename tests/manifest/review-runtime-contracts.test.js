@@ -81,13 +81,3 @@ test('Standards keeps the complete Fowler smell baseline', () => {
   assert.match(skill, /documented repo standard always wins/i);
   assert.match(skill, /always a judgement call/i);
 });
-
-test('Codex starts fresh axes before waiting', () => {
-  const skill = read('skills/requesting-code-review/SKILL.md');
-
-  assert.match(skill, /spawn_agent/);
-  assert.match(skill, /fork_turns: "none"/);
-  assert.match(skill, /unique task names/i);
-  assert.match(skill, /before waiting for either result/i);
-  assert.match(skill, /use one agent when the Spec axis is skipped/i);
-});
