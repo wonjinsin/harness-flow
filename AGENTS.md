@@ -117,7 +117,7 @@ Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-secrets.js`
 
 ### `hooks/pre/harness-flow.js` — OMP native adapter
 
-The native OMP hook is an ESM default factory. It reuses the legacy dangerous-command matcher and concrete secret rules, with OMP-specific path/glob and Bash handling in `hooks/pre/secret-paths.cjs` and `hooks/pre/secret-bash.cjs`. These `.cjs` helpers are not hook factories. Session bootstraps run the original SessionStart scripts in child processes. Tool-call guards return `{ block: true, reason }` without echoing the command or target path. They cover Bash, direct and normalized multi-file paths for read/grep/glob/edit/write/delete/ast-edit, read selectors, and patch payloads. `rules/using-harness-flow.md` is `alwaysApply: true` and `agents: main`, so sub-agents receive only their explicit task briefs.
+The native OMP hook is an ESM default factory. It directly imports `matchDangerous` from `pre-bash-commands.js` and `matchFilePath` / `matchBashCommand` from `pre-secrets.js`, leaving those files unchanged. It has no separate shell/glob parser and inherits the original matchers' limitations. Session bootstraps run the original SessionStart scripts in child processes. Tool-call guards return `{ block: true, reason }` without echoing the command or target path. Native input normalization covers direct and multi-file paths for read/grep/glob/edit/write/delete/ast-edit, read selectors, URI targets, and patch payloads. `rules/using-harness-flow.md` is `alwaysApply: true` and `agents: main`, so sub-agents receive only their explicit task briefs.
 
 ### Hook registration env var conventions
 
@@ -148,7 +148,7 @@ Skills use harness-specific tool names only where a concrete dispatch template n
 - **Reinstall plugin locally for testing**: use the target harness's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself. OMP uses `omp plugin marketplace add <repo>` then `omp plugin install harness-flow@harness-flow`.
 - **Run tests**: `node --test` (Node 18+ built-in runner; hook unit/smoke tests, manifest/runtime-contract tests, and skill-script tests).
 - **Add a hook**: register Claude Code/Codex hooks in `hooks/hooks.json`; place native OMP pre/post factories under `hooks/pre/` or `hooks/post/`. Gate on `HARNESS_FLOW_HOOKS_OFF=1`, reuse shared matchers, and add unit plus harness-native smoke coverage.
-- **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array). Keep OMP's glob targets in `hooks/pre/secret-paths.cjs` aligned with those rules. Add match + non-match cases in the matching `tests/hooks/*.test.js`.
+- **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array). OMP imports the same matchers. Add match + non-match cases in the matching `tests/hooks/*.test.js`.
 
 ## Output Paths
 

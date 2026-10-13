@@ -1,12 +1,10 @@
 import bashGuard from '../pre-bash-commands.js';
-import secretPaths from './secret-paths.cjs';
-import secretBash from './secret-bash.cjs';
+import secretGuard from '../pre-secrets.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const { matchDangerous } = bashGuard;
-const { matchFilePath, matchPathPattern } = secretPaths;
-const { matchBashCommand } = secretBash;
+const { matchFilePath, matchBashCommand } = secretGuard;
 
 const FILE_TOOLS = new Set(['read', 'grep', 'glob', 'edit', 'write', 'multiedit', 'multi_edit', 'delete', 'ast_edit']);
 const PATCH_TOOLS = new Set(['apply_patch', 'patch']);
@@ -306,16 +304,8 @@ function matchProtectedPath(toolName, input) {
     const canonical = canonicalizePath(toolName, path);
     for (const target of expandCompoundPathTargets(canonical)) {
       const normalizedTarget = stripReadSelectors(target);
-      if (literal) {
-        const match = matchFilePath(normalizedTarget);
-        if (match) return match;
-        continue;
-      }
-      const search = SEARCH_TOOLS.has(toolName);
-      const uri = URI_RE.test(canonical) || URI_RE.test(target);
-      const match = uri && !search
-        ? matchFilePath(decodeUriTarget(normalizedTarget), { literal: process.platform !== 'win32' })
-        : matchPathPattern(normalizedTarget, { search, uri });
+      const uri = !literal && (URI_RE.test(canonical) || URI_RE.test(target));
+      const match = matchFilePath(uri ? decodeUriTarget(normalizedTarget) : normalizedTarget);
       if (match) return match;
     }
   }

@@ -135,19 +135,19 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM a
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
 - **`rules/using-harness-flow.md`** — OMP always-apply rule that loads `using-harness-flow` for the main agent before it responds.
-- **`hooks/pre/harness-flow.js`** — OMP native adapter that runs the unchanged SessionStart scripts in child processes and applies OMP-specific guards. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
+- **`hooks/pre/harness-flow.js`** — OMP native adapter that imports the existing guard matchers and runs the unchanged SessionStart scripts in child processes. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
-The existing Claude Code/Codex hooks stay unchanged. OMP-specific path and Bash matching live in `hooks/pre/secret-paths.cjs` and `hooks/pre/secret-bash.cjs`, reusing the original secret rules and allowlist from `pre-secrets.js`. The `.cjs` helpers are not discovered as hook factories.
+The existing Claude Code/Codex hooks stay unchanged. OMP directly imports `matchDangerous` from `pre-bash-commands.js` and `matchFilePath` / `matchBashCommand` from `pre-secrets.js`. The adapter only translates native tool inputs and blocking results; it has no separate secret matcher.
 
-Known guard limitations remain unfixed: ANSI-C NUL handling can miss secret references, and the OMP shell parser can incorrectly reject nine independent command substitutions as excessive nesting.
+The original guard limitations remain unchanged: string-based matching does not expand Bash quoting or ANSI-C escapes, normalize Windows separators, or resolve wildcard expressions to secret paths. References using those forms, including ANSI-C NUL escapes, can evade detection.
 
 On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
 
-The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes retain recursive matching and literal paths containing delimiters. Singleton character classes preserve secret targeting, and key-material extensions remain protected.
+OMP uses the same secret rules and allowlist as the command hooks. Explicit references such as `.env` and `**/.env` are checked, while ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*` is allowed.
 
-Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. In URI searches, `?` remains a wildcard unless it starts a `key=value` query. Path-list and URI syntax are split before each URI target is percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
+Native read selectors, path lists, edit headers, and URI targets are normalized before matching. Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. URI targets are percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
 `HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
 
