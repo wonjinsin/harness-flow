@@ -138,7 +138,7 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM a
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
-The existing Claude Code/Codex hooks stay unchanged. OMP directly imports `matchDangerous` from `pre-bash-commands.js` and `matchFilePath` / `matchBashCommand` from `pre-secrets.js`. The adapter only translates native tool inputs and blocking results; it has no separate secret matcher.
+The existing Claude Code/Codex hooks stay unchanged. OMP directly imports `matchDangerous` from `pre-bash-commands.js`, `matchFilePath` / `matchBashCommand` from `pre-secrets.js`, and `getPatch` from `lib/payload.js`. The adapter only connects native tool events to these helpers and translates blocking results; it has no separate secret matcher or input-syntax parser.
 
 The original guard limitations remain unchanged: string-based matching does not expand Bash quoting or ANSI-C escapes, normalize Windows separators, or resolve wildcard expressions to secret paths. References using those forms, including ANSI-C NUL escapes, can evade detection.
 
@@ -146,7 +146,7 @@ On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same 
 
 OMP uses the same secret rules and allowlist as the command hooks. Explicit references such as `.env` and `**/.env` are checked, while ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*` is allowed.
 
-Native read selectors, path lists, edit headers, and URI targets are normalized before matching. OMP's `local:/` alias is normalized to `local://` before URI detection, including in path lists and edit headers. Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. URI targets are percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
+The adapter checks the path fields supplied by OMP's `tool_call` event, including `path` / `paths` and structured edit move destinations. Edit and patch payloads use the command guard's existing token scan, so a secret reference in patch content can also block an otherwise safe edit. The adapter does not parse edit headers, split path-list strings, strip read selectors or queries, decode URIs, or resolve archive members. Encoded targets such as `local://%2Eenv`, selected paths such as `.aws/credentials:1-20`, delimited path lists, and quoted edit destinations can therefore evade detection. This intentionally favors a minimal port of the original guards over OMP-specific coverage; it is not a sandbox or a filter over every file returned by a broad search.
 
 `HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers, including workflow bootstrapping. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
 
