@@ -1,4 +1,5 @@
 'use strict';
+const legacyGuard = require('../pre-secrets.js');
 
 const SHELL_LITERAL_GLOB_SENTINELS = new Map([
   ['*', '\uE000'],
@@ -18,72 +19,29 @@ function encodeShellLiteralGlobs(value) {
   return [...value].map((character) => SHELL_LITERAL_GLOB_SENTINELS.get(character) || character).join('');
 }
 
-// Skip these even when they would otherwise match the dotenv pattern — they're
-// templates and intentionally tracked in version control.
-const ALLOWLIST = [
-  /\.env\.example$/i,
-  /\.env\.sample$/i,
-  /\.env\.template$/i,
-  /\.env\.schema$/i,
-  /\.env\.defaults$/i,
-];
-
-const PATTERNS = [
-  {
-    id: 'read-dotenv',
-    caseInsensitive: false,
-    globs: ['.env', '**/.env', '.env.*', '**/.env.*'],
-    reason: 'Reading/writing .env files exposes or corrupts secrets. Use environment variables or a secrets manager.',
-  },
-  {
-    id: 'read-ssh-key',
-    caseInsensitive: false,
-    globs: ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', '**/id_rsa', '**/id_dsa', '**/id_ecdsa', '**/id_ed25519'],
-    reason: 'Accessing SSH private key. There is no safe LLM use case.',
-  },
-  {
-    id: 'read-aws-credentials',
-    caseInsensitive: false,
-    globs: ['.aws/credentials', '**/.aws/credentials'],
-    reason: 'Accessing AWS credentials. Use AWS_PROFILE or credential helpers instead.',
-  },
-  {
-    id: 'read-gcp-credentials',
-    caseInsensitive: true,
-    globs: ['credentials', 'tokens', 'adc', 'application_default'].flatMap((marker) => [
-      `.config/gcloud/*${marker}*`,
-      `.config/gcloud/*${marker}*/**`,
-      `**/.config/gcloud/*${marker}*`,
-      `**/.config/gcloud/*${marker}*/**`,
-    ]),
-    reason: 'Accessing GCloud credentials. Use gcloud auth or ADC properly instead.',
-  },
-  {
-    id: 'read-gcp-service-account',
-    caseInsensitive: true,
-    globs: [
-      '*service-account*.json',
-      '*service_account*.json',
-      '*serviceaccount*.json',
-      '**/*service-account*.json',
-      '**/*service_account*.json',
-      '**/*serviceaccount*.json',
-    ],
-    reason: 'Accessing GCP service account JSON. Use workload identity or env-injected credentials instead.',
-  },
-  {
-    id: 'read-key-material',
-    caseInsensitive: true,
-    globs: ['*.pem', '*.key', '**/*.pem', '**/*.key'],
-    reason: 'Accessing key material (.pem/.key). There is no safe LLM use case.',
-  },
-  {
-    id: 'read-netrc',
-    caseInsensitive: false,
-    globs: ['.netrc', '**/.netrc'],
-    reason: 'Accessing .netrc exposes stored credentials. Use a credential helper instead.',
-  },
-];
+const { ALLOWLIST } = legacyGuard;
+const GLOB_TARGETS = {
+  'read-dotenv': ['.env', '**/.env', '.env.*', '**/.env.*'],
+  'read-ssh-key': ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', '**/id_rsa', '**/id_dsa', '**/id_ecdsa', '**/id_ed25519'],
+  'read-aws-credentials': ['.aws/credentials', '**/.aws/credentials'],
+  'read-gcp-credentials': ['credentials', 'tokens', 'adc', 'application_default'].flatMap((marker) => [
+    `.config/gcloud/*${marker}*`,
+    `.config/gcloud/*${marker}*/**`,
+    `**/.config/gcloud/*${marker}*`,
+    `**/.config/gcloud/*${marker}*/**`,
+  ]),
+  'read-gcp-service-account': [
+    '*service-account*.json', '*service_account*.json', '*serviceaccount*.json',
+    '**/*service-account*.json', '**/*service_account*.json', '**/*serviceaccount*.json',
+  ],
+  'read-key-material': ['*.pem', '*.key', '**/*.pem', '**/*.key'],
+  'read-netrc': ['.netrc', '**/.netrc'],
+};
+const PATTERNS = legacyGuard.PATTERNS.map((pattern) => ({
+  ...pattern,
+  caseInsensitive: pattern.regex.ignoreCase,
+  globs: GLOB_TARGETS[pattern.id],
+}));
 
 const MAX_PATTERN_EXPANSIONS = 128;
 const MAX_PATTERN_LENGTH = 4096;
@@ -108,21 +66,9 @@ function isAllowlistedPath(filePath) {
   return ALLOWLIST.some((allow) => allow.test(filePath));
 }
 
-function escapeGlobLiteral(value) {
-  return value.replace(/\[/g, '[[]').replace(/\*/g, '[*]').replace(/\?/g, '[?]');
-}
-
 function matchFilePath(filePath, { literal = false } = {}) {
   const text = literal ? String(filePath == null ? '' : filePath) : normalizeConcretePath(filePath);
-  if (!text) return null;
-  if (isAllowlistedPath(text)) return null;
-  const literalPattern = escapeGlobLiteral(text);
-  for (const pattern of PATTERNS) {
-    if (pattern.globs.some((glob) => globPatternsIntersect(literalPattern, glob, pattern.caseInsensitive))) {
-      return pattern;
-    }
-  }
-  return null;
+  return legacyGuard.matchFilePath(text);
 }
 
 function splitBraceAlternatives(body) {
@@ -442,8 +388,6 @@ function matchPathPattern(filePath, { shellEncoded = false, search = false, uri 
 }
 
 module.exports = {
-  PATTERNS,
-  ALLOWLIST,
   matchFilePath,
   matchPathPattern,
   COMPLEX_PATTERN_MATCH,

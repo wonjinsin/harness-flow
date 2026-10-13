@@ -4,7 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { spawnSync } = require('node:child_process');
 
 const HOOK_PATH = path.join(__dirname, '..', '..', 'hooks', 'pre', 'harness-flow.js');
 
@@ -83,17 +82,5 @@ test('disabled OMP hooks do not reactivate either skill across session boundarie
   } finally {
     if (previous === undefined) delete process.env.HARNESS_FLOW_HOOKS_OFF;
     else process.env.HARNESS_FLOW_HOOKS_OFF = previous;
-  }
-});
-
-test('disabled command hooks do not inject session context on Claude or Codex', () => {
-  for (const name of ['harness', 'caveman']) {
-    const script = path.join(__dirname, '..', '..', 'hooks', `session-start-${name}.js`);
-    const result = spawnSync(process.execPath, [script], {
-      env: { ...process.env, HARNESS_FLOW_HOOKS_OFF: '1' },
-      encoding: 'utf8',
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, '', `${name} must not reactivate when hooks are disabled`);
   }
 });

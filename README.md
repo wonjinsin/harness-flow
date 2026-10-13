@@ -135,11 +135,13 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM a
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
 - **`rules/using-harness-flow.md`** — OMP always-apply rule that loads `using-harness-flow` for the main agent before it responds.
-- **`hooks/pre/harness-flow.js`** — OMP native adapter that reuses both SessionStart context builders and the Bash/secret matchers. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
+- **`hooks/pre/harness-flow.js`** — OMP native adapter that runs the unchanged SessionStart scripts in child processes and applies OMP-specific guards. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
-The command hook keeps only payload dispatch and deny output. Both adapters import the same path policy from `hooks/lib/secret-paths.js` and Bash matcher from `hooks/lib/secret-bash.js`; OMP-specific selectors, queries, and URI target normalization stay in the native adapter. ANSI-C fragments end at their first NUL, and the Bash matcher limits actual substitution nesting rather than the number of independent substitutions.
+The existing Claude Code/Codex hooks stay unchanged. OMP-specific path and Bash matching live in `hooks/pre/secret-paths.cjs` and `hooks/pre/secret-bash.cjs`, reusing the original secret rules and allowlist from `pre-secrets.js`. The `.cjs` helpers are not discovered as hook factories.
+
+Known guard limitations remain unfixed: ANSI-C NUL handling can miss secret references, and the OMP shell parser can incorrectly reject nine independent command substitutions as excessive nesting.
 
 On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
 
@@ -147,7 +149,7 @@ The OMP guard checks explicit secret paths and secret-targeting search patterns,
 
 Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. In URI searches, `?` remains a wildcard unless it starts a `key=value` query. Path-list and URI syntax are split before each URI target is percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
-Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
+`HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
 
 ---
 
@@ -170,7 +172,7 @@ omp plugin marketplace add wonjinsin/harness-flow
 omp plugin install harness-flow@harness-flow
 ```
 
-OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule and session bootstraps apply only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`, so the native adapter supplies equivalent behavior for all four hooks, including caveman activation at session boundaries.
+OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule and session bootstraps apply only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`; its native adapter supplies session bootstraps and guards without modifying the four command hooks.
 
 Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native rules and hooks without changing the installed plugin.
 

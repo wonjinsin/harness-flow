@@ -1,8 +1,7 @@
 import bashGuard from '../pre-bash-commands.js';
-import secretPaths from '../lib/secret-paths.js';
-import secretBash from '../lib/secret-bash.js';
-import harnessBootloader from '../session-start-harness.js';
-import cavemanBootloader from '../session-start-caveman.js';
+import secretPaths from './secret-paths.cjs';
+import secretBash from './secret-bash.cjs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const { matchDangerous } = bashGuard;
@@ -363,10 +362,18 @@ export default function registerHarnessFlowPreToolHook(pi) {
     return false;
   }
 
+  function commandSessionContext(name) {
+    const output = execFileSync(process.execPath, [`${pluginRoot}hooks/session-start-${name}.js`], {
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot },
+    });
+    return JSON.parse(output).hookSpecificOutput.additionalContext;
+  }
+
   function sessionMessage() {
     return {
       customType: sessionContextType,
-      content: harnessBootloader.getSessionContext(pluginRoot) + '\n' + cavemanBootloader.getSessionContext(pluginRoot),
+      content: commandSessionContext('harness') + '\n' + commandSessionContext('caveman'),
       display: false,
       attribution: 'agent',
     };

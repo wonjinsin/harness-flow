@@ -30,34 +30,37 @@ const path = require('node:path');
 // CLAUDE_PLUGIN_ROOT is auto-injected by Claude Code's plugin runtime when this
 // hook is registered via hooks/hooks.json. The __dirname fallback covers direct
 // invocation (smoke tests, manual runs).
-function getSessionContext(pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..')) {
-  const skillFile = path.join(pluginRoot, 'skills', 'using-harness-flow', 'SKILL.md');
+const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
+const skillFile = path.join(pluginRoot, 'skills', 'using-harness-flow', 'SKILL.md');
 
-  let skillContent;
-  try {
-    skillContent = fs.readFileSync(skillFile, 'utf-8');
-  } catch (err) {
-    // A missing skill must not block session creation.
-    skillContent = 'Error reading using-harness-flow skill';
-  }
-
-  return (
-    '<EXTREMELY_IMPORTANT>\n' +
-    'You have harness-flow.\n\n' +
-    "**Below is the full content of your 'harness-flow:using-harness-flow' skill — your introduction to using skills. Load all other skills with the current harness's native skill mechanism:**\n\n" +
-    skillContent +
-    '\n</EXTREMELY_IMPORTANT>'
-  );
+let skillContent;
+try {
+  skillContent = fs.readFileSync(skillFile, 'utf-8');
+} catch (err) {
+  // Fallback keeps the session alive even if the skill file is missing/unreadable.
+  skillContent = 'Error reading using-harness-flow skill';
 }
 
-module.exports = { getSessionContext };
+// The <EXTREMELY_IMPORTANT> wrapper signals to the LLM that this is a hard
+// behavioral rule, not optional guidance. The skill body defines request routing
+// and harness-neutral skill loading instructions.
+const sessionContext =
+  '<EXTREMELY_IMPORTANT>\n' +
+  'You have harness-flow.\n\n' +
+  "**Below is the full content of your 'harness-flow:using-harness-flow' skill — your introduction to using skills. Load all other skills with the current harness's native skill mechanism:**\n\n" +
+  skillContent +
+  '\n</EXTREMELY_IMPORTANT>';
 
-if (require.main === module && process.env.HARNESS_FLOW_HOOKS_OFF !== '1') {
-  const output = {
-    hookSpecificOutput: {
-      hookEventName: 'SessionStart',
-      additionalContext: getSessionContext(),
-    },
-  };
-  process.stdout.write(JSON.stringify(output, null, 2) + '\n');
-}
+// Claude Code's hookSpecificOutput.additionalContext schema: the string in
+// `additionalContext` is appended to the system prompt for the new session.
+// JSON.stringify handles all escaping (newlines, quotes, etc.) automatically —
+// no manual sed/awk escape gymnastics needed.
+const output = {
+  hookSpecificOutput: {
+    hookEventName: 'SessionStart',
+    additionalContext: sessionContext,
+  },
+};
+
+process.stdout.write(JSON.stringify(output, null, 2) + '\n');
+process.exit(0);

@@ -1,11 +1,6 @@
 'use strict';
 
-const {
-  matchFilePath,
-  matchPathPattern,
-  COMPLEX_PATTERN_MATCH,
-  encodeShellLiteralGlobs,
-} = require('./secret-paths.js');
+const { matchFilePath, matchPathPattern, COMPLEX_PATTERN_MATCH, encodeShellLiteralGlobs } = require('./secret-paths.cjs');
 
 function normalizeShellToken(token) {
   return token.replace(/^[('"`]+/, '').replace(/[)'"`,]+$/, '');
@@ -13,6 +8,7 @@ function normalizeShellToken(token) {
 
 function decodeCodePoint(value, radix) {
   const codePoint = Number.parseInt(value, radix);
+  if (codePoint === 0) return '';
   return Number.isSafeInteger(codePoint) && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : '\uFFFD';
 }
 
@@ -21,7 +17,6 @@ function decodeAnsiCString(value) {
   let decoded = '';
   for (let index = 0; index < value.length; index += 1) {
     const character = value[index];
-    if (character === '\0') break;
     if (character !== '\\' || index + 1 >= value.length) {
       decoded += character;
       continue;
@@ -30,8 +25,7 @@ function decodeAnsiCString(value) {
     const escape = value[index + 1];
     if (escape === 'c' && index + 2 < value.length) {
       const controlCode = value[index + 2].toUpperCase().charCodeAt(0) & 0x1f;
-      if (controlCode === 0) return decoded;
-      decoded += String.fromCodePoint(controlCode);
+      if (controlCode !== 0) decoded += String.fromCodePoint(controlCode);
       index += 2;
       continue;
     }
@@ -44,7 +38,6 @@ function decodeAnsiCString(value) {
       while (end < value.length && end < index + 2 + maximum && matcher.test(value[end])) end += 1;
       if (end > index + 2) {
         decoded += decodeCodePoint(value.slice(index + 2, end), radix);
-        if (decoded.endsWith('\0')) return decoded.slice(0, -1);
         index = end - 1;
         continue;
       }
@@ -52,7 +45,6 @@ function decodeAnsiCString(value) {
       let end = index + 1;
       while (end < value.length && end < index + 4 && /[0-7]/.test(value[end])) end += 1;
       decoded += decodeCodePoint(value.slice(index + 1, end), 8);
-      if (decoded.endsWith('\0')) return decoded.slice(0, -1);
       index = end - 1;
       continue;
     }
@@ -66,37 +58,23 @@ function decodeAnsiCString(value) {
   return decoded;
 }
 
-
 function tokenizeShellWords(text) {
   const tokens = [];
-  const substitutions = [];
   let token = '';
   let globPattern = '';
   let quote = '';
   let ansiBuffer = '';
   let hasUnquotedGlob = false;
-  let quotedWord = false;
-  let commandStart = true;
-  let parentheses = 0;
-  let cases = 0;
   const append = (value, patternActive = false) => {
     token += value;
     globPattern += patternActive ? value : encodeShellLiteralGlobs(value);
     if (patternActive && /[*?[{]/.test(value)) hasUnquotedGlob = true;
   };
   const push = () => {
-    if (token) {
-      if (commandStart && !quotedWord) {
-        if (token === 'case') cases += 1;
-        else if (token === 'esac' && cases > 0) cases -= 1;
-      }
-      commandStart = false;
-      tokens.push({ value: token, globPattern, hasUnquotedGlob });
-    }
+    if (token) tokens.push({ value: token, globPattern, hasUnquotedGlob });
     token = '';
     globPattern = '';
     hasUnquotedGlob = false;
-    quotedWord = false;
   };
 
   for (let index = 0; index < text.length; index += 1) {
@@ -119,83 +97,50 @@ function tokenizeShellWords(text) {
       else append(character);
       continue;
     }
-    if (character === '\\' && index + 1 < text.length) {
-      const next = text[index + 1];
-      if (next === '\n') {
-        index += 1;
+    if (quote === '"' || quote === '`') {
+      if (character === quote) {
+        quote = '';
         continue;
       }
-      if (quote !== '"' || '$`"\\'.includes(next)) {
-        append(next);
-        quotedWord = true;
-        index += 1;
-        continue;
+      if (character === '\\' && index + 1 < text.length) {
+        const next = text[index + 1];
+        if (next === '\n') {
+          index += 1;
+          continue;
+        }
+        if (quote === '`' || '$`"\\'.includes(next)) {
+          append(next);
+          index += 1;
+          continue;
+        }
       }
+      append(character);
+      continue;
     }
 
-    const current = substitutions[substitutions.length - 1];
-    if (character === '`' && current?.closing === '`') {
-      push();
-      ({ quote, commandStart, parentheses, cases } = substitutions.pop());
-      quotedWord = Boolean(quote);
-      continue;
-    }
-    const dollarSubstitution = character === '$' && text[index + 1] === '(' && text[index + 2] !== '(';
-    if (dollarSubstitution || character === '`') {
-      if (substitutions.length >= 8) return null;
-      push();
-      substitutions.push({ closing: dollarSubstitution ? ')' : '`', quote, commandStart, parentheses, cases });
-      quote = '';
-      commandStart = true;
-      parentheses = 0;
-      cases = 0;
-      if (dollarSubstitution) index += 1;
-      continue;
-    }
-    if (quote === '"') {
-      if (character === '"') quote = '';
-      else append(character);
-      continue;
-    }
     if (character === '$' && text[index + 1] === "'") {
       quote = 'ansi';
-      quotedWord = true;
       ansiBuffer = '';
       index += 1;
       continue;
     }
     if (character === '$' && text[index + 1] === '"') {
       quote = '"';
-      quotedWord = true;
       index += 1;
       continue;
     }
-    if (character === "'" || character === '"') {
+    if (character === "'" || character === '"' || character === '`') {
       quote = character;
-      quotedWord = true;
       continue;
     }
-    if (character === '(') {
-      push();
-      if (cases === 0) parentheses += 1;
-      commandStart = true;
+    if (character === '\\' && index + 1 < text.length) {
+      const next = text[index + 1];
+      if (next !== '\n') append(next);
+      index += 1;
       continue;
     }
-    if (character === ')') {
+    if (/[\s|;&<>()]/.test(character)) {
       push();
-      // A case pattern's ')' does not close the surrounding substitution.
-      if (parentheses > 0) parentheses -= 1;
-      else if (cases === 0 && current?.closing === ')') {
-        ({ quote, commandStart, parentheses, cases } = substitutions.pop());
-        quotedWord = Boolean(quote);
-        continue;
-      }
-      commandStart = true;
-      continue;
-    }
-    if (/[\s|;&<>]/.test(character)) {
-      push();
-      if (/[|;&\n]/.test(character)) commandStart = true;
       continue;
     }
     append(character, true);
@@ -203,6 +148,56 @@ function tokenizeShellWords(text) {
   if (quote === 'ansi') append(`$'${ansiBuffer}`);
   push();
   return tokens;
+}
+
+function extractFirstCommandSubstitutionTail(text) {
+  let quote = '';
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote === "'") {
+      if (character === "'") quote = '';
+      continue;
+    }
+    if (quote === 'ansi') {
+      if (character === '\\' && index + 1 < text.length) index += 1;
+      else if (character === "'") quote = '';
+      continue;
+    }
+    if (quote === '"') {
+      if (character === '\\' && index + 1 < text.length) {
+        index += 1;
+        continue;
+      }
+      if (character === '"') {
+        quote = '';
+        continue;
+      }
+    } else {
+      if (character === '\\' && index + 1 < text.length) {
+        index += 1;
+        continue;
+      }
+      if (character === '$' && text[index + 1] === "'") {
+        quote = 'ansi';
+        index += 1;
+        continue;
+      }
+      if (character === "'") {
+        quote = "'";
+        continue;
+      }
+      if (character === '"') {
+        quote = '"';
+        continue;
+      }
+    }
+
+    if (character === '$' && text[index + 1] === '(' && text[index + 2] !== '(') {
+      return text.slice(index + 2);
+    }
+    if (character === '`') return text.slice(index + 1);
+  }
+  return null;
 }
 
 function unwrapApplyPatchHeredoc(lines) {
@@ -234,16 +229,22 @@ function matchApplyPatchPayload(text) {
   return { recognized: true, hit: null };
 }
 
-function matchBashCommand(command) {
+function matchBashCommand(command, substitutionDepth = 0) {
   const text = String(command == null ? '' : command);
   if (!text) return null;
   const patch = matchApplyPatchPayload(text);
   if (patch.recognized) return patch.hit;
 
+  const substitutionTail = extractFirstCommandSubstitutionTail(text);
+  if (substitutionTail != null) {
+    if (substitutionDepth >= 8) return COMPLEX_PATTERN_MATCH;
+    const nestedHit = matchBashCommand(substitutionTail, substitutionDepth + 1);
+    if (nestedHit) return nestedHit;
+  }
+
   // Parse shell words so adjacent quoted fragments and backslash escapes are
   // inspected as the path Bash will actually pass to the command.
   const tokens = tokenizeShellWords(text);
-  if (!tokens) return COMPLEX_PATTERN_MATCH;
   for (const token of tokens) {
     const value = normalizeShellToken(token.value);
     const hit = token.hasUnquotedGlob

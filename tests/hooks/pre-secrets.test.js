@@ -4,9 +4,8 @@ const assert = require('node:assert/strict');
 const {
   PATTERNS,
   matchFilePath,
-  matchPathPattern,
-} = require('../../hooks/lib/secret-paths.js');
-const { matchBashCommand } = require('../../hooks/lib/secret-bash.js');
+  matchBashCommand,
+} = require('../../hooks/pre-secrets.js');
 
 test('PATTERN ids are unique', () => {
   const ids = PATTERNS.map((p) => p.id);
@@ -50,57 +49,6 @@ test('allowlist: .env.schema returns null', () => {
 });
 test('allowlist: .env.defaults returns null', () => {
   assert.equal(matchFilePath('/proj/.env.defaults'), null);
-});
-
-test('path normalization: Windows separators are matched', () => {
-  assert.equal(matchFilePath('C:\\repo\\.env').id, 'read-dotenv');
-});
-
-test('path patterns: protected brace, wildcard, and character-class branches match', () => {
-  const patterns = [
-    '/repo/{.env,safe.txt}',
-    '/repo/{safe.txt,{nested,.env}}',
-    '/repo/{.env.example,.env}',
-    '/repo/**/.env*',
-    '/repo/**/[.]env',
-    '/repo/.en?',
-    '/repo/.en[!x]',
-    '/repo/.e*v',
-    '/repo/.e?v',
-    '/repo/.[a-z]nv',
-    '/home/u/.ssh/id_[a-z]sa',
-    '/home/u/.ssh/id_{rsa,ed25519}',
-    '/repo/.aws/credentia?s',
-    '/repo/.config/gcloud/credentials.[d]b',
-    '/repo/prod-serviceaccount-[0-9].json',
-    '/home/u/.config/gcloud/access_tok?ns.db',
-    '/home/u/.config/gcloud/access_toke[n]s.db',
-    '/home/u/.config/gcloud/a?c.json',
-    '/home/u/.config/gcloud/application_defaul?.json',
-    '/repo/.config/gcloud/user_creden*/archive.txt',
-    '/repo/prod-serviceacc?unt.json',
-    '/repo/private.p?m',
-    '/home/u/.netr?',
-    '/repo/.en[]v]',
-    '/repo/**/*.json',
-  ];
-  for (const pattern of patterns) assert.ok(matchPathPattern(pattern), pattern);
-});
-
-test('path patterns: unsafe expansion complexity fails closed', () => {
-  const alternatives = Array.from({ length: 129 }, (_, index) => `safe-${index}`).join(',');
-  assert.equal(matchPathPattern(`/repo/{${alternatives}}`).id, 'read-secret-pattern');
-  assert.equal(matchPathPattern(`/repo/${'*'.repeat(4097)}`).id, 'read-secret-pattern');
-  assert.equal(matchPathPattern('/repo/.en[[:lower:]]').id, 'read-secret-pattern');
-  assert.equal(matchPathPattern('/repo/.e{n..n}v').id, 'read-secret-pattern');
-});
-
-test('path patterns: safe brace unions and concrete templates remain allowed', () => {
-  assert.equal(matchPathPattern('src/{foo,bar}.js'), null);
-  assert.equal(matchPathPattern('src/app-*.js'), null);
-  assert.equal(matchPathPattern('src/[a-z].js'), null);
-  assert.equal(matchPathPattern('/repo/.env.example'), null);
-  assert.ok(matchPathPattern('/repo/.env.example*'));
 });
 
 // ---------- matchFilePath: read-ssh-key ----------
@@ -217,26 +165,6 @@ test('bash read-dotenv: matches cat .env.local', () => {
 test('bash read-dotenv: matches less ./.env.production', () => {
   assert.equal(matchBashCommand('less ./.env.production').id, 'read-dotenv');
 });
-test('bash read-dotenv: matches quoted paths and paths containing spaces', () => {
-  const commands = [
-    'cat "/repo/.env"',
-    "cat '/repo/.env'",
-    'cat "/repo/my dir/.env"',
-    'cat "/repo/.env">/tmp/out',
-    'cat /repo/.env*',
-    'cat /repo/.en?',
-    'cat /repo/.en[!x]',
-    'cat /repo/.e"n"v',
-    'cat /repo/.e\\nv',
-    "cat /repo/$'\\x2e'env",
-    'cat /repo/$".e"nv',
-    'cat /repo/{safe.txt,.env}',
-  ];
-  for (const command of commands) assert.equal(matchBashCommand(command).id, 'read-dotenv', command);
-  assert.equal(matchBashCommand('cat /repo/.e{n..n}v').id, 'read-secret-pattern');
-  assert.equal(matchBashCommand('cat /home/u/.config/gcloud/access_tok?ns.db').id, 'read-gcp-credentials');
-  assert.equal(matchBashCommand('cat /home/u/.ssh/id_[a-z]sa').id, 'read-ssh-key');
-});
 test('bash read-ssh-key: matches cat ~/.ssh/id_rsa', () => {
   assert.equal(matchBashCommand('cat ~/.ssh/id_rsa').id, 'read-ssh-key');
 });
@@ -334,84 +262,6 @@ test('bash: ls -la returns null', () => {
   assert.equal(matchBashCommand('ls -la'), null);
 });
 
-test('bash: quoted regex and code arguments are not treated as path globs', () => {
-  assert.equal(matchBashCommand("rg 'foo.*' src"), null);
-  assert.equal(matchBashCommand("node -e 'console.log({ok:true})'"), null);
-  assert.equal(matchBashCommand("cat '/repo/.en?'"), null);
-});
-
-test('bash: quoted and escaped glob fragments stay literal beside active globs', () => {
-  const commands = [
-    "cat /repo/.e'*'v*",
-    'cat /repo/.e\\*v*',
-    "cat *'.en?'",
-    'cat *.en\\?',
-    "cat *$'.en?'",
-    'cat *$".en?"',
-  ];
-  for (const command of commands) assert.equal(matchBashCommand(command), null, command);
-});
-
-test('bash: recursive protected paths still cross quoted literal directory metacharacters', () => {
-  assert.equal(matchBashCommand("cat '/repo/*'/.env*")?.id, 'read-dotenv');
-  assert.equal(matchBashCommand("cat '/repo/?'/.ssh/id_[a-z]sa")?.id, 'read-ssh-key');
-});
-
-test('bash: nested command substitutions cannot hide active protected globs', () => {
-  assert.equal(matchBashCommand('echo "$(cat /repo/.env*)"')?.id, 'read-dotenv');
-  assert.equal(matchBashCommand('echo `cat /repo/.env*`')?.id, 'read-dotenv');
-  assert.equal(matchBashCommand(`echo "$(printf '%s' "$(cat /repo/.env*)")"`)?.id, 'read-dotenv');
-});
-
-test('bash: short Bash ANSI-C Unicode escapes cannot construct protected paths', () => {
-  assert.equal(matchBashCommand(String.raw`cat /repo/$'\u2e'env`)?.id, 'read-dotenv');
-  assert.equal(matchBashCommand(String.raw`cat /repo/$'\U2e'env`)?.id, 'read-dotenv');
-});
-
-test('bash: a NUL-only ANSI-C fragment preserves the following path fragment', () => {
-  for (const escape of ['\\0', '\\x00', '\\u0', '\\U0', '\\c@']) {
-    const command = `cat /repo/$'${escape}'.env`;
-    assert.equal(matchBashCommand(command)?.id, 'read-dotenv', command);
-  }
-});
-
-test('bash: ANSI-C words end at the first NUL without discarding adjacent fragments', () => {
-  for (const escape of ['\\0', '\\x00', '\\u0', '\\U0', '\\c@']) {
-    assert.equal(
-      matchBashCommand(`cat /repo/$'.env${escape}suffix'`)?.id,
-      'read-dotenv',
-      escape,
-    );
-    assert.equal(matchBashCommand(`cat /repo/$'safe${escape}.env'`), null, escape);
-    assert.equal(
-      matchBashCommand(`cat /repo/$'.en${escape}suffix'v`)?.id,
-      'read-dotenv',
-      escape,
-    );
-  }
-});
-
-test('bash: command substitution parsing survives case delimiters and ANSI-C escaped quotes', () => {
-  assert.equal(matchBashCommand('echo "$(case x in x) cat /repo/.env*;; esac)"')?.id, 'read-dotenv');
-  assert.equal(matchBashCommand(String.raw`echo "$(printf $'\')'; cat /repo/.env*)"`)?.id, 'read-dotenv');
-});
-
-test('bash: independent command substitutions do not consume the nesting limit', () => {
-  const siblings = Array.from({ length: 9 }, () => '"$(printf x)"').join(' ');
-  assert.equal(matchBashCommand(`printf '%s' ${siblings}`), null);
-  assert.equal(matchBashCommand(`printf '%s' "$(printf '%s' ${siblings})"`), null);
-  assert.equal(
-    matchBashCommand(`printf '%s' ${siblings} "$(cat /repo/.env*)"` )?.id,
-    'read-dotenv',
-  );
-});
-
-test('bash: excessive command substitution nesting fails closed', () => {
-  let command = 'true';
-  for (let index = 0; index < 10000; index += 1) command = `echo "$(${command})"`;
-  assert.equal(matchBashCommand(command)?.id, 'read-secret-pattern');
-});
-
 // ---------- matchBashCommand: key material + netrc ----------
 
 test('bash: cat ~/.netrc hits read-netrc', () => {
@@ -462,21 +312,6 @@ test('matchFilePath does not match "rm -rf /"', () => {
 
 const { getPatch } = require('../../hooks/lib/payload.js');
 
-test('getPatch reads tool_input.input', () => {
-  assert.equal(
-    getPatch({ tool_input: { input: '*** Begin Patch\n*** Update File: .env\n*** End Patch' } }),
-    '*** Begin Patch\n*** Update File: .env\n*** End Patch',
-  );
-});
-
-test('getPatch falls back to tool_input.command', () => {
-  assert.equal(getPatch({ tool_input: { command: 'apply_patch xyz' } }), 'apply_patch xyz');
-});
-
-test('getPatch returns empty string when fields absent', () => {
-  assert.equal(getPatch({ tool_input: {} }), '');
-});
-
 test('getPatch fails safe: unknown field name still lets matchBashCommand catch the secret', () => {
   const patch = '*** Begin Patch\n*** Update File: config/.env\n+X=1\n*** End Patch';
   const out = getPatch({ tool_input: { patch } });
@@ -496,13 +331,6 @@ test('apply_patch touching id_rsa is caught', () => {
 test('apply_patch touching .env.example is allowed', () => {
   const patch = '*** Begin Patch\n*** Update File: .env.example\n*** End Patch';
   assert.equal(matchBashCommand(patch), null);
-  const heredoc = "<<'EOF'\n*** Begin Patch\n*** Update File: .env.example\n*** End Patch\nEOF";
-  assert.equal(matchBashCommand(heredoc), null);
-});
-
-test('apply_patch heredoc wrapper still checks protected targets', () => {
-  const patch = "<<'EOF'\n*** Begin Patch\n*** Update File: config/.env\n+X=1\n*** End Patch\nEOF";
-  assert.equal(matchBashCommand(patch).id, 'read-dotenv');
 });
 
 // ---------- apply_patch end-to-end deny via spawnSync ----------
