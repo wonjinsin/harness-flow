@@ -72,7 +72,7 @@ If the spec is missing, skip the Spec sub-agent and note this in the final repor
 
 For Codex, start both axes with `spawn_agent`, `fork_turns: "none"`, and unique task names before waiting for either result. Use one agent when the Spec axis is skipped.
 
-For OMP, read [omp-task-dispatch.md](omp-task-dispatch.md) and use its native parallel mapping; it preserves these prompts and the aggregation contract.
+For OMP, use one `task` call with a `tasks` array for both axes, or only Standards when Spec is skipped. Keep shared evidence in `context` and each complete axis prompt in its task. Do not use OMP `/review`; preserve this skill's separate reports.
 
 ### 5. Aggregate
 

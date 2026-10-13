@@ -128,13 +128,12 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Hooks
 
-Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM adapter for the same session bootstraps and pre-tool guards, all with no npm dependencies. Claude Code and Codex use `hooks/hooks.json`; OMP discovers its native rule and adapter directly.
+Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM adapter for the same session bootstraps and pre-tool guards, all with no npm dependencies. Claude Code and Codex use `hooks/hooks.json`; OMP discovers its native adapter directly.
 
 - **`session-start-harness.js`** — injects `using-harness-flow` on new session, resume, clear, and compaction.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
-- **`rules/using-harness-flow.md`** — OMP always-apply rule that loads `using-harness-flow` for the main agent before it responds.
 - **`hooks/pre/harness-flow.js`** — OMP native adapter that imports the existing guard matchers and runs the unchanged SessionStart scripts in child processes. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
@@ -149,7 +148,7 @@ OMP uses the same secret rules and allowlist as the command hooks. Explicit refe
 
 Native read selectors, path lists, edit headers, and URI targets are normalized before matching. Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. URI targets are percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
-`HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
+`HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers, including workflow bootstrapping. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
 
 ---
 
@@ -172,9 +171,9 @@ omp plugin marketplace add wonjinsin/harness-flow
 omp plugin install harness-flow@harness-flow
 ```
 
-OMP discovers the skills plus `rules/using-harness-flow.md` and `hooks/pre/harness-flow.js`. The sticky rule and session bootstraps apply only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`; its native adapter supplies session bootstraps and guards without modifying the four command hooks.
+OMP discovers the skills and `hooks/pre/harness-flow.js`. Session bootstraps apply only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`; its native adapter supplies session bootstraps and guards without modifying the four command hooks.
 
-Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native rules and hooks without changing the installed plugin.
+Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native hooks without changing the installed plugin.
 
 ### Claude Code A) Git marketplace (recommended)
 
