@@ -139,6 +139,8 @@ Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM a
 
 Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
+The command hook keeps only payload dispatch and deny output. Both adapters import the same path policy from `hooks/lib/secret-paths.js` and Bash matcher from `hooks/lib/secret-bash.js`; OMP-specific selectors, queries, and URI target normalization stay in the native adapter. ANSI-C fragments end at their first NUL, and the Bash matcher limits actual substitution nesting rather than the number of independent substitutions.
+
 On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
 
 The OMP guard checks explicit secret paths and secret-targeting search patterns, while allowing ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*`. Recursive wildcards do not imply hidden credential directories; explicitly named credential scopes retain recursive matching and literal paths containing delimiters. Singleton character classes preserve secret targeting, and key-material extensions remain protected.

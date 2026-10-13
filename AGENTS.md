@@ -89,7 +89,7 @@ Smoke test: `CLAUDE_PLUGIN_ROOT="$(pwd)" node hooks/pre-bash-commands.js`
 
 ### `hooks/pre-secrets.js` — PreToolUse(Read|Edit|Write|MultiEdit|Bash|apply_patch)
 
-Secret-file access guard. Single hook, single `PATTERNS` array (path-shape).
+Secret-file access guard. Single hook, single `PATTERNS` array in `hooks/lib/secret-paths.js`; shared Bash parsing lives in `hooks/lib/secret-bash.js`.
 Dispatch by `tool_name`:
 
 - `Read|Edit|Write|MultiEdit` → match `tool_input.file_path` directly against `PATTERNS` (ALLOWLIST first)
@@ -99,7 +99,7 @@ Posture: any reference to a secret-bearing path is blocked — read (`cat .env`)
 
 ALLOWLIST skips `.env.example`/`.sample`/`.template`/`.schema`/`.defaults` for both Bash and file tools.
 
-Same deny-JSON + exit-0 contract as `pre-bash-commands.js`. Families (see `PATTERNS` in the file):
+Same deny-JSON + exit-0 contract as `pre-bash-commands.js`. Families (see `PATTERNS` in `hooks/lib/secret-paths.js`):
 
 - `.env` (any variant)
 - SSH private keys (`id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa`; `.pub` excluded)
@@ -148,7 +148,7 @@ Skills use harness-specific tool names only where a concrete dispatch template n
 - **Reinstall plugin locally for testing**: use the target harness's plugin/marketplace commands; the marketplace `source: "./"` lets the repo install itself. OMP uses `omp plugin marketplace add <repo>` then `omp plugin install harness-flow@harness-flow`.
 - **Run tests**: `node --test` (Node 18+ built-in runner; hook unit/smoke tests, manifest/runtime-contract tests, and skill-script tests).
 - **Add a hook**: register Claude Code/Codex hooks in `hooks/hooks.json`; place native OMP pre/post factories under `hooks/pre/` or `hooks/post/`. Gate on `HARNESS_FLOW_HOOKS_OFF=1`, reuse shared matchers, and add unit plus harness-native smoke coverage.
-- **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/pre-secrets.js` (single `PATTERNS` array). Add match + non-match cases in the matching `tests/hooks/*.test.js`.
+- **Add a dangerous pattern**: destructive/CLI actions go in `hooks/pre-bash-commands.js` (`PATTERNS`), secret-file access goes in `hooks/lib/secret-paths.js` (single `PATTERNS` array). Add match + non-match cases in the matching `tests/hooks/*.test.js`.
 
 ## Output Paths
 

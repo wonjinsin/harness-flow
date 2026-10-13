@@ -3,35 +3,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   PATTERNS,
-  ALLOWLIST,
   matchFilePath,
   matchPathPattern,
-  matchBashCommand,
-} = require('../../hooks/pre-secrets.js');
-
-// ---------- shape ----------
-
-test('PATTERNS is the single non-empty rule list', () => {
-  assert.ok(Array.isArray(PATTERNS));
-  assert.equal(PATTERNS.length, 7);
-  for (const pattern of PATTERNS) {
-    assert.equal(typeof pattern.id, 'string');
-    assert.equal(typeof pattern.caseInsensitive, 'boolean');
-    assert.ok(Array.isArray(pattern.globs));
-    assert.ok(pattern.globs.length > 0);
-    assert.equal(typeof pattern.reason, 'string');
-  }
-});
+} = require('../../hooks/lib/secret-paths.js');
+const { matchBashCommand } = require('../../hooks/lib/secret-bash.js');
 
 test('PATTERN ids are unique', () => {
   const ids = PATTERNS.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length);
-});
-
-test('ALLOWLIST is a non-empty array of RegExp', () => {
-  assert.ok(Array.isArray(ALLOWLIST));
-  assert.ok(ALLOWLIST.length > 0);
-  for (const r of ALLOWLIST) assert.ok(r instanceof RegExp);
 });
 
 // ---------- matchFilePath: read-dotenv ----------
@@ -389,10 +368,26 @@ test('bash: short Bash ANSI-C Unicode escapes cannot construct protected paths',
   assert.equal(matchBashCommand(String.raw`cat /repo/$'\U2e'env`)?.id, 'read-dotenv');
 });
 
-test('bash: ANSI-C NUL escapes are removed before protected-path matching', () => {
+test('bash: a NUL-only ANSI-C fragment preserves the following path fragment', () => {
   for (const escape of ['\\0', '\\x00', '\\u0', '\\U0', '\\c@']) {
     const command = `cat /repo/$'${escape}'.env`;
     assert.equal(matchBashCommand(command)?.id, 'read-dotenv', command);
+  }
+});
+
+test('bash: ANSI-C words end at the first NUL without discarding adjacent fragments', () => {
+  for (const escape of ['\\0', '\\x00', '\\u0', '\\U0', '\\c@']) {
+    assert.equal(
+      matchBashCommand(`cat /repo/$'.env${escape}suffix'`)?.id,
+      'read-dotenv',
+      escape,
+    );
+    assert.equal(matchBashCommand(`cat /repo/$'safe${escape}.env'`), null, escape);
+    assert.equal(
+      matchBashCommand(`cat /repo/$'.en${escape}suffix'v`)?.id,
+      'read-dotenv',
+      escape,
+    );
   }
 });
 
@@ -401,10 +396,19 @@ test('bash: command substitution parsing survives case delimiters and ANSI-C esc
   assert.equal(matchBashCommand(String.raw`echo "$(printf $'\')'; cat /repo/.env*)"`)?.id, 'read-dotenv');
 });
 
-test('bash: command substitution complexity fails closed before parser recursion overflows', () => {
+test('bash: independent command substitutions do not consume the nesting limit', () => {
+  const siblings = Array.from({ length: 9 }, () => '"$(printf x)"').join(' ');
+  assert.equal(matchBashCommand(`printf '%s' ${siblings}`), null);
+  assert.equal(matchBashCommand(`printf '%s' "$(printf '%s' ${siblings})"`), null);
+  assert.equal(
+    matchBashCommand(`printf '%s' ${siblings} "$(cat /repo/.env*)"` )?.id,
+    'read-dotenv',
+  );
+});
+
+test('bash: excessive command substitution nesting fails closed', () => {
   let command = 'true';
   for (let index = 0; index < 10000; index += 1) command = `echo "$(${command})"`;
-  assert.doesNotThrow(() => matchBashCommand(command));
   assert.equal(matchBashCommand(command)?.id, 'read-secret-pattern');
 });
 

@@ -1,11 +1,13 @@
 import bashGuard from '../pre-bash-commands.js';
-import secretGuard from '../pre-secrets.js';
+import secretPaths from '../lib/secret-paths.js';
+import secretBash from '../lib/secret-bash.js';
 import harnessBootloader from '../session-start-harness.js';
 import cavemanBootloader from '../session-start-caveman.js';
 import { fileURLToPath } from 'node:url';
 
 const { matchDangerous } = bashGuard;
-const { matchBashCommand, matchFilePath, matchPathPattern } = secretGuard;
+const { matchFilePath, matchPathPattern } = secretPaths;
+const { matchBashCommand } = secretBash;
 
 const FILE_TOOLS = new Set(['read', 'grep', 'glob', 'edit', 'write', 'multiedit', 'multi_edit', 'delete', 'ast_edit']);
 const PATCH_TOOLS = new Set(['apply_patch', 'patch']);
