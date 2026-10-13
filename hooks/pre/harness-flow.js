@@ -129,8 +129,12 @@ function splitTopLevelPathList(value) {
   return parts.map((part) => part.trim()).filter(Boolean);
 }
 
+function normalizeLocalUriAlias(value) {
+  return value.replace(/^local:\/(?!\/)/i, 'local://');
+}
+
 function expandStringPathValue(value, toolName) {
-  const trimmed = value.trim();
+  const trimmed = normalizeLocalUriAlias(value.trim());
   if (
     (trimmed.startsWith('[') && trimmed.endsWith(']'))
     || (trimmed.startsWith('"') && trimmed.endsWith('"'))
@@ -276,7 +280,8 @@ function stripPathQuery(toolName, value) {
 function canonicalizePath(toolName, value) {
   let path = decodeQuotedPathLiteral(value);
   if (HASHLINE_PATH_TOOLS.has(toolName)) path = unwrapHashlineHeader(path);
-  return stripReadSelectors(stripPathQuery(toolName, decodeQuotedPathLiteral(path))).trim();
+  path = normalizeLocalUriAlias(decodeQuotedPathLiteral(path));
+  return stripReadSelectors(stripPathQuery(toolName, path)).trim();
 }
 
 function decodeUriTarget(value) {

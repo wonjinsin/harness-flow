@@ -146,7 +146,7 @@ On OMP, `session_start` and `session_switch` (`new` / `resume`) inject the same 
 
 OMP uses the same secret rules and allowlist as the command hooks. Explicit references such as `.env` and `**/.env` are checked, while ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*` is allowed.
 
-Native read selectors, path lists, edit headers, and URI targets are normalized before matching. Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. URI targets are percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
+Native read selectors, path lists, edit headers, and URI targets are normalized before matching. OMP's `local:/` alias is normalized to `local://` before URI detection, including in path lists and edit headers. Query text is separated only for URI targets or recognized `read` selectors (JSON `q`/`query` filters and `?q=` image questions), not arbitrary filesystem names containing `?key=value`. URI targets are percent-decoded once, so ordinary filesystem names and encoded filename punctuation stay literal, including encoded backslashes on POSIX. This is a pre-tool reference guard, not a sandbox or a filter over every file returned by a broad search.
 
 `HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers, including workflow bootstrapping. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
 

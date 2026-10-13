@@ -289,6 +289,31 @@ test('OMP URI paths are decoded once before checking protected targets', async (
   }
 });
 
+test('OMP checks single-slash local URI aliases using the decoded target', async () => {
+  const { matchToolCall } = await loadHook();
+  const events = [
+    { toolName: 'write', input: { path: 'local:/%2eenv', content: 'synthetic' } },
+    { toolName: 'read', input: { path: 'LOCAL:/%2eenv:1-20:raw' } },
+    { toolName: 'write', input: { path: 'local:/my dir/%2eenv', content: 'synthetic' } },
+    { toolName: 'read', input: { path: 'README.md;local:/%2eenv' } },
+    { toolName: 'edit', input: { input: '*** Begin Patch\n[local:/%2eenv#A1B2]\nREM\n*** End Patch' } },
+  ];
+  for (const event of events) {
+    const result = matchToolCall(event);
+    assert.equal(result?.block, true, JSON.stringify(event));
+    assert.match(result.reason, /^\[read-dotenv\]/);
+  }
+  for (const path of [
+    'local:/%2eenv.example',
+    'local:/%252eenv',
+    '/repo/%2eenv',
+    './local:/%2eenv',
+    'local:/safe.txt;/synthetic/%2eenv',
+  ]) {
+    assert.equal(matchToolCall({ toolName: 'read', input: { path } }), undefined, path);
+  }
+});
+
 test('OMP encoded URI punctuation remains literal filename syntax', async () => {
   const { matchToolCall } = await loadHook();
   const events = [
