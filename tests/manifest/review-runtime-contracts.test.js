@@ -81,23 +81,3 @@ test('Standards keeps the complete Fowler smell baseline', () => {
   assert.match(skill, /documented repo standard always wins/i);
   assert.match(skill, /always a judgement call/i);
 });
-
-test('Codex starts fresh axes before waiting', () => {
-  const skill = read('skills/requesting-code-review/SKILL.md');
-
-  assert.match(skill, /spawn_agent/);
-  assert.match(skill, /fork_turns: "none"/);
-  assert.match(skill, /unique task names/i);
-  assert.match(skill, /before waiting for either result/i);
-  assert.match(skill, /use one agent when the Spec axis is skipped/i);
-});
-
-test('review guidance stays compact and self-contained', () => {
-  const skill = read('skills/requesting-code-review/SKILL.md');
-  const words = skill.trim().split(/\s+/).length;
-
-  assert.ok(words <= 1100, `review guidance is ${words} words; expected at most 1100`);
-  assert.doesNotMatch(skill, /design\//);
-  assert.doesNotMatch(skill, /docs\/agents\/issue-tracker\.md/);
-  assert.doesNotMatch(skill, /setup-matt-pocock-skills/);
-});

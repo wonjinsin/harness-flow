@@ -139,6 +139,12 @@ test('Read: passes innocuous file', () => {
   assert.equal(r.stdout, '');
 });
 
+test('Read: keeps a POSIX backslash inside a literal filename', { skip: process.platform === 'win32' }, () => {
+  const r = runFile('Read', '/proj/reports/note\\.env');
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, '');
+});
+
 // ---------- unknown tool / kill switch / fail-open ----------
 
 test('unknown tool name passes through (no match)', () => {

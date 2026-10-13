@@ -8,7 +8,7 @@ Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 - **Standards**: does the code conform to this repo's documented coding standards?
 - **Spec**: does the code faithfully implement the originating issue / spec?
 
-Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
+Run both axes as **parallel sub-agents**, then aggregate their findings.
 
 ## Process
 
@@ -70,7 +70,7 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 
 If the spec is missing, skip the Spec sub-agent and note this in the final report.
 
-For Codex, start both axes with `spawn_agent`, `fork_turns: "none"`, and unique task names before waiting for either result. Use one agent when the Spec axis is skipped.
+Use the harness's native sub-agent mechanism to start both review axes in parallel before waiting for either result. Give each axis a unique task name and a fresh context containing the shared evidence and its complete axis prompt; do not rely on inherited conversation history. If Spec is skipped, start only Standards. Preserve the separate axis reports rather than substituting a built-in review workflow.
 
 ### 5. Aggregate
 

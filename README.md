@@ -2,7 +2,7 @@
 
 ## Overview
 
-> A cross-harness plugin that provides the same workflow in Claude Code and Codex. Feature work flows through design → planning → TDD, with review and durable-memory capture offered as explicit next actions. Bug fixes flow through root-cause investigation → regression test → minimal correction.
+> A cross-harness plugin that provides the same workflow in Claude Code, Codex, and OMP. Feature work flows through design → planning → TDD, with review and durable-memory capture offered as explicit next actions. Bug fixes flow through root-cause investigation → regression test → minimal correction.
 
 ### Problems it solves
 
@@ -18,7 +18,7 @@
 
 ### Who it's for
 
-- Users who want the agent in Claude Code or Codex to not skip required steps
+- Users who want the agent in Claude Code, Codex, or OMP to not skip required steps
 - Users who want TDD, verification, and a commit without coupling implementation to review or finalization
 
 ### Foundation
@@ -128,16 +128,27 @@ docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 
 ## Hooks
 
-Provides four Node.js hooks (Node 18+, no npm dependencies). Claude Code and Codex use the same `hooks/hooks.json`.
+Provides four Claude Code/Codex Node.js hooks (Node 18+) and an OMP-native ESM adapter for the same session bootstraps and pre-tool guards, all with no npm dependencies. Claude Code and Codex use `hooks/hooks.json`; OMP discovers its native adapter directly.
 
 - **`session-start-harness.js`** — injects `using-harness-flow` on new session, resume, clear, and compaction.
 - **`session-start-caveman.js`** — pre-activates `caveman` mode (token-efficient terse responses) on every session boundary. Disable mid-session with "stop caveman" / "normal mode".
 - **`pre-bash-commands.js`** — PreToolUse(Bash) destructive-action and cloud-CLI guard. Blocks: `--no-verify`, `rm -rf` of `/`/`~`/`$HOME`/`.`, pipe-to-shell (`curl|wget|fetch ... | sh|bash|...`), and `gcloud`/`aws` CLI calls (user authorization required).
 - **`pre-secrets.js`** — blocks access to secret paths from Read/Edit/Write/MultiEdit/Bash and Codex `apply_patch`.
+- **`hooks/pre/harness-flow.js`** — OMP native adapter that imports the existing guard matchers and runs the unchanged SessionStart scripts in child processes. Session bootstraps apply only to the main agent; pre-tool guards also protect subagent calls.
 
-A blocking hook emits `permissionDecision: "deny"` JSON to stdout and exits 0. This way both Codex and Claude Code interpret the deny result, and the protected command is not run by mistake.
+Claude Code/Codex blocking hooks emit `permissionDecision: "deny"` JSON to stdout and exit 0. OMP's native hook returns `{ block: true, reason }`. Each runtime therefore receives its native deny result and does not run the protected tool call.
 
-Disable all hooks for a session with `HARNESS_FLOW_HOOKS_OFF=1`.
+The existing Claude Code/Codex hooks stay unchanged. OMP directly imports `matchDangerous` from `pre-bash-commands.js`, `matchFilePath` / `matchBashCommand` from `pre-secrets.js`, and `getPatch` from `lib/payload.js`. The adapter only connects native tool events to these helpers and translates blocking results; it has no separate secret matcher or input-syntax parser.
+
+The original guard limitations remain unchanged: string-based matching does not expand Bash quoting or ANSI-C escapes, normalize Windows separators, or resolve wildcard expressions to secret paths. References using those forms, including ANSI-C NUL escapes, can evade detection.
+
+On OMP, `session_start` and `session_switch` (`new`) inject the same `using-harness-flow` and `caveman` skill content as the command hooks. A `resume` defers injection until `before_agent_start`, after OMP restores the session's message snapshot. `session_compact` restores both after compaction. OMP `/clear` emits no lifecycle event, so the adapter detects its persisted `reset_boundary` and restores both before the next agent turn. Resume and `/clear` injections remain pending until persisted, allowing abandoned prompts to retry. Ordinary prompts do not reactivate caveman after "stop caveman" / "normal mode"; a new session boundary does.
+
+OMP uses the same secret rules and allowlist as the command hooks. Explicit references such as `.env` and `**/.env` are checked, while ordinary discovery such as `**/*.js`, `**/*.json`, and `src/**/*` is allowed.
+
+The adapter checks the path fields supplied by OMP's `tool_call` event, including `path` / `paths` and structured edit move destinations. Edit and patch payloads use the command guard's existing token scan, so a secret reference in patch content can also block an otherwise safe edit. The adapter does not parse edit headers, split path-list strings, strip read selectors or queries, decode URIs, or resolve archive members. Encoded targets such as `local://%2Eenv`, selected paths such as `.aws/credentials:1-20`, delimited path lists, and quoted edit destinations can therefore evade detection. This intentionally favors a minimal port of the original guards over OMP-specific coverage; it is not a sandbox or a filter over every file returned by a broad search.
+
+`HARNESS_FLOW_HOOKS_OFF=1` disables the command guards and all OMP-native handlers, including workflow bootstrapping. The unchanged Claude Code/Codex SessionStart scripts do not honor this variable.
 
 ---
 
@@ -152,6 +163,17 @@ codex plugin marketplace add wonjinsin/harness-flow
 ```
 
 After installing, review and trust the command hooks under `/hooks`. Enabling the plugin alone does not auto-trust the command hooks, and you must review them again whenever the hook contents change.
+
+### OMP
+
+```bash
+omp plugin marketplace add wonjinsin/harness-flow
+omp plugin install harness-flow@harness-flow
+```
+
+OMP discovers the skills and `hooks/pre/harness-flow.js`. Session bootstraps apply only to the main agent; review sub-agents receive their explicit task briefs. OMP does not load Claude/Codex `hooks/hooks.json`; its native adapter supplies session bootstraps and guards without modifying the four command hooks.
+
+Marketplace installation fetches the repository's default branch. To test a branch before merging it, run `omp --plugin-dir "$PWD"` from that branch's checkout instead; this loads its native hooks without changing the installed plugin.
 
 ### Claude Code A) Git marketplace (recommended)
 

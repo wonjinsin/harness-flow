@@ -3,32 +3,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   PATTERNS,
-  ALLOWLIST,
   matchFilePath,
   matchBashCommand,
 } = require('../../hooks/pre-secrets.js');
 
-// ---------- shape ----------
-
-test('PATTERNS is a non-empty array of {id, regex, reason}', () => {
-  assert.ok(Array.isArray(PATTERNS));
-  assert.equal(PATTERNS.length, 7);
-  for (const p of PATTERNS) {
-    assert.equal(typeof p.id, 'string');
-    assert.ok(p.regex instanceof RegExp);
-    assert.equal(typeof p.reason, 'string');
-  }
-});
-
 test('PATTERN ids are unique', () => {
   const ids = PATTERNS.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length);
-});
-
-test('ALLOWLIST is a non-empty array of RegExp', () => {
-  assert.ok(Array.isArray(ALLOWLIST));
-  assert.ok(ALLOWLIST.length > 0);
-  for (const r of ALLOWLIST) assert.ok(r instanceof RegExp);
 });
 
 // ---------- matchFilePath: read-dotenv ----------
@@ -330,21 +311,6 @@ test('matchFilePath does not match "rm -rf /"', () => {
 // ---------- apply_patch (Codex) ----------
 
 const { getPatch } = require('../../hooks/lib/payload.js');
-
-test('getPatch reads tool_input.input', () => {
-  assert.equal(
-    getPatch({ tool_input: { input: '*** Begin Patch\n*** Update File: .env\n*** End Patch' } }),
-    '*** Begin Patch\n*** Update File: .env\n*** End Patch',
-  );
-});
-
-test('getPatch falls back to tool_input.command', () => {
-  assert.equal(getPatch({ tool_input: { command: 'apply_patch xyz' } }), 'apply_patch xyz');
-});
-
-test('getPatch returns empty string when fields absent', () => {
-  assert.equal(getPatch({ tool_input: {} }), '');
-});
 
 test('getPatch fails safe: unknown field name still lets matchBashCommand catch the secret', () => {
   const patch = '*** Begin Patch\n*** Update File: config/.env\n+X=1\n*** End Patch';

@@ -3,7 +3,7 @@
   "plugins": [
     {
       "name": "harness-flow",
-      "description": "Cross-harness skills library (Claude Code + Codex)",
+      "description": "Cross-harness skills library (Claude Code + Codex + OMP)",
       "source": { "source": "local", "path": "./" },
       "category": "workflow"
     }
