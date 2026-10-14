@@ -36,9 +36,12 @@ A passing case needs no repair: continue to the remaining agreed cases, rather
 than declaring the whole scope covered. If every case already passes and there
 is no other agreed purpose, recommend no new skill. Never manufacture a failure.
 
-For an observed gap, draft the smallest correction and rerun that case before
-moving on. Keep passed cases for final regression. Preserve pre-existing user
-content; undo only current-cycle agent changes if baseline restoration is needed.
+Apply the [test-driven-development](../test-driven-development/SKILL.md) cycle to
+runtime instructions: observe the baseline gap (RED), verify the smallest
+correction makes that same case pass before advancing (GREEN), then simplify
+while preserving passing cases (REFACTOR).
+Preserve pre-existing user content; undo only current-cycle agent changes if
+baseline restoration is needed.
 
 ## 3. Write the working path
 

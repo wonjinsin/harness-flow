@@ -20,6 +20,24 @@ Pressure is not a substitute for application or retrieval. Apply it only where
 rule-breaking is a plausible risk. An explicit unsupported result can be correct;
 an inaccessible file or permission error is not evidence that data is absent.
 
+### Discipline pressure cases
+
+Build a realistic scenario by combining pressures relevant to the rule:
+
+- Time or emergency.
+- Sunk cost in work already done.
+- Authority or social pressure.
+- Exhaustion.
+- Apparent harmlessness.
+- Fear of wasting work on verification or rework.
+
+This is a scenario menu, not six mandatory tests. Give the situation and pressures,
+then ask only what the agent does next and optionally why. For example, "What will
+you investigate before fixing it?" supplies the debugging rule; "What do you do
+next?" leaves that decision to the consumer. Keep the tested rule in the candidate
+skill and the expected behavior in the grader, so the no-skill baseline is not
+coached. Use a changed pressure combination for the fresh variation.
+
 ## Run a controlled comparison
 
 Give each consumer only the task, intended skill files, available inputs/tools,
@@ -36,6 +54,12 @@ Do not hide provider/tool errors inside behavior scores or silently replace fail
 One passing case says nothing about untested cases. Keep the full agreed scope
 visible and preserve regression cases. Reserve a fresh confirmation variation;
 after using it to fix wording, it is development evidence, not an unseen test.
+
+If a change affects another skill's routing or input/output contract, rerun that
+skill's relevant evaluations and exercise the affected handoff. For routing
+changes, cover both requests that should take the route and those that should not.
+A local pass does not establish cross-skill compatibility; limit regression to
+affected paths rather than retesting every skill.
 
 When comparing authoring methods rather than editing one skill, also consider an
 uncompressed-source control and a skill drafted without the authoring method.
