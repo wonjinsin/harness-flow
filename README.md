@@ -299,7 +299,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 **Meta**
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
-- **writing-skills** — create and improve reusable skills from real source material: establish the job, observe baseline gaps across the agreed scope, write targeted guidance, and exercise fresh consumers. A single evaluation reference separates structure, discovery, behavior, and native integration evidence; installation and publication remain separately authorized.
+- **writing-skills** — create, edit, and verify skills before deployment
 - **llm-md-revise** — filters session learnings into a user-approved batch for the repository's canonical project instructions
 - **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 
@@ -311,8 +311,8 @@ Several skills in this repository are derived from MIT-licensed prior work. The 
 copyright notices and the full license text are consolidated in
 [`design/reference/THIRD-PARTY-LICENSES.md`](design/reference/THIRD-PARTY-LICENSES.md) (per-skill `NOTICE` files have been merged into this file).
 
-- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `implement`, `systematic-debugging`, `test-driven-development`, `using-harness-flow`, `writing-plans`, and `writing-skills`.
-- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, `writing-plans` from `to-tickets`, `requesting-code-review` from `code-review`, and `writing-skills` from `writing-for-agents`.
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT, © 2025 Jesse Vincent) — base for `brainstorming`, `implement`, `systematic-debugging`, `test-driven-development`, `using-harness-flow`, `writing-plans`.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, © 2026 Matt Pocock) — `brainstorming` incorporates ideas from `grill-me`, `writing-plans` from `to-tickets`, and `requesting-code-review` from `code-review`.
 - [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT, © 2026 Julius Brussee) — base for `caveman`.
 
 The `llm-md-revise` skill is original to this repository and is not derived from any upstream work.
