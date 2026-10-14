@@ -24,10 +24,11 @@ project-specific facts belong in project documentation; mechanical enforcement
 belongs in code. Teach how to retrieve private schemas, not their contents.
 Improve an existing skill when it already owns the job.
 
-## 2. Establish evidence before drafting
+## 2. Establish evidence and the RED → GREEN → REFACTOR cycle
 
 Read [testing-skills-with-subagents.md](testing-skills-with-subagents.md) when
-setting up evaluations or interpreting a disputed result. Define observable
+setting up evaluations, interpreting a disputed result, or making changes that
+affect another skill's routing or input/output contract. Define observable
 acceptance cases for the agreed scope, including relevant boundaries and non-use.
 
 Run the smallest relevant case without the skill, or against its pre-edit version.
@@ -85,8 +86,9 @@ acceptance criteria for a before/after comparison. When a failure appears, check
 its evidence and grader before changing the skill; clarify ambiguous requirements
 without erasing the original result.
 
-Repeat affected cases after each correction. Once the agreed cases pass, rerun
-them together and exercise a fresh variation not used to tune the wording.
+Repeat affected cases for the skill being created or edited after each correction.
+Once the agreed cases pass, rerun them together and exercise a fresh variation not
+used to tune the wording.
 If it exposes a real gap, fix it and reserve another variation for confirmation.
 For executable helpers, follow code TDD and run the actual entrypoint as well as
 its tests. Report adapter execution separately from native host integration.

@@ -38,6 +38,11 @@ next?" leaves that decision to the consumer. Keep the tested rule in the candida
 skill and the expected behavior in the grader, so the no-skill baseline is not
 coached. Use a changed pressure combination for the fresh variation.
 
+For each observed discipline violation, record both the actual violating action
+and any verbatim rationalization as failure evidence (RED), keeping actions
+separate from stated intentions; address only rationalizations used to justify
+observed violations.
+
 ## Run a controlled comparison
 
 Give each consumer only the task, intended skill files, available inputs/tools,
