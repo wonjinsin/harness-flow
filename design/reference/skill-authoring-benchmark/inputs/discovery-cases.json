@@ -1,0 +1,22 @@
+[
+  {
+    "id": "select-release",
+    "prompt": "Assess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "expected": "release-evidence"
+  },
+  {
+    "id": "select-incident",
+    "prompt": "Turn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "expected": "incident-handoff"
+  },
+  {
+    "id": "reject-marketing",
+    "prompt": "Write cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "expected": "none"
+  },
+  {
+    "id": "reject-general",
+    "prompt": "Explain the textbook difference between HTTP 401 and HTTP 403.",
+    "expected": "none"
+  }
+]

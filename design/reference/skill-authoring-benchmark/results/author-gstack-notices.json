@@ -1,0 +1,88 @@
+{
+  "subject": "notices",
+  "method": "gstack /skillify upstream template applied with benchmark-authorized adaptations",
+  "skill_name": "service-notices",
+  "status": "complete isolated export; staged verification pending parent execution",
+  "files_read": [
+    "design/reference/skill-authoring-benchmark/inputs/gstack-brief.md",
+    "design/reference/skill-authoring-benchmark/inputs/browser-session.json",
+    "../gstack/skillify/SKILL.md.tmpl (all 441 lines)",
+    "../gstack/browse/src/browse-client.ts (canonical SDK)",
+    "../gstack/browse/src/browser-skill-write.ts (staging implementation, lines 1-94)",
+    "../gstack/browse/src/browser-skills.ts (staging dependency imports and frontmatter contract, lines 1-60)",
+    "../gstack/browser-skills/hackernews-frontpage/script.ts",
+    "../gstack/browser-skills/hackernews-frontpage/script.test.ts",
+    "../gstack/browser-skills/hackernews-frontpage/SKILL.md"
+  ],
+  "source_provenance": {
+    "record": "inputs/browser-session.json records entry with subject notices",
+    "url": "http://127.0.0.1:58898/notices.html",
+    "accepted_by": "benchmark designer, not a production user",
+    "actual_observations": [
+      { "tool": "browser.goto", "url": "http://127.0.0.1:58898/notices.html" },
+      { "tool": "browser.evaluate", "selector": "#notices article[data-notice]" }
+    ],
+    "fixture": "Exact HTML string from the final successful notices record; not reconstructed from its JSON output",
+    "expected_items": [
+      { "title": "Pool & queue maintenance", "severity": "warning", "url": "http://127.0.0.1:58898/notices/pool" },
+      { "title": "Documentation update", "severity": null, "url": "http://127.0.0.1:58898/notices/docs" }
+    ],
+    "sdk": "Canonical ../gstack/browse/src/browse-client.ts bytes read directly, copied unchanged through the native stageSkill files map",
+    "entity_table": "Python standard-library html.entities.html5, frozen as inline dependency-free character-reference data"
+  },
+  "output_paths": [
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/service-notices/SKILL.md",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/service-notices/script.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/service-notices/script.test.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/service-notices/_lib/browse-client.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/service-notices/fixtures/127-0-0-1-2026-10-14.html"
+  ],
+  "method_steps_followed": [
+    "Read the full skillify template and canonical SDK, plus bundled reference implementation and test assertions.",
+    "Bound synthesis to the final successful notices navigation, DOM selector, observed HTML, and accepted extraction.",
+    "Used the approved service-notices export name, hostname metadata, four trigger phrases, trusted:false, source:agent, version:1.0.0, and args:[].",
+    "Prepared deterministic fixture tests before implementation, including exact accepted records and all required nonempty fields; execution deliberately deferred.",
+    "Exported pure parseFromHtml(html, baseUrl); the executable uses canonical browse.goto and browse.html, BENCHMARK_URL or observed default URL, and emits only items/count JSON.",
+    "Captured the supplied actually observed HTML as the dated host fixture without another navigation or invented scrape call.",
+    "Called upstream stageSkill with the complete five-file map and an export-local tmpRoot. Relocated staged entries only within the approved export directory; removed the empty temporary wrapper directories.",
+    "Kept the export outside global/project/bundled skill discovery roots and did not call commitSkill."
+  ],
+  "adapted_steps": [
+    { "step": 1, "adaptation": "Accepted controlled real-browser session record replaces conversation /scrape provenance. No /scrape invocation was claimed." },
+    { "step": 2, "adaptation": "User explicitly approved the service-notices name and export path. No tier prompt or skill-list collision check was run because this is not installation into a discovery tier." },
+    { "step": 3, "adaptation": "Recorded browser.goto maps to SDK browse.goto; recorded browser.evaluate extraction is codified as pure parsing of SDK browse.html output. The supplied HTTP adapter drives real Chromium but is not native gstack." },
+    { "step": 4, "adaptation": "Reused the final successful observed HTML string instead of recapturing page state." },
+    { "step": 7, "adaptation": "Native stageSkill received tmpRoot under the authorized export directory rather than the global default. Export relocation stayed within that directory and never published a skill." },
+    { "step": 8, "adaptation": "Generated fixture replay test is complete, but parent owns execution; no native skill test or Bun test was run by the author." }
+  ],
+  "omitted_steps": [
+    "No native daemon build or dependency installation.",
+    "No scope/auth/skill discovery validation against native gstack.",
+    "Steps 9-11 approval for publication, commitSkill/discard approval flow, and post-commit list/run were intentionally omitted: publication is not authorized.",
+    "No repository build, lint, formatter, generated test, or executable verification was run."
+  ],
+  "verification": {
+    "executed": ["Native stageSkill export construction and export-local file relocation completed successfully."],
+    "tests_executed": false,
+    "actual_script_executed": false,
+    "native_staged_verification": "pending parent execution",
+    "parent_checks": [
+      "Run bun test script.test.ts from the service-notices export.",
+      "Run script.ts with the real-browser HTTP adapter and compare items/count to the accepted notices output.",
+      "Compare the copied SDK bytes with the current canonical upstream SDK."
+    ]
+  },
+  "known_limitations": [
+    "Bun is required; the native gstack daemon is not installed/built or validated by this artifact.",
+    "The default target is a controlled localhost page with a session-specific port; BENCHMARK_URL allows parent runtime targeting.",
+    "The fixture is a point-in-time observed snapshot, not future-site coverage.",
+    "The dependency-free tree parser targets ordinary article HTML and does not implement all HTML5 malformed-markup repair rules or multipage navigation.",
+    "Harness skill resources using-harness-flow, implement, test-driven-development, writing-skills, and brainstorming were requested but resolved to unavailable cached files; missing resources were reported for using-harness-flow/implement/test-driven-development/writing-skills."
+  ],
+  "publication_actions": [],
+  "installation_actions": [],
+  "commit_or_push_actions": [],
+  "hidden_fixture_access": false,
+  "sibling_product_access": false,
+  "source_or_global_modifications": false
+}

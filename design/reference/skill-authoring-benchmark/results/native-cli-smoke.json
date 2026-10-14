@@ -1,0 +1,50 @@
+[
+  {
+    "subject": "releases",
+    "command": "bun artifacts/gstack/release-feed/script.ts",
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "164 |         body,\n165 |         signal: AbortSignal.timeout(this.timeoutMs),\n166 |       });\n167 |     } catch (err: any) {\n168 |       if (err.name === 'TimeoutError' || err.name === 'AbortError') {\n169 |         throw new BrowseClientError(`browse-client: command \"${cmd}\" timed out after ${this.timeoutMs}ms`);\n                    ^\nBrowseClientError: browse-client: command \"goto\" timed out after 30000ms\n status: undefined,\n   body: undefined,\n\n      at command (/Users/WonjinSin/Documents/project/harness-flow/design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/_lib/browse-client.ts:169:15)\n\nBun v1.4.2 (macOS arm64)\n",
+    "expected": {
+      "items": [
+        {
+          "version": "v1.2.0",
+          "status": "stable",
+          "url": "http://127.0.0.1:58898/releases/v1.2.0"
+        },
+        {
+          "version": "v1.3.0-rc1",
+          "status": "preview",
+          "url": "http://127.0.0.1:58898/releases/v1.3.0-rc1"
+        }
+      ],
+      "count": 2
+    },
+    "pass": false,
+    "backend": "real Chromium through SDK-compatible adapter; not native daemon"
+  },
+  {
+    "subject": "notices",
+    "command": "bun artifacts/gstack/service-notices/script.ts",
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "164 |         body,\n165 |         signal: AbortSignal.timeout(this.timeoutMs),\n166 |       });\n167 |     } catch (err: any) {\n168 |       if (err.name === 'TimeoutError' || err.name === 'AbortError') {\n169 |         throw new BrowseClientError(`browse-client: command \"${cmd}\" timed out after ${this.timeoutMs}ms`);\n                    ^\nBrowseClientError: browse-client: command \"goto\" timed out after 30000ms\n status: undefined,\n   body: undefined,\n\n      at command (/Users/WonjinSin/Documents/project/harness-flow/design/reference/skill-authoring-benchmark/artifacts/gstack/service-notices/_lib/browse-client.ts:169:15)\n\nBun v1.4.2 (macOS arm64)\n",
+    "expected": {
+      "items": [
+        {
+          "title": "Pool & queue maintenance",
+          "severity": "warning",
+          "url": "http://127.0.0.1:58898/notices/pool"
+        },
+        {
+          "title": "Documentation update",
+          "severity": null,
+          "url": "http://127.0.0.1:58898/notices/docs"
+        }
+      ],
+      "count": 2
+    },
+    "pass": false,
+    "backend": "real Chromium through SDK-compatible adapter; not native daemon"
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "command": "bun test artifacts/gstack/release-feed/script.test.ts artifacts/gstack/service-notices/script.test.ts",
+  "runtime": "bun 1.4.2 (744846f84)",
+  "passed": 15,
+  "failed": 0,
+  "assertions": 42,
+  "files": 2,
+  "evidence": "Observed command output in parent tool execution; not an author self-report."
+}

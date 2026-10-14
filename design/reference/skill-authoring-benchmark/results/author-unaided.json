@@ -1,0 +1,150 @@
+{
+  "arm": "unaided",
+  "method_files_read": [],
+  "shared_inputs_read": [
+    "design/reference/skill-authoring-benchmark/inputs/author-brief.md",
+    "design/reference/skill-authoring-benchmark/inputs/source-packet.md",
+    "design/reference/skill-authoring-benchmark/inputs/development-cases.json",
+    "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+    "design/reference/skill-authoring-benchmark/inputs/session-demonstrations.json"
+  ],
+  "subjects": {
+    "release-evidence": {
+      "artifact_files": [
+        "design/reference/skill-authoring-benchmark/artifacts/unaided/release-evidence/SKILL.md"
+      ],
+      "changes_made": [
+        "Created one complete standalone skill from the shared procedure using ordinary judgment, with YAML frontmatter, activation conditions, ordered review steps, blocker and evidence-ID rules, JSON output contract, completion criteria, and examples.",
+        "Covered exact-revision evidence, timestamp-based supersession, required check completeness, runtime proof distinct from build success, waiver scope and expiry, invalid-waiver blockers, and the informational-only deployment boundary.",
+        "No revisions after the initial write; both public probes passed on that same candidate."
+      ],
+      "observed_baseline_references": [
+        {
+          "file": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+          "case_id": "release-dev",
+          "reps": [0, 1, 2, 3, 4],
+          "passed": 0,
+          "total": 5,
+          "observed_failures": "All samples incorrectly returned ready, omitted runtime_unproven, and authorized deployment. Four also included the skipped unit check as support."
+        }
+      ],
+      "probe_outcomes_actually_seen": [
+        {
+          "tool": "evaluate_authored_skill",
+          "arm": "unaided",
+          "subject": "release-evidence",
+          "case_id": "release-dev",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "all_samples_response": {
+            "decision": "hold",
+            "blockers": ["runtime_unproven"],
+            "supporting_ids": ["s7", "w7"],
+            "may_deploy": false
+          },
+          "elapsed_seconds": 2.046
+        },
+        {
+          "tool": "evaluate_authored_skill",
+          "arm": "unaided",
+          "subject": "release-evidence",
+          "case_id": "release-variation",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "all_samples_response": {
+            "decision": "hold",
+            "blockers": ["check_failed"],
+            "supporting_ids": ["v2", "v3"],
+            "may_deploy": false
+          },
+          "elapsed_seconds": 3.312
+        }
+      ],
+      "unresolved_limitations": [
+        "Only the two supplied public cases were behaviorally probed. Other rule combinations are specified in the artifact but have no author-run behavioral evidence.",
+        "This is a controlled synthetic workflow, not a production release validation; public probe success is not proof of generalization. Held-out evaluation is reserved for the parent."
+      ]
+    },
+    "incident-handoff": {
+      "artifact_files": [
+        "design/reference/skill-authoring-benchmark/artifacts/unaided/incident-handoff/SKILL.md"
+      ],
+      "changes_made": [
+        "Created one complete standalone skill from the shared procedure using ordinary judgment, with YAML frontmatter, activation conditions, evidence classification steps, a three-condition status table, JSON output contract, completion criteria, and examples.",
+        "Separated cause confirmation, measured symptom recovery, and preventive-fix verification; covered plausible alternatives, later disproof, explicitly accepted ownership, competing-owner ambiguity, untrusted source instructions, and the publication boundary.",
+        "No revisions after the initial write; both public probes passed on that same candidate."
+      ],
+      "observed_baseline_references": [
+        {
+          "file": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+          "case_id": "incident-dev",
+          "reps": [0, 1, 2, 3, 4],
+          "passed": 3,
+          "total": 5,
+          "observed_failures": "Reps 0 and 2 incorrectly returned mitigated without measured recovery. All five samples classified the supplied cause, hypothesis, owner, and publication fields correctly."
+        }
+      ],
+      "probe_outcomes_actually_seen": [
+        {
+          "tool": "evaluate_authored_skill",
+          "arm": "unaided",
+          "subject": "incident-handoff",
+          "case_id": "incident-dev",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "all_samples_response": {
+            "status": "investigating",
+            "confirmed_cause_ids": ["t2"],
+            "hypothesis_ids": ["t1"],
+            "owner": null,
+            "may_publish": false
+          },
+          "elapsed_seconds": 1.801
+        },
+        {
+          "tool": "evaluate_authored_skill",
+          "arm": "unaided",
+          "subject": "incident-handoff",
+          "case_id": "incident-variation",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "all_samples_response": {
+            "status": "mitigated",
+            "confirmed_cause_ids": [],
+            "hypothesis_ids": ["x1"],
+            "owner": "Jo",
+            "may_publish": false
+          },
+          "elapsed_seconds": 2.607
+        }
+      ],
+      "unresolved_limitations": [
+        "Only the two supplied public cases were behaviorally probed. Other rule combinations are specified in the artifact but have no author-run behavioral evidence.",
+        "This is a controlled synthetic workflow, not an actual production incident; public probe success is not proof of generalization. Held-out evaluation is reserved for the parent."
+      ]
+    }
+  },
+  "native_steps_performed": [
+    "No native authoring method was assigned to the unaided control. Read the common brief, source procedure, public cases, observed baseline responses and field grades, and supplied successful consumer demonstrations.",
+    "Wrote both complete products directly using ordinary judgment, preserving all specified behavioral rules in the SKILL.md bodies rather than author notes.",
+    "Voluntarily used the common public evaluator once per application case, then once per variation case after both applications passed. Each invocation ran five fresh consumers. This was an ordinary author choice, not a method-mandated RED/GREEN or regression procedure.",
+    "Recorded actual public observations and limitations in this report; froze the unchanged initial artifacts for parent evaluation."
+  ],
+  "native_steps_not_performed": [
+    "Did not read any project authoring skill or comparison method, or follow a native authoring-skill checklist.",
+    "Did not conduct a new no-skill baseline run, invent a variation baseline, perform a post-edit regression cycle, or revise either product after behavioral probes.",
+    "Did not inspect Git history, add scripts or supporting Markdown, install or publish skills, access held-out inputs or results, or access sibling artifacts.",
+    "Did not run repository builds, tests, linters, formatters, or smoke checks. Parent owns final verification and held-out evaluation."
+  ],
+  "adaptations": [
+    "The unaided arm has no native method or native tools to translate. Used only the common read/write tools and explicitly offered behavioral evaluator.",
+    "Inherited the shared benchmark's required frontmatter, activation conditions, usable steps, completion criteria, JSON contracts, approved export directory layout, publication prohibition, common source packet, public cases, baseline evidence, demonstrations, and optional evaluator. Unaided means no authoring-skill treatment, not absence of this instructional scaffold.",
+    "Inherited general harness safety, honesty, evidence, tool-use, restricted-write-scope, and parent-owned final-verification constraints. The shared brief states that the parent already loaded the harness workflow; this worker did not load any project skill.",
+    "The evaluator exposes exact responses and grades and states that it preserves full outputs automatically. This report records the observed invocation identities, counts, responses, and elapsed times without claiming an unreported evidence-file location."
+  ],
+  "publication_actions": []
+}

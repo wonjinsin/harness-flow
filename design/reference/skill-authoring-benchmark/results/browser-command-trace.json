@@ -1,0 +1,30 @@
+[
+  {
+    "command": "goto",
+    "args": [
+      "http://127.0.0.1:58898/releases.html"
+    ],
+    "at": "2026-10-14T01:07:56.344Z"
+  },
+  {
+    "command": "goto",
+    "args": [
+      "http://127.0.0.1:58898/notices.html"
+    ],
+    "at": "2026-10-14T01:08:26.362Z"
+  },
+  {
+    "command": "goto",
+    "args": [
+      "http://127.0.0.1:58898/releases.html"
+    ],
+    "at": "2026-10-14T01:09:23.948Z"
+  },
+  {
+    "command": "goto",
+    "args": [
+      "http://127.0.0.1:58898/notices.html"
+    ],
+    "at": "2026-10-14T01:09:53.968Z"
+  }
+]

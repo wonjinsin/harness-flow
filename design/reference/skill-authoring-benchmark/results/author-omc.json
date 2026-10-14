@@ -1,0 +1,122 @@
+{
+  "arm": "omc",
+  "method_files_read": [
+    "../oh-my-claudecode/skills/skillify/SKILL.md"
+  ],
+  "shared_inputs_read": [
+    "design/reference/skill-authoring-benchmark/inputs/author-brief.md",
+    "design/reference/skill-authoring-benchmark/inputs/source-packet.md",
+    "design/reference/skill-authoring-benchmark/inputs/development-cases.json",
+    "design/reference/skill-authoring-benchmark/inputs/session-demonstrations.json",
+    "design/reference/skill-authoring-benchmark/results/development-baseline.json"
+  ],
+  "infrastructure_instructions_read": [
+    "skills/using-harness-flow/SKILL.md",
+    "skills/writing-skills/SKILL.md",
+    "skills/test-driven-development/SKILL.md"
+  ],
+  "session_provenance": {
+    "source": "design/reference/skill-authoring-benchmark/inputs/session-demonstrations.json",
+    "kind": "Actual fresh consumer completions on controlled synthetic benchmark tasks with the shared procedure supplied",
+    "production_experience": false,
+    "release_observed_response": {"decision":"hold","blockers":["runtime_unproven"],"supporting_ids":["s7","w7"],"may_deploy":false},
+    "incident_observed_response": {"status":"investigating","confirmed_cause_ids":["t2"],"hypothesis_ids":["t1"],"owner":null,"may_publish":false},
+    "both_demonstration_grades_passed": true,
+    "qualification": "These are successful executions, not invented designer examples. Their acceptance is by the benchmark oracle, not a production user. The demonstrations show inputs, the supplied procedure, final responses, and grades; they do not expose internal reasoning or prove an operational discovery process. The separate source-packet worked examples were treated as specifications, not execution traces."
+  },
+  "quality_gate": {
+    "google_in_five_minutes": "[INFERENCE] No for the exact workflow interface: its timestamp, revision, waiver, causal, ownership, and authority rules are a custom benchmark contract rather than a generic snippet. No search was performed to prove the heuristic.",
+    "specific_to_project_or_workflow": "Yes: these reusable procedures implement the supplied evidence-review and handoff workflows without capturing production-specific facts.",
+    "real_discovery_effort": "Not established as production debugging or operational discovery. The supplied packet contains a designed multi-step procedure, baseline failures, and actual successful synthetic executions, but does not establish how much effort originally discovered it.",
+    "extraction_decision": "Create controlled export drafts as explicitly requested, applying OMC's session-extraction structure to the successful supplied demonstrations. Treat the third quality-gate condition as a documented benchmark adaptation, not a claim that all native discovery conditions were independently demonstrated."
+  },
+  "subjects": {
+    "release-evidence": {
+      "artifact_files": ["design/reference/skill-authoring-benchmark/artifacts/omc/release-evidence/SKILL.md"],
+      "proposed_skill_name": "release-evidence",
+      "chosen_category": "project learned skill, export-only",
+      "native_target_location_not_written": ".omc/skills/release-evidence.md",
+      "changes_made": [
+        "Created complete YAML-frontmatter skill with name, activation description, and triggers.",
+        "Extracted inputs and ordered revision-specific evidence selection, waiver validation, check classification, runtime assessment, supporting-ID filtering, and JSON decision steps.",
+        "Encoded all four blocker categories, latest-timestamp precedence in both directions, waiver limits, and the separation of review from deployment permission.",
+        "Added explicit completion criteria and a compact worked example derived from the actual successful release demonstration.",
+        "Corrected the output-shape illustration before any behavioral probe; no behavior-driven revision was needed after the probes."
+      ],
+      "observed_baseline_references": {
+        "file": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+        "selector": "subject=release-evidence, case_id=release-dev, rep=0..4",
+        "passed": 0,
+        "total": 5,
+        "concrete_failures": "All five said ready with no blockers and may_deploy=true despite missing exact-candidate runtime proof. Four also included skipped u7 among supporting IDs."
+      },
+      "probe_outcomes_actually_seen": [
+        {"tool":"evaluate_authored_skill","case_id":"release-dev","baseline":false,"passed":5,"total":5,"elapsed_seconds":2.147,"all_sample_response":{"decision":"hold","blockers":["runtime_unproven"],"supporting_ids":["s7","w7"],"may_deploy":false},"reps":[0,1,2,3,4],"all_fields_passed":true},
+        {"tool":"evaluate_authored_skill","case_id":"release-variation","baseline":false,"passed":5,"total":5,"elapsed_seconds":3.739,"all_sample_response":{"decision":"hold","blockers":["check_failed"],"supporting_ids":["v2","v3"],"may_deploy":false},"reps":[0,1,2,3,4],"all_fields_passed":true}
+      ],
+      "unresolved_limitations": [
+        "Only the two public development cases were probed; invalid-waiver combinations, multiple independent blockers, superseded historical failures, and other contract branches have no arm-local behavioral observation.",
+        "Conflicting check records with identical timestamps have no tie-break policy in the supplied interface; the skill does not invent one.",
+        "No production release execution, native installation/discovery test, or held-out evaluation was performed by this arm."
+      ]
+    },
+    "incident-handoff": {
+      "artifact_files": ["design/reference/skill-authoring-benchmark/artifacts/omc/incident-handoff/SKILL.md"],
+      "proposed_skill_name": "incident-handoff",
+      "chosen_category": "project learned skill, export-only",
+      "native_target_location_not_written": ".omc/skills/incident-handoff.md",
+      "changes_made": [
+        "Created complete YAML-frontmatter skill with name, activation description, and triggers.",
+        "Extracted cause classification, later-disproof exclusion, independent recovery/causal/fix gates, status selection, explicit ownership acceptance, and the JSON output contract.",
+        "Encoded command completion versus measured recovery, direct causal evidence versus plausible timing, unresolved multiple-owner handling, and separate publication authority.",
+        "Added an exhaustive status table, explicit completion criteria, and a compact worked example derived from the actual successful incident demonstration.",
+        "Clarified the status table before any behavioral probe; no behavior-driven revision was needed after the probes."
+      ],
+      "observed_baseline_references": {
+        "file": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+        "selector": "subject=incident-handoff, case_id=incident-dev, rep=0..4",
+        "passed": 3,
+        "total": 5,
+        "concrete_failures": "Reps 0 and 2 selected mitigated despite the absence of measured user recovery. Their other requested fields passed; reps 1, 3, and 4 passed the complete case."
+      },
+      "probe_outcomes_actually_seen": [
+        {"tool":"evaluate_authored_skill","case_id":"incident-dev","baseline":false,"passed":5,"total":5,"elapsed_seconds":107.401,"all_sample_response":{"status":"investigating","confirmed_cause_ids":["t2"],"hypothesis_ids":["t1"],"owner":null,"may_publish":false},"reps":[0,1,2,3,4],"all_fields_passed":true},
+        {"tool":"evaluate_authored_skill","case_id":"incident-variation","baseline":false,"passed":5,"total":5,"elapsed_seconds":2.01,"all_sample_response":{"status":"mitigated","confirmed_cause_ids":[],"hypothesis_ids":["x1"],"owner":"Jo","may_publish":false},"reps":[0,1,2,3,4],"all_fields_passed":true}
+      ],
+      "unresolved_limitations": [
+        "Only the two public development cases were probed; later-disproof handling, explicit mechanism confirmation, unresolved multiple owners, transfers, and the resolved branch have no arm-local behavioral observation.",
+        "No production incident response, native installation/discovery test, or held-out evaluation was performed by this arm."
+      ]
+    }
+  },
+  "native_steps_performed": [
+    "Read the assigned OMC skillify method and assessed all three quality-gate questions, including the missing evidence for a literal production-discovery gate.",
+    "Identified two repeatable tasks actually completed in the supplied successful session demonstrations.",
+    "Extracted inputs, ordered steps, success criteria, constraints, pitfalls, and verification evidence for each task; used the shared packet to define branches not exercised in the demonstrations.",
+    "Chose project learned skills rather than repo built-ins or documentation-only records, because the reusable custom evidence interfaces are workflows, not incident facts.",
+    "Proposed invocation names and native flat-file target locations; exported complete frontmatter-backed skill files with clear triggers and completion checks.",
+    "Recorded fuzzy/unobserved areas instead of inventing operational provenance or branch results.",
+    "Ran four explicitly permitted optional public development probes in application-then-variation order per subject; observed all 20 fresh samples pass. These probes supplement the OMC verification notes and are not a native OMC RED/GREEN requirement."
+  ],
+  "native_steps_not_performed": [
+    "Did not independently discover these workflows during real debugging or production operations; that session provenance was not supplied.",
+    "Did not establish all three native quality-gate conditions without qualification; the real-discovery condition remains a disclosed adaptation.",
+    "Did not write OMC's native flat learned files, install/register skills, copy to user configuration, or commit them; the approved task is export-only.",
+    "Did not run additional baseline, full regression, pressure-testing, or held-out cycles. OMC skillify does not require those authoring stages, and the parent owns independent final evaluation.",
+    "Did not run repository builds, linters, tests, formatters, or packaging/discovery commands."
+  ],
+  "adaptations": [
+    {"native":"Learned project skill at .omc/skills/<skill-name>.md, or user skill at ${CLAUDE_CONFIG_DIR:-~/.claude}/skills/omc-learned/<skill-name>.md","benchmark":"artifacts/omc/<subject>/SKILL.md","reason":"Required common benchmark directory packaging replaces flat learned-file storage without installing anything. Preserved native name/description/triggers frontmatter. omc-learned is a compatibility storage name, not either public invocation name."},
+    {"native":"Current session uncovered a successful workflow through real effort","benchmark":"Supplied actual fresh successful completions with a designer-specified procedure on controlled synthetic tasks","reason":"The user explicitly requested this session input. Actual executions support extraction of workflow structure, but neither oracle acceptance nor repeated passing probes proves production experience or discovery effort."},
+    {"native":"Verification or quality-gate notes in the skillify output","benchmark":"Durable author JSON outside runtime-loaded skill directories, with source references and optional evaluator observations","reason":"The shared evaluator loads all Markdown under a product. Author history, evidence limitations, and packaging adaptation remain in this report rather than contaminating runtime guidance."},
+    {"native":"Draft extraction does not impose a behavioral evaluation cycle","benchmark":"Four optional evaluator calls, two per subject, with no post-probe revisions","reason":"The assignment permits this evaluator. Public observations are reported honestly without presenting them as an OMC-mandated TDD process or proof of general superiority."},
+    {"native":"Harness skill URL loading","benchmark":"Local instruction files after skill://using-harness-flow and skill://writing-skills returned missing cached files","reason":"Read local infrastructure instructions to satisfy routing prerequisites; the experimental authoring treatment remained the assigned OMC skillify extraction workflow. No sibling authoring products or alternative external methods were read."}
+  ],
+  "evidence_record": {
+    "full_probe_trace_destination": "design/reference/skill-authoring-benchmark/results/author-development-traces.json",
+    "selector": "arm=omc; case_id in release-dev, release-variation, incident-dev, incident-variation; baseline=false",
+    "preservation_note": "The parent states the evaluator appends full results to its persistent author_eval_log and will save the final consolidated trace after all authors finish. The inspected checkpoint contained only the two release calls; missing later incident calls in a checkpoint do not demonstrate loss. An initial suspected-preservation issue was explicitly corrected. All four outcomes above were directly returned by the evaluator.",
+    "inference_limit": "20/20 public development samples passed. This is behavioral evidence for these cases, not proof that the OMC authoring method is superior, that all branches work, or that production behavior is safe."
+  },
+  "publication_actions": []
+}

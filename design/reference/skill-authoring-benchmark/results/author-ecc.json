@@ -1,0 +1,178 @@
+{
+  "arm": "ecc",
+  "method_files_read": [
+    "../everything-claude-code/commands/skill-create.md"
+  ],
+  "routing_files_read": [
+    "skills/using-harness-flow/SKILL.md",
+    "skills/writing-skills/SKILL.md"
+  ],
+  "input_files_read": [
+    "inputs/author-brief.md",
+    "inputs/source-packet.md",
+    "inputs/development-cases.json",
+    "inputs/session-demonstrations.json",
+    "inputs/history-fixture.json",
+    "results/development-baseline.json"
+  ],
+  "subjects": {
+    "release-evidence": {
+      "artifact_files": [
+        "artifacts/ecc/release-evidence/SKILL.md"
+      ],
+      "changes_made": [
+        "Created a complete trigger-first, subject-named export-only skill with valid YAML and local-Git-analysis provenance.",
+        "Extracted the reusable check/revision/runtime/waiver workflow from actual fixture records and the shared source packet, informed by the recorded successful application.",
+        "Included timestamp-based check supersession, all four blocker categories, effective supporting-ID filtering, exact-candidate runtime evidence, and a permanently false deployment-authorization field.",
+        "Included a short reusable boundary example rather than embedding the original session or fixture-specific commit convention."
+      ],
+      "observed_baseline_references": [
+        {
+          "path": "results/development-baseline.json",
+          "case_id": "release-dev",
+          "samples": 5,
+          "passed": 0,
+          "observed_failure": "All five samples returned ready and may_deploy true despite missing candidate runtime evidence; four also included a skipped check ID as support."
+        },
+        {
+          "path": "inputs/session-demonstrations.json",
+          "fixture_record": "release-evidence/record-5.md",
+          "case_id": "release-dev",
+          "samples": 1,
+          "passed": 1,
+          "scope": "Recorded fresh consumer with the shared procedure, not an evaluation of this exported skill.",
+          "response": {
+            "decision": "hold",
+            "blockers": ["runtime_unproven"],
+            "supporting_ids": ["s7", "w7"],
+            "may_deploy": false
+          }
+        }
+      ],
+      "probe_outcomes": [],
+      "actual_checks": {
+        "candidate_path": "artifacts/ecc/release-evidence/.SKILL.ecc-c3c3e7e15ca14fd2a5f426019fa36707.tmp",
+        "yaml_parser": "yaml.safe_load",
+        "valid_yaml": true,
+        "frontmatter_name_matches_directory": true,
+        "safe_lowercase_hyphenated_name": true,
+        "nonempty_description_begins_use_when": true,
+        "resolved_target_within_approved_export_root": true,
+        "existing_target_absent_before_write_and_replacement": true,
+        "atomic_replacement": "os.replace completed after both candidates passed validation",
+        "sha256": "d29e7d9161a425a104a7b29b5547a2af02d4099db98e5cfd8b9f0c0c8ff053de",
+        "discovery_status": "export-only"
+      },
+      "unresolved_limitations": [
+        "No candidate behavioral evaluator was run; this method does not require one. Recorded procedure success does not prove this candidate's behavior.",
+        "Final structural smoke and frozen-product behavioral evaluation belong to the parent.",
+        "The six-commit fixture is synthetic and does not support claims about production conventions."
+      ]
+    },
+    "incident-handoff": {
+      "artifact_files": [
+        "artifacts/ecc/incident-handoff/SKILL.md"
+      ],
+      "changes_made": [
+        "Created a complete trigger-first, subject-named export-only skill with valid YAML and local-Git-analysis provenance.",
+        "Extracted the reusable cause/recovery/prevention/ownership workflow from actual fixture records and the shared source packet, informed by the recorded successful application.",
+        "Separated confirmed causal evidence from plausible hypotheses, retained later-disproof filtering, and used independent measured-recovery, causal-confirmation, and preventive-verification gates.",
+        "Included explicit owner acceptance and unresolved dual-acceptance handling, a permanently false publication-authorization field, and a concise command-completion-versus-recovery boundary example."
+      ],
+      "observed_baseline_references": [
+        {
+          "path": "results/development-baseline.json",
+          "case_id": "incident-dev",
+          "samples": 5,
+          "passed": 3,
+          "observed_failure": "Repetitions 0 and 2 returned mitigated without measured user recovery; the other three samples matched the expected handoff."
+        },
+        {
+          "path": "inputs/session-demonstrations.json",
+          "fixture_record": "incident-handoff/record-6.md",
+          "case_id": "incident-dev",
+          "samples": 1,
+          "passed": 1,
+          "scope": "Recorded fresh consumer with the shared procedure, not an evaluation of this exported skill.",
+          "response": {
+            "status": "investigating",
+            "confirmed_cause_ids": ["t2"],
+            "hypothesis_ids": ["t1"],
+            "owner": null,
+            "may_publish": false
+          }
+        }
+      ],
+      "probe_outcomes": [],
+      "actual_checks": {
+        "candidate_path": "artifacts/ecc/incident-handoff/.SKILL.ecc-44768073f6f942db84629748e4f7524e.tmp",
+        "yaml_parser": "yaml.safe_load",
+        "valid_yaml": true,
+        "frontmatter_name_matches_directory": true,
+        "safe_lowercase_hyphenated_name": true,
+        "nonempty_description_begins_use_when": true,
+        "resolved_target_within_approved_export_root": true,
+        "existing_target_absent_before_write_and_replacement": true,
+        "atomic_replacement": "os.replace completed after both candidates passed validation",
+        "sha256": "ebbc59b6fefdaaad5841c1e801df6b0506a991ffba70751d8beeb70f0ce78401",
+        "discovery_status": "export-only"
+      },
+      "unresolved_limitations": [
+        "No candidate behavioral evaluator was run; this method does not require one. Recorded procedure success does not prove this candidate's behavior.",
+        "Final structural smoke and frozen-product behavioral evaluation belong to the parent.",
+        "The six-commit fixture is synthetic and does not support claims about production conventions."
+      ]
+    }
+  },
+  "native_steps_performed": [
+    "Read the actual ECC command and applied its Git-analysis, factual-pattern-extraction, trigger-first frontmatter, export/discovery, and guarded-write requirements.",
+    "Inspected the real isolated fixture located by history-fixture.json without modifying it, using git log with commit hashes, messages, dates, filenames, and numstat changes.",
+    "Computed file frequencies and multi-file co-change counts from actual git log output; read all six fixture records for baseline, procedure, and successful-application evidence.",
+    "Compared observed conventions with the shared packet and recorded successful consumer outputs before writing reusable workflow skills.",
+    "Validated safe subject names, resolved approved-root containment, and absent targets before candidate creation.",
+    "Wrote sanitized drafts to unique temporary siblings, parsed YAML, checked matching names and trigger-first descriptions, explicitly classified both outputs as export-only, then atomically moved the validated siblings into their final SKILL.md paths."
+  ],
+  "history_observations": {
+    "fixture_kind": "synthetic isolated repository with actual Git commits; not production history",
+    "actual_fixture_path": "/var/folders/3h/1nggl5mj5vz25jxbf1vn9jp00000gn/T/skill-authoring-history-2ekf9ja2",
+    "commits_analyzed": 6,
+    "commit_ids_oldest_to_newest": [
+      "5e1c2d6c39078c1617162d4274c515108f456759",
+      "3541eda2a3d50938632d293480ba76bdabc43da7",
+      "56bd3652ccafc492bfbaf7b572ebdabbb534dfc6",
+      "e8819b61338ba73f3a8fca2ebaad380205e8ca1a",
+      "f4b83b6fd1880409915615840f3cb340ca202efb",
+      "643e5b883770db3a8ae287b98f2e0c2df74f2318"
+    ],
+    "conventional_subject_scoped_docs_commits": "6 of 6 use docs(release-evidence) or docs(incident-handoff)",
+    "architecture_observation": "Two subject folders, each with three Markdown evidence records; no application architecture was inferred.",
+    "file_frequencies": {
+      "release-evidence/record-1.md": 1,
+      "incident-handoff/record-2.md": 1,
+      "release-evidence/record-3.md": 1,
+      "incident-handoff/record-4.md": 1,
+      "release-evidence/record-5.md": 1,
+      "incident-handoff/record-6.md": 1
+    },
+    "multi_file_commits": 0,
+    "co_change_conclusion": "No recurring file-pair co-change convention is supported.",
+    "workflow_sequence": "For each subject, initial no-skill failures precede a reusable procedure record and an actual successful procedure application record.",
+    "testing_observation": "The observed history contains behavioral grade records, not implementation test files; no production testing convention was inferred."
+  },
+  "native_steps_not_performed": [
+    "Optional instincts generation was not requested.",
+    "GitHub App integration, commits, pushes, installation, and global persistence were not requested or authorized.",
+    "Native default repository-patterns naming was not used because the user explicitly approved the two subject-named export paths.",
+    "No candidate development evaluator was called; the ECC command imposes structural validation, not a behavioral RED/GREEN cycle.",
+    "No build, lint, test, formatter, final structural smoke, or held-out evaluation was run by this author."
+  ],
+  "adaptations": [
+    "Mapped native Read/Write/Glob operations to harness tools and Git gathering to bash; replaced command examples' grep/head pipelines with in-memory fact counting over actual git log output.",
+    "Used explicitly approved subject names rather than the repository-name-patterns default; retained the required name/directory identity and safe-slug checks.",
+    "Treated the approved custom output root as export-only, never as a configured discovery root.",
+    "Used factual Git workflow evidence and supplied successful procedure applications to author reusable review procedures, rather than inventing source-code architecture or embedding synthetic commit conventions as runtime requirements.",
+    "Used yaml.safe_load and os.replace through the available evaluation device for the command's mandatory pre-replacement guard; final parent structural smoke remains separate.",
+    "Required skill:// routing reads resolved to missing plugin-cache files. Located and read the corresponding local routing files, reported the resolution issue, and retained ECC as the experimental authoring treatment rather than adding the local wrapper's separate TDD workflow."
+  ],
+  "publication_actions": []
+}

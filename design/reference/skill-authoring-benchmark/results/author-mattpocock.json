@@ -1,0 +1,154 @@
+{
+  "arm": "mattpocock",
+  "method_files_read": [
+    "../skills/skills/productivity/writing-for-agents/SKILL.md",
+    "../skills/skills/productivity/writing-for-agents/SKILL-MECHANICS.md"
+  ],
+  "subjects": {
+    "release-evidence": {
+      "artifact_files": [
+        "design/reference/skill-authoring-benchmark/artifacts/mattpocock/release-evidence/SKILL.md"
+      ],
+      "changes_made": [
+        "Created one complete model-invoked skill with a leading-word context pointer covering check, runtime, supersession, and waiver review branches.",
+        "Organized the procedure into scope, effective records and waivers, verdict, and JSON return steps with local exhaustive completion criteria.",
+        "Co-located waiver validity with its check effect and blocker definitions with the verdict; retained mandatory rules inline rather than adding reference-file load.",
+        "Defined the reusable JSON interface and informational-only deployment boundary; no example-specific revisions or IDs are embedded.",
+        "One authored version; the optional development observations exposed no failure requiring revision."
+      ],
+      "observed_baseline_references": [
+        {
+          "path": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+          "case_id": "release-dev",
+          "arm": "no-skill",
+          "passed": 0,
+          "total": 5,
+          "observed_failures": [
+            "All five consumers returned ready with no runtime blocker and may_deploy true despite runtime evidence for another revision.",
+            "Four consumers also included the skipped unit record u7 in supporting_ids."
+          ]
+        },
+        {
+          "path": "design/reference/skill-authoring-benchmark/inputs/session-demonstrations.json",
+          "subject": "release-evidence",
+          "observation": "One actual consumer supplied the shared procedure returned the expected hold review. This is contextual source evidence, not a run of the authored skill."
+        }
+      ],
+      "probe_outcomes_actually_seen": [
+        {
+          "tool": "evaluate_authored_skill",
+          "case_id": "release-dev",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "passing_reps": [0, 1, 2, 3, 4],
+          "elapsed_seconds": 3.217,
+          "all_samples_response": {"decision": "hold", "blockers": ["runtime_unproven"], "supporting_ids": ["s7", "w7"], "may_deploy": false},
+          "all_fields_passed": true
+        },
+        {
+          "tool": "evaluate_authored_skill",
+          "case_id": "release-variation",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "passing_reps": [0, 1, 2, 3, 4],
+          "elapsed_seconds": 2.266,
+          "all_samples_response": {"decision": "hold", "blockers": ["check_failed"], "supporting_ids": ["v2", "v3"], "may_deploy": false},
+          "all_fields_passed": true
+        }
+      ],
+      "unresolved_limitations": [
+        "The public probes observe whole-document consumer behavior, not the causal contribution or no-op status of individual sentences.",
+        "Automatic invocation from the description was not tested: the evaluator supplies the artifact directly.",
+        "Invalid-waiver combinations, critical-waiver rejection, multiple incomplete checks, and recovery from historical failures were not independently probed here.",
+        "No held-out evidence was accessed; parent owns independent frozen-output evaluation."
+      ]
+    },
+    "incident-handoff": {
+      "artifact_files": [
+        "design/reference/skill-authoring-benchmark/artifacts/mattpocock/incident-handoff/SKILL.md"
+      ],
+      "changes_made": [
+        "Created one complete model-invoked skill with a leading-word context pointer covering incident status, causal classification, and accepted ownership.",
+        "Ordered exhaustive evidence classification before recovery/cause/prevention gates, accepted-owner resolution, and JSON return, with completion criteria for each step.",
+        "Co-located confirmed, hypothetical, and disproven cause definitions and used a compact status decision table rather than scattering or duplicating the gate rules.",
+        "Kept source-instruction trust and publication authorization as hard review-only boundaries; no benchmark-specific people or IDs are embedded.",
+        "One authored version; the optional development observations exposed no failure requiring revision."
+      ],
+      "observed_baseline_references": [
+        {
+          "path": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+          "case_id": "incident-dev",
+          "arm": "no-skill",
+          "passed": 3,
+          "total": 5,
+          "observed_failures": [
+            "Consumers at reps 0 and 2 returned mitigated despite a completed rollback without measured user recovery; the other fields were correct."
+          ]
+        },
+        {
+          "path": "design/reference/skill-authoring-benchmark/inputs/session-demonstrations.json",
+          "subject": "incident-handoff",
+          "observation": "One actual consumer supplied the shared procedure returned the expected investigating handoff. This is contextual source evidence, not a run of the authored skill."
+        }
+      ],
+      "probe_outcomes_actually_seen": [
+        {
+          "tool": "evaluate_authored_skill",
+          "case_id": "incident-dev",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "passing_reps": [0, 1, 2, 3, 4],
+          "elapsed_seconds": 2.955,
+          "all_samples_response": {"status": "investigating", "confirmed_cause_ids": ["t2"], "hypothesis_ids": ["t1"], "owner": null, "may_publish": false},
+          "all_fields_passed": true
+        },
+        {
+          "tool": "evaluate_authored_skill",
+          "case_id": "incident-variation",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "passing_reps": [0, 1, 2, 3, 4],
+          "elapsed_seconds": 4.345,
+          "all_samples_response": {"status": "mitigated", "confirmed_cause_ids": [], "hypothesis_ids": ["x1"], "owner": "Jo", "may_publish": false},
+          "all_fields_passed": true
+        }
+      ],
+      "unresolved_limitations": [
+        "The public probes observe whole-document consumer behavior, not the causal contribution or no-op status of individual sentences.",
+        "Automatic invocation from the description was not tested: the evaluator supplies the artifact directly.",
+        "Later-disproven causes, competing acceptances, explicit ownership transfers, and fully resolved incidents were not independently probed here.",
+        "No held-out evidence was accessed; parent owns independent frozen-output evaluation."
+      ]
+    }
+  },
+  "native_steps_performed": [
+    "Read writing-for-agents and its skill-specific mechanics completely before authoring.",
+    "Selected model invocation because evidence-review consumers should autonomously reach the procedures; omitted disable-model-invocation and wrote model-facing branch pointers with leading words front-loaded.",
+    "Applied the information hierarchy: ordered actions are top-level steps, short mandatory decision rules are in-file reference at their point of use.",
+    "Applied co-location and single-source definitions: causes live in their classification step, waiver rules in their resolution step, and status/blocker tables at verdict selection.",
+    "Used checkable, exhaustive local completion criteria to resist premature completion without introducing an unobserved sequence-splitting workaround.",
+    "Used existing concepts such as evidence, effective result, recovery, and gates instead of invented vocabulary; emphasized affirmative classification targets while preserving necessary safety guardrails.",
+    "Pruned examples, repository details, support files, and copied environment facts that were unnecessary for these reusable procedures during composition.",
+    "Chose optional fresh-consumer observations because the method says model-relative behavioral differences should be settled by running the document, not by asserting a self-review proves it. Ran each application's five consumers before its variation; all 20 outputs matched their public oracle."
+  ],
+  "native_steps_not_performed": [
+    "No user-invoked packaging or router: autonomous reach was the selected requirement and only two distinct subjects were requested.",
+    "No disclosed-reference files: the short decision references are mandatory for the procedures, and no heavy optional branch earned a separate document.",
+    "No real-context-boundary sequence split: the completion criteria are concrete and no observed rush justified hiding subsequent steps.",
+    "No sentence-level ablations or empirical claim that every line defeats the default; whole-skill probes only.",
+    "No imposed RED/GREEN/REFACTOR authoring protocol or mandatory regression reruns: writing-for-agents does not prescribe that protocol, and no post-probe edits were made.",
+    "No installation, commit, push, deployment, publication, repository builds, linters, formatters, or source-code tests."
+  ],
+  "adaptations": [
+    "Mapped loading the method to file reads and behavioral observation to the supplied evaluate_authored_skill tool; native writing-for-agents specifies writing levers rather than a tool-specific test loop.",
+    "Used the shared existing no-skill baseline instead of manufacturing a new one. There were no variation-baseline observations or reruns by this arm.",
+    "The evaluator returns exact consumer responses and grades and is documented by the shared brief as automatically preserving full output; this report also preserves the exact identical response for every five-sample probe group without guessing a storage path.",
+    "The global matching-skill rule caused incidental exposure to local skills/writing-skills/SKILL.md lines 1–133. Its TDD workflow and local metadata override were not adopted; the assigned writing-for-agents method remained the treatment. This exposure is a method-isolation limitation, reported to Main rather than silently omitted.",
+    "skill://using-harness-flow was unavailable, so read the discovered local skills/using-harness-flow/SKILL.md instead. Its subagent stop rule applies; no top-level workflow was imported."
+  ],
+  "publication_actions": []
+}

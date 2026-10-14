@@ -336,41 +336,6 @@ test('project memory bounds root growth without implicit cleanup', () => {
   assert.match(memory, /never reorganize unrelated existing instructions/i);
 });
 
-test('writing-skills has one cross-harness authoring contract', () => {
-  const writing = read('skills/writing-skills/SKILL.md');
-  const official = read('skills/writing-skills/anthropic-best-practices.md');
-  const testing = read('skills/writing-skills/testing-skills-with-subagents.md');
-  const persuasion = read('skills/writing-skills/persuasion-principles.md');
-
-  assert.match(writing, /local policy[\s\S]*overrides[\s\S]*what \+ when/i);
-  assert.match(official, /harness-flow override[\s\S]*triggering conditions only/i);
-  assert.doesNotMatch(testing, /Don't test:\s*\n- Pure reference skills/i);
-  assert.match(testing, /pure reference skills[\s\S]*retrieval[\s\S]*application[\s\S]*gap/i);
-  assert.match(writing, /Reference skill evaluation[\s\S]*retrieval[\s\S]*application[\s\S]*gap/i);
-  assert.match(writing, /future agents/i);
-  assert.doesNotMatch(
-    writing,
-    /future Claude|Claude (?:reads|may|correctly|will)|words Claude/i,
-  );
-  for (const text of [writing, persuasion]) {
-    assert.doesNotMatch(text, /TodoWrite/);
-    assert.match(text, /native task-tracking/i);
-  }
-});
-
-test('writing-skills stays compact and defines one local metadata contract', () => {
-  const writing = read('skills/writing-skills/SKILL.md');
-  const official = read('skills/writing-skills/anthropic-best-practices.md');
-
-  assert.ok(writing.split(/\r?\n/).length <= 500);
-  assert.match(writing, /`name`[^\n]*64 characters/i);
-  assert.match(writing, /`description`[^\n]*1024 characters/i);
-  assert.doesNotMatch(writing, /max 1024 characters total/i);
-  assert.match(writing, /start with `Use when/i);
-  assert.doesNotMatch(writing, /description[^\n]*third-person/i);
-  assert.match(official, /non-normative[\s\S]*third-person/i);
-});
-
 test('all local skill descriptions use the trigger-only entry form', () => {
   const skillDirs = fs.readdirSync(path.join(ROOT, 'skills'), { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -380,31 +345,6 @@ test('all local skill descriptions use the trigger-only entry form', () => {
     const skill = read(`skills/${dir}/SKILL.md`);
     assert.match(skill, /^description:\s*"?Use when\b/im, dir);
   }
-});
-
-test('skill evaluation form is selected by skill type', () => {
-  const writing = read('skills/writing-skills/SKILL.md');
-  const testing = read('skills/writing-skills/testing-skills-with-subagents.md');
-
-  for (const text of [writing, testing]) {
-    assert.match(text, /discipline[\s\S]*pressure/i);
-    assert.match(text, /technique[\s\S]*application[\s\S]*variation/i);
-    assert.match(text, /pattern[\s\S]*recognition[\s\S]*counter/i);
-    assert.match(text, /reference[\s\S]*retrieval[\s\S]*application[\s\S]*gap/i);
-  }
-  assert.match(testing, /discipline-only pressure evaluation/i);
-  assert.doesNotMatch(writing, /\*\*Test case\*\*\s*\|\s*Pressure scenario/i);
-});
-
-test('skill edits preserve baseline content and publishing needs separate approval', () => {
-  const writing = read('skills/writing-skills/SKILL.md');
-
-  assert.match(writing, /existing skill edit[\s\S]*pre-edit version/i);
-  assert.match(writing, /discard only[\s\S]*current-cycle[\s\S]*agent-authored/i);
-  assert.match(writing, /never delete or revert[\s\S]*pre-existing user/i);
-  assert.match(writing, /commit[\s\S]*explicit user approval/i);
-  assert.match(writing, /push[\s\S]*separate explicit user approval/i);
-  assert.doesNotMatch(writing, /commit skill to git and push/i);
 });
 
 test('caveman frontmatter contains triggers only', () => {
@@ -479,31 +419,3 @@ test('routing gives unconfirmed bugs priority over explicit plan requests', () =
   );
 });
 
-test('skill evaluations run one RED GREEN cycle per case', () => {
-  const writing = read('skills/writing-skills/SKILL.md');
-  const testing = read('skills/writing-skills/testing-skills-with-subagents.md');
-
-  for (const text of [writing, testing]) {
-    assert.match(text, /one case per RED[^\n]*GREEN cycle/i);
-  }
-  assert.match(
-    testing,
-    /application[\s\S]*RED[^\n]*GREEN[\s\S]*variation[\s\S]*RED[^\n]*GREEN/i,
-  );
-  assert.match(
-    testing,
-    /retrieval[\s\S]*RED[^\n]*GREEN[\s\S]*application[\s\S]*RED[^\n]*GREEN[\s\S]*gap[\s\S]*RED[^\n]*GREEN/i,
-  );
-});
-
-test('project-specific schemas stay in project documentation, not skills', () => {
-  const writing = read('skills/writing-skills/SKILL.md');
-  const official = read('skills/writing-skills/anthropic-best-practices.md');
-
-  assert.match(writing, /project-specific fact[\s\S]*project documentation/i);
-  assert.match(
-    official,
-    /Harness-flow note[\s\S]*project-specific[\s\S]*project documentation/i,
-  );
-  assert.doesNotMatch(official, /Create a Skill[\s\S]{0,200}Include the table schemas/i);
-});

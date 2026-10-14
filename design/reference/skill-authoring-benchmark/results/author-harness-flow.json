@@ -1,0 +1,312 @@
+{
+  "arm": "harness-flow",
+  "method_files_read": [
+    "skills/writing-skills/SKILL.md",
+    "skills/test-driven-development/SKILL.md",
+    "skills/writing-skills/testing-skills-with-subagents.md",
+    "skills/writing-skills/anthropic-best-practices.md",
+    "skills/using-harness-flow/SKILL.md"
+  ],
+  "method_sections_read": {
+    "skills/writing-skills/anthropic-best-practices.md": [
+      "1-160",
+      "241-274",
+      "733-833"
+    ],
+    "skills/test-driven-development/SKILL.md": "complete",
+    "skills/writing-skills/testing-skills-with-subagents.md": "complete",
+    "skills/writing-skills/SKILL.md": "complete"
+  },
+  "shared_inputs_read": [
+    "design/reference/skill-authoring-benchmark/inputs/author-brief.md",
+    "design/reference/skill-authoring-benchmark/inputs/source-packet.md",
+    "design/reference/skill-authoring-benchmark/inputs/development-cases.json",
+    "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+    "design/reference/skill-authoring-benchmark/inputs/session-demonstrations.json"
+  ],
+  "subjects": {
+    "release-evidence": {
+      "skill_type": "technique",
+      "artifact_files": [
+        "design/reference/skill-authoring-benchmark/artifacts/harness-flow/release-evidence/SKILL.md"
+      ],
+      "changes_made": [
+        "Created concise trigger-only frontmatter, exact-candidate review procedure, waiver validity, blockers, support filtering, and non-deployment JSON contract after application RED.",
+        "Application GREEN was 5/5 before variation began.",
+        "Variation RED exposed retention of superseded pass v1 in four of five samples. Tightened existing record-selection sentence to latest reported timestamp, including failure-to-pass supersession; tightened support exclusion to remove superseded passes.",
+        "Variation GREEN then both regressions passed; no extra files, scripts, or speculative refactor added."
+      ],
+      "observed_baseline_references": [
+        {
+          "path": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+          "case_id": "release-dev",
+          "passed": 0,
+          "total": 5
+        },
+        {
+          "probe_index": 0,
+          "case_id": "release-dev",
+          "passed": 0,
+          "total": 5
+        }
+      ],
+      "observed_failures": [
+        "All five own no-skill application samples returned ready and may_deploy true despite missing exact-candidate runtime; four also retained skipped u7 as support.",
+        "Pre-edit variation samples 0,2,3,4 retained superseded v1 as support while correctly selecting hold/check_failed."
+      ],
+      "probe_outcomes": [
+        {
+          "case_id": "release-dev",
+          "phase": "application RED",
+          "baseline": true,
+          "passed": 0,
+          "total": 5,
+          "candidate_revision": "no skill",
+          "sample_responses": [
+            "{\"decision\":\"ready\",\"blockers\":[],\"supporting_ids\":[\"u7\",\"s7\",\"w7\"],\"may_deploy\":true}",
+            "{\"decision\":\"ready\",\"blockers\":[],\"supporting_ids\":[\"u7\",\"s7\",\"w7\"],\"may_deploy\":true}",
+            "{\"decision\":\"ready\",\"blockers\":[],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":true}",
+            "{\"decision\":\"ready\",\"blockers\":[],\"supporting_ids\":[\"u7\",\"s7\",\"w7\"],\"may_deploy\":true}",
+            "{\"decision\":\"ready\",\"blockers\":[],\"supporting_ids\":[\"u7\",\"s7\",\"w7\"],\"may_deploy\":true}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "release-dev",
+          "phase": "application GREEN",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "initial application draft DA0D",
+          "sample_responses": [
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "release-variation",
+          "phase": "variation RED against pre-edit skill",
+          "baseline": false,
+          "passed": 1,
+          "total": 5,
+          "candidate_revision": "initial application draft DA0D",
+          "sample_responses": [
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v1\",\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v1\",\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v1\",\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v1\",\"v2\",\"v3\"],\"may_deploy\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "release-variation",
+          "phase": "variation GREEN",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "timestamp and superseded-support correction 8458",
+          "sample_responses": [
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "release-dev",
+          "phase": "full-set regression",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "final 8458",
+          "sample_responses": [
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"runtime_unproven\"],\"supporting_ids\":[\"s7\",\"w7\"],\"may_deploy\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "release-variation",
+          "phase": "full-set regression",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "final 8458",
+          "sample_responses": [
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}",
+            "{\"decision\":\"hold\",\"blockers\":[\"check_failed\"],\"supporting_ids\":[\"v2\",\"v3\"],\"may_deploy\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        }
+      ],
+      "unresolved_limitations": [
+        "Public application and variation only, five fresh consumers per run; no claim of generalization to hidden cases or other models.",
+        "Invalid waivers, failure superseded by pass, and multiple required checks are specified in the skill but not separately exercised by these two supplied cases."
+      ]
+    },
+    "incident-handoff": {
+      "skill_type": "technique",
+      "artifact_files": [
+        "design/reference/skill-authoring-benchmark/artifacts/harness-flow/incident-handoff/SKILL.md"
+      ],
+      "changes_made": [
+        "Created trigger-only frontmatter and measured-recovery status gates after observing application failures.",
+        "Included direct-cause versus plausible-hypothesis classification, disproof handling, accepted unambiguous ownership, and non-publication JSON contract.",
+        "Application GREEN passed before variation evaluation began. The pre-edit variation was already 5/5 GREEN; obeyed stop-on-success rule and made no unsupported variation revision.",
+        "Regressed both public cases with the unchanged final skill; both passed 5/5."
+      ],
+      "observed_baseline_references": [
+        {
+          "path": "design/reference/skill-authoring-benchmark/results/development-baseline.json",
+          "case_id": "incident-dev",
+          "passed": 3,
+          "total": 5
+        },
+        {
+          "probe_index": 0,
+          "case_id": "incident-dev",
+          "passed": 3,
+          "total": 5
+        }
+      ],
+      "observed_failures": [
+        "Own no-skill samples 2 and 4 returned mitigated from a completed rollback without measured recovery; all other fields were correct."
+      ],
+      "probe_outcomes": [
+        {
+          "case_id": "incident-dev",
+          "phase": "application RED",
+          "baseline": true,
+          "passed": 3,
+          "total": 5,
+          "candidate_revision": "no skill",
+          "sample_responses": [
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "incident-dev",
+          "phase": "application GREEN",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "initial and final 556E",
+          "sample_responses": [
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "incident-variation",
+          "phase": "variation pre-edit evaluation already GREEN; no revision justified",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "initial and final 556E",
+          "sample_responses": [
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "incident-dev",
+          "phase": "full-set regression",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "final 556E",
+          "sample_responses": [
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}",
+            "{\"status\":\"investigating\",\"confirmed_cause_ids\":[\"t2\"],\"hypothesis_ids\":[\"t1\"],\"owner\":null,\"may_publish\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        },
+        {
+          "case_id": "incident-variation",
+          "phase": "full-set regression",
+          "baseline": false,
+          "passed": 5,
+          "total": 5,
+          "candidate_revision": "final 556E",
+          "sample_responses": [
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}",
+            "{\"status\":\"mitigated\",\"confirmed_cause_ids\":[],\"hypothesis_ids\":[\"x1\"],\"owner\":\"Jo\",\"may_publish\":false}"
+          ],
+          "evidence_source": "Observed evaluate_authored_skill tool return; exact response strings recorded here",
+          "prompt_reference": "design/reference/skill-authoring-benchmark/inputs/development-cases.json"
+        }
+      ],
+      "unresolved_limitations": [
+        "Variation demonstrated correct behavior without new RED; no new failing variation or causal-attribution revision is claimed.",
+        "Public application and variation only, five fresh consumers per run; competing accepted owners and later disproof are specified but not independently probed."
+      ]
+    }
+  },
+  "native_steps_performed": [
+    "Read assigned writing-skills contract and complete canonical TDD and fresh-context evaluation references.",
+    "Classified both products as techniques, not discipline/reference skills.",
+    "Observed actual no-skill application RED before authoring each skill.",
+    "Kept application and variation evaluations sequential; finished and regressed release before incident authoring.",
+    "Used five fresh consumer samples per behavioral evaluation and read each response.",
+    "Corrected an observed release variation support-filtering gap by tightening existing sentences.",
+    "Re-ran the complete application/variation set for each finished skill.",
+    "Applied local naming and trigger-only metadata override and kept both runtime surfaces in one short SKILL.md each."
+  ],
+  "native_steps_not_performed": [
+    "No discipline-only pressure campaign or persuasion reference: these are evidence-classification techniques.",
+    "No new incident variation edit: the existing skill already passed all five samples; adding guidance had no demonstrated job.",
+    "No native task-tracking artifact: worker instructions prohibit TODO tracking.",
+    "No deterministic scripts, parser tests, graphs, repository build/lint/test/formatter commands, multi-model campaign, installation, commit, push, or publication.",
+    "No supporting references were needed for these short runtime procedures."
+  ],
+  "adaptations": [
+    "Mapped native fresh-context subagent evaluations to the approved evaluate_authored_skill tool with arm=harness-flow.",
+    "Used the supplied public cases and observed baseline rather than designing unrelated cases.",
+    "Read repository using-harness-flow after skill://using-harness-flow resolved to a missing plugin-cache file; the local file explicitly exempts dispatched subagents. Tool inconsistency reported.",
+    "Recorded all 55 observed sample responses in this report so probe evidence remains durable outside exported runtime Markdown.",
+    "Followed local metadata and canonical evaluation rules where bundled best-practice generic advice differs."
+  ],
+  "publication_actions": []
+}

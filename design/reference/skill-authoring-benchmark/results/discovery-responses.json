@@ -1,0 +1,2402 @@
+[
+  {
+    "arm": "ecc",
+    "case_id": "select-release",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-release",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-release",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-release",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-release",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-incident",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-incident",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-incident",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-incident",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "select-incident",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-marketing",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-marketing",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-marketing",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-marketing",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-marketing",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-general",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-general",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-general",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-general",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "ecc",
+    "case_id": "reject-general",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from cause claims, rollback or restart reports, recovery measurements, preventive-fix results, or proposed incident owners.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing whether a candidate revision is ready from check records, runtime evidence, or proposed check waivers, including conflicting reports or pressure to deploy.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-release",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-release",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-release",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-release",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-release",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-incident",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-incident",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-incident",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-incident",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "select-incident",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-marketing",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-marketing",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-marketing",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-marketing",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-marketing",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-general",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-general",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-general",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-general",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "harness-flow",
+    "case_id": "reject-general",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, assessing recovery or resolution evidence, classifying suspected causes, or identifying an incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required check results, runtime records, or check waivers before a release decision.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-release",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-release",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-release",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-release",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-release",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-incident",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-incident",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-incident",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-incident",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "select-incident",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-marketing",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-marketing",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-marketing",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-marketing",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-marketing",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-general",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-general",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-general",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-general",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "mattpocock",
+    "case_id": "reject-general",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Incident handoff: use when classifying incident evidence for status, cause claims, or accepted ownership, including recovery after mitigation and preventive-fix verification.\"}, {\"name\": \"release-evidence\", \"description\": \"Release evidence: use when reviewing candidate readiness from check and runtime records, including failed or incomplete checks, superseding results, and proposed waivers.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-release",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-release",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-release",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-release",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-release",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-incident",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-incident",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-incident",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-incident",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "select-incident",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-marketing",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-marketing",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-marketing",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-marketing",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-marketing",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-general",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-general",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-general",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-general",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "omc",
+    "case_id": "reject-general",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff, classifying cause evidence, assessing recovery or resolution, or identifying an accepted incident owner.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release evidence, required checks, runtime records, or check waivers without deployment authorization.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-release",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-release",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-release",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-release",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-release",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-incident",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-incident",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-incident",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-incident",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "select-incident",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-marketing",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-marketing",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-marketing",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-marketing",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-marketing",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-general",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-general",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-general",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-general",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "superpowers",
+    "case_id": "reject-general",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Use when preparing an incident handoff from recovery measurements, cause claims, fix tests, and ownership messages, especially when rollback completion or confident assertions could be mistaken for resolution.\"}, {\"name\": \"release-evidence\", \"description\": \"Use when reviewing a candidate revision's release readiness from checks, runtime records, or waivers, especially when build success, skipped checks, stale evidence, or approval pressure could obscure missing proof.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-release",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-release",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-release",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-release",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-release",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nAssess whether revision c14 has sufficient test and runtime evidence for a release.",
+    "response": "{\"selected\":\"release-evidence\"}",
+    "expected": "release-evidence",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "release-evidence"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-incident",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-incident",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-incident",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-incident",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "select-incident",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nTurn current incident evidence into a handoff distinguishing confirmed causes from theories and identifying the owner.",
+    "response": "{\"selected\":\"incident-handoff\"}",
+    "expected": "incident-handoff",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "incident-handoff"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-marketing",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-marketing",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-marketing",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-marketing",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-marketing",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nWrite cheerful public marketing copy announcing release v2. There is no readiness assessment or incident to analyze.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-general",
+    "rep": 0,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-general",
+    "rep": 1,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-general",
+    "rep": 2,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-general",
+    "rep": 3,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  },
+  {
+    "arm": "unaided",
+    "case_id": "reject-general",
+    "rep": 4,
+    "model_alias": "smol",
+    "system": "You are a skill selector. Given only skill names and descriptions, choose the single best skill for the user request, or none when neither applies. Return only JSON {\"selected\":\"release-evidence|incident-handoff|none\"}. Do not perform the task.",
+    "prompt": "Available skills:\n[{\"name\": \"incident-handoff\", \"description\": \"Prepare an evidence-based incident handoff that separates confirmed causes from hypotheses, assesses measured recovery and preventive verification, and identifies explicitly accepted ownership without authorizing publication.\"}, {\"name\": \"release-evidence\", \"description\": \"Review a proposed release revision against required checks, runtime evidence, and approved waivers; return an informational ready-or-hold verdict without authorizing deployment.\"}]\nUser request:\nExplain the textbook difference between HTTP 401 and HTTP 403.",
+    "response": "{\"selected\":\"none\"}",
+    "expected": "none",
+    "grade": {
+      "pass": true,
+      "parse_error": null,
+      "fields": {
+        "selected": true
+      },
+      "parsed": {
+        "selected": "none"
+      }
+    }
+  }
+]

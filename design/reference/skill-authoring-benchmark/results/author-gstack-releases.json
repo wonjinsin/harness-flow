@@ -1,0 +1,104 @@
+{
+  "subject": "releases",
+  "method": "gstack skillify",
+  "skill_name": "release-feed",
+  "status": "export_staged_pending_parent_verification",
+  "files_read": [
+    "design/reference/skill-authoring-benchmark/inputs/gstack-brief.md",
+    "design/reference/skill-authoring-benchmark/inputs/browser-session.json",
+    "../gstack/skillify/SKILL.md.tmpl",
+    "../gstack/browse/src/browse-client.ts",
+    "../gstack/browse/src/browser-skill-write.ts",
+    "../gstack/browser-skills/hackernews-frontpage/script.ts",
+    "../gstack/browser-skills/hackernews-frontpage/script.test.ts",
+    "../gstack/browser-skills/hackernews-frontpage/SKILL.md",
+    "skills/using-harness-flow/SKILL.md",
+    "skills/implement/SKILL.md",
+    "skills/test-driven-development/SKILL.md",
+    "skills/test-driven-development/testing-anti-patterns.md",
+    "skills/writing-skills/SKILL.md",
+    "skills/writing-skills/anthropic-best-practices.md (relevant opening sections)",
+    "skills/writing-skills/testing-skills-with-subagents.md"
+  ],
+  "source_provenance": {
+    "record_file": "design/reference/skill-authoring-benchmark/inputs/browser-session.json",
+    "record_subject": "releases",
+    "url": "http://127.0.0.1:58898/releases.html",
+    "final_successful_observations": [
+      { "tool": "browser.goto", "url": "http://127.0.0.1:58898/releases.html" },
+      { "tool": "browser.evaluate", "selector": "#releases tr[data-release]" }
+    ],
+    "accepted_output": [
+      { "version": "v1.2.0", "status": "stable", "url": "http://127.0.0.1:58898/releases/v1.2.0" },
+      { "version": "v1.3.0-rc1", "status": "preview", "url": "http://127.0.0.1:58898/releases/v1.3.0-rc1" }
+    ],
+    "acceptance": "Actual controlled Chromium navigation and DOM extraction accepted by the benchmark designer, not a production user.",
+    "fixture_origin": "The releases record's actually observed html string, copied without reconstruction or trailing-newline modification.",
+    "scrape_invocation_claimed": false,
+    "failed_selector_attempts_used": false,
+    "sdk_origin": "../gstack/browse/src/browse-client.ts, copied verbatim through the raw file-read helper",
+    "entity_data_origin": "Python standard-library html.entities.html5, serialized into a static TypeScript lookup; no runtime Python or npm dependency"
+  },
+  "output_paths": [
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/SKILL.md",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/script.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/script.test.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/_lib/browse-client.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/_lib/html-entities.ts",
+    "design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/fixtures/127-0-0-1-2026-10-14.html",
+    "design/reference/skill-authoring-benchmark/results/author-gstack-releases.json"
+  ],
+  "method_steps_followed": [
+    { "step": 1, "action": "Provenance guard", "result": "Bounded releases intent and final accepted browser output identified in the supplied controlled record; no fictional /scrape history." },
+    { "step": 2, "action": "Name and triggers", "result": "Used the explicitly approved release-feed export name, host 127.0.0.1, and four relevant trigger phrases." },
+    { "step": 3, "action": "Synthesize script", "result": "Imported the sibling canonical SDK; exported pure parseFromHtml(html, baseUrl); main performs goto and html then emits exactly items/count JSON with an import.meta.main guard." },
+    { "step": 4, "action": "Capture fixture", "result": "Preserved the real-browser observed releases HTML from the final accepted session under the template's host/date fixture name." },
+    { "step": 5, "action": "Write deterministic tests", "result": "Wrote tests before script implementation: exact accepted fixture output, complete nonempty shape, empty collection, independent incomplete rows, entities, nested text, attribute syntax, relative URLs, inert page prose, comments/scripts, and nested record boundaries." },
+    { "step": 6, "action": "Read and copy canonical SDK", "result": "Read the full canonical SDK from the supplied upstream checkout and copied it without modifications." },
+    { "step": 7, "action": "Stage before publication", "result": "Read the native atomic-write helper and staged all complete files solely in the approved isolated export directory, outside all discoverable browser-skill roots." }
+  ],
+  "adapted_steps": [
+    "The controlled browser-session record replaces the native recent-/scrape provenance search; the brief explicitly approves this mapping.",
+    "browser.goto maps to canonical browse.goto. browser.evaluate extraction maps to canonical browse.html followed by the pure HTML parser using the observed classes and row boundaries. The adapter is real Chromium HTTP transport, not a native gstack daemon.",
+    "The approved name/export scope replaces interactive global/project tier selection; no install tier was selected.",
+    "The observed HTML string replaces a second native goto/html capture, preserving only the final successful extraction observations.",
+    "The fixed export-only write boundary replaces native stageSkill temporary-directory creation; the native helper was read but not called. Artifacts remain explicitly staged, not atomically published or discoverable.",
+    "Normal record selection follows the supplied parser contract's tr[data-release] boundary; the original observation selected those records within #releases.",
+    "The assigned no-tests-before-handoff boundary overrides executing RED/GREEN cycles; tests were authored first but neither a failing run nor a passing run is claimed.",
+    "skill:// skill resolution failed because configured cached paths were absent; the matching existing repository skills were read instead."
+  ],
+  "omitted_steps": [
+    { "step": 2, "action": "Native skill list shadowing check", "reason": "No native browse binary is installed and no discoverable tier is being modified." },
+    { "step": 8, "action": "Native staged skill test or direct Bun fallback", "reason": "Explicitly deferred to parent; no builds, tests, linters, formatters, or smoke runs executed by this author." },
+    { "step": 9, "action": "Commit/publication approval prompt", "reason": "Only isolated export creation is authorized; no publication requested." },
+    { "step": 10, "action": "Native commit/discard", "reason": "No live installation or publication is authorized; completed export retained for parent verification." },
+    { "step": 11, "action": "Post-commit native list/run", "reason": "No commit or native installation occurred; parent owns actual runtime validation." }
+  ],
+  "verification": {
+    "executed_checks": [],
+    "native_staged_verification": "pending parent execution",
+    "fixture_tests": "authored, not executed",
+    "actual_program": "not executed by author",
+    "parent_checks": [
+      "bun test design/reference/skill-authoring-benchmark/artifacts/gstack/release-feed/script.test.ts",
+      "Run script.ts against the parent's real Chromium HTTP adapter with GSTACK_PORT, GSTACK_SKILL_TOKEN, and BENCHMARK_URL configured; compare complete JSON items and count to the accepted observation.",
+      "Compare staged _lib/browse-client.ts byte-for-byte with ../gstack/browse/src/browse-client.ts."
+    ]
+  },
+  "known_limitations": [
+    "No native gstack daemon, installation, tier discovery, scoped-token authentication, or publication path has been validated.",
+    "The default URL uses the observed local benchmark port; later sessions should supply BENCHMARK_URL and the parent's SDK endpoint environment.",
+    "Fixture replay is point-in-time and cannot detect later site markup changes.",
+    "The dependency-free tokenizer handles observed DOM HTML and ordinary table syntax, not the complete browser HTML5 tree-repair algorithm for arbitrary malformed documents.",
+    "Only one read-only target URL is navigated; pagination, authentication, and interactive workflows are outside the assigned subject."
+  ],
+  "boundary": {
+    "isolated_export_only": true,
+    "source_or_global_modifications": false,
+    "hidden_fixture_access": false,
+    "sibling_product_access": false,
+    "publication_actions": [],
+    "installation_actions": [],
+    "commit_or_push_actions": []
+  }
+}

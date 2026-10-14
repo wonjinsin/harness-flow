@@ -1,0 +1,72 @@
+{
+  "note": "Generated scripts succeeded with exact JSON. The replay grader used realm-sensitive deep equality; preserving its false-negative result before correcting the grader.",
+  "runs": [
+    {
+      "subject": "releases",
+      "stdout": "{\"items\":[{\"version\":\"v1.2.0\",\"status\":\"stable\",\"url\":\"http://127.0.0.1:63113/releases/v1.2.0\"},{\"version\":\"v1.3.0-rc1\",\"status\":\"preview\",\"url\":\"http://127.0.0.1:63113/releases/v1.3.0-rc1\"}],\"count\":2}\n",
+      "stderr": "",
+      "exit_code": 0,
+      "expected": {
+        "items": [
+          {
+            "version": "v1.2.0",
+            "status": "stable",
+            "url": "http://127.0.0.1:63113/releases/v1.2.0"
+          },
+          {
+            "version": "v1.3.0-rc1",
+            "status": "preview",
+            "url": "http://127.0.0.1:63113/releases/v1.3.0-rc1"
+          }
+        ],
+        "count": 2
+      },
+      "pass": false
+    },
+    {
+      "subject": "notices",
+      "stdout": "{\"items\":[{\"title\":\"Pool & queue maintenance\",\"url\":\"http://127.0.0.1:63113/notices/pool\",\"severity\":\"warning\"},{\"title\":\"Documentation update\",\"url\":\"http://127.0.0.1:63113/notices/docs\",\"severity\":null}],\"count\":2}\n",
+      "stderr": "",
+      "exit_code": 0,
+      "expected": {
+        "items": [
+          {
+            "title": "Pool & queue maintenance",
+            "severity": "warning",
+            "url": "http://127.0.0.1:63113/notices/pool"
+          },
+          {
+            "title": "Documentation update",
+            "severity": null,
+            "url": "http://127.0.0.1:63113/notices/docs"
+          }
+        ],
+        "count": 2
+      },
+      "pass": false
+    }
+  ],
+  "trace": [
+    {
+      "command": "goto",
+      "args": [
+        "http://127.0.0.1:63113/releases.html"
+      ]
+    },
+    {
+      "command": "html",
+      "args": []
+    },
+    {
+      "command": "goto",
+      "args": [
+        "http://127.0.0.1:63113/notices.html"
+      ]
+    },
+    {
+      "command": "html",
+      "args": []
+    }
+  ],
+  "backend": "real Chromium via direct Puppeteer callbacks; not native gstack daemon"
+}
