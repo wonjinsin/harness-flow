@@ -299,7 +299,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 **Meta**
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
-- **writing-skills** — create, edit, and verify skills before deployment
+- **writing-skills** — create, edit, and verify skills through evidence-based evaluations; skill-only work goes here directly, even with an approved spec, plan, or brief
 - **llm-md-revise** — filters session learnings into a user-approved batch for the repository's canonical project instructions
 - **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 

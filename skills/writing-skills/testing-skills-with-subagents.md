@@ -1,146 +1,99 @@
-# Testing Skills With Fresh Context
+# Evaluate the Skill, Not the Prose
 
-Use this reference when creating or editing a skill. The canonical
-`test-driven-development` skill defines RED → GREEN → REFACTOR; this file
-defines evaluation forms for runtime guidance.
+Use this reference to select cases, run fresh consumers, and interpret results.
+The authoring sequence and publication boundaries live in `SKILL.md`.
 
-## Evaluation matrix
+## Choose cases from the job
 
-Choose by failure mode:
+Declare expected outcomes from the source requirements before seeing candidate
+responses. Cover the relevant risks; a skill can need more than one row:
 
-| Skill type | RED | GREEN | REFACTOR signal |
-|---|---|---|---|
-| **Discipline** | Combined pressure produces a violation | Same pressure produces compliance | New rationalization |
-| **Technique** | Application or edge variation fails | Both cases are applied correctly | Missing step or boundary |
-| **Pattern** | Recognition or counter-example fails | Use and non-use cases are distinguished | Over- or under-triggering |
-| **Reference** | Retrieval, application, or gap task fails | Correct fact is found and used | Missing or ambiguous entry |
+| Job | Cases and observable outcomes |
+| --- | --- |
+| Technique | Normal application and a changed input or boundary; inspect the resulting artifact |
+| Pattern | A matching case and a similar non-match; check both use and non-use |
+| Reference | Retrieve an exact fact, apply it, and answer a nearby unsupported question without invention |
+| Discipline | A realistic incentive to violate the rule, then changed pressure; require an action or decision |
+| Executable helper | Saved input, a changed or malformed input, and the actual command/tool entrypoint |
 
-Pure reference skills still need retrieval, application, and gap evaluations.
-They do not need rationalization pressure. Pressure is meaningful only when an
-agent has an incentive to violate a discipline.
+Pressure is not a substitute for application or retrieval. Apply it only where
+rule-breaking is a plausible risk. An explicit unsupported result can be correct;
+an inaccessible file or permission error is not evidence that data is absent.
 
-## Shared cycle
+### Discipline pressure cases
 
-### RED
+Build a realistic scenario by combining pressures relevant to the rule:
 
-- New skill: run the evaluation without the skill.
-- Existing edit: run it against the pre-edit version.
-- Use a fresh context that lacks implementation-session hints.
-- Record the exact output and why it is wrong.
-- Stop if the baseline already succeeds.
+- Time or emergency.
+- Sunk cost in work already done.
+- Authority or social pressure.
+- Exhaustion.
+- Apparent harmlessness.
+- Fear of wasting work on verification or rework.
 
-### GREEN
+This is a scenario menu, not six mandatory tests. Give the situation and pressures,
+then ask only what the agent does next and optionally why. For example, "What will
+you investigate before fixing it?" supplies the debugging rule; "What do you do
+next?" leaves that decision to the consumer. Keep the tested rule in the candidate
+skill and the expected behavior in the grader, so the no-skill baseline is not
+coached. Use a changed pressure combination for the fresh variation.
 
-- Add the smallest guidance that addresses the observed failure.
-- Repeat the same evaluation with the skill available.
-- Check behavior, not recall: the agent must make the right decision or produce
-  the right artifact.
+For each observed discipline violation, record both the actual violating action
+and any verbatim rationalization as failure evidence (RED), keeping actions
+separate from stated intentions; address only rationalizations used to justify
+observed violations.
 
-### REFACTOR
+## Run a controlled comparison
 
-- Add an edge, counter-example, or gap case.
-- Tighten existing wording before adding a new section.
-- Re-run affected cases after each edit.
-- Preserve passed cases while closing the new failure.
+Give each consumer only the task, intended skill files, available inputs/tools,
+and necessary host rules. Use independent fresh contexts without the author's
+reasoning, expected answer, or earlier consumer responses. If the real host loads
+references on demand, exercise that path rather than always pasting every file.
 
-For non-deterministic behavior, run multiple fresh samples and read each result.
-For deterministic scripts or schemas, prefer automated tests. Do not replace
-behavioral evidence with a parser test when the risk is agent judgment.
+Use no skill for a new behavior or the original version for an edit. Change the
+candidate guidance, not the task or grader, between baseline and candidate runs.
+Use multiple fresh samples for nondeterministic decisions and inspect each failure;
+record passes/attempts rather than treating one success as reliability proof.
+Do not hide provider/tool errors inside behavior scores or silently replace failures.
 
-Run one case per RED → GREEN cycle. The cases below define required final
-coverage, not a batch of failures to collect before the first GREEN. After all
-cycles pass independently, rerun the complete set as regression evidence.
+One passing case says nothing about untested cases. Keep the full agreed scope
+visible and preserve regression cases. Reserve a fresh confirmation variation;
+after using it to fix wording, it is development evidence, not an unseen test.
 
-## Discipline-only pressure evaluation
+If a change affects another skill's routing or input/output contract, rerun that
+skill's relevant evaluations and exercise the affected handoff. For routing
+changes, cover both requests that should take the route and those that should not.
+A local pass does not establish cross-skill compatibility; limit regression to
+affected paths rather than retesting every skill.
 
-Build one realistic scenario with at least three pressures:
+When comparing authoring methods rather than editing one skill, also consider an
+uncompressed-source control and a skill drafted without the authoring method.
+Repeat authors independently: many consumers of one artifact are not many authors.
+Do not impose that entire comparison campaign on routine skill edits.
 
-- time or emergency;
-- sunk cost;
-- authority or social pressure;
-- exhaustion;
-- apparent harmlessness;
-- fear of wasted work.
+## Grade outcomes and inspect disagreements
 
-Require an action or explicit choice. A prompt that asks “what does the skill
-say?” tests recall, not compliance.
+Use code for exact observable fields or executable results. Permit valid output
+variants the contract allows; do not enforce an incidental tool order or wording.
+For semantic judgments, define the rubric first and inspect the cited evidence;
+an uncalibrated model score is not proof. Test action, not an agent's self-rating.
 
-During RED, capture rationalizations verbatim. During GREEN, use the same
-scenario. During REFACTOR, add one changed-pressure case that tempts a new
-exception. Keep a rationalization table only while it remains useful:
+If a result and grader disagree, inspect the raw response, source requirement,
+and execution trace. Separate a real violation from an ambiguous requirement,
+invalid expectation, or broken comparison. Preserve the original evidence and
+report any grader correction or post-hoc interpretation explicitly. Never rewrite
+the skill merely to satisfy a demonstrably invalid grader.
 
-| Rationalization | Counter |
-|---|---|
-| Observed excuse | Short rule that removes its ambiguity |
+## Keep claims separate
 
-Consult [persuasion-principles.md](persuasion-principles.md) only for discipline
-skills whose rule is still rationalized away.
+- **Structure:** valid metadata and reachable files. This does not prove behavior.
+- **Discovery:** appropriate selection on applicable and non-applicable requests.
+  A metadata-only prompt does not prove native automatic loading.
+- **Behavior:** actual decisions, artifacts, or state changes on the declared cases.
+- **Integration:** the real entrypoint, dependencies, and host operations exercised.
+  Parser tests or an adapter do not prove untested installation, auth, or deployment.
 
-## Technique evaluation
-
-Use two sequential cycles:
-
-1. **Application:** run application RED → GREEN on a normal task that requires
-   every essential step.
-2. **Variation:** only after application is green, run variation RED → GREEN with
-   a changed input, environment, or boundary.
-
-Score the produced steps or artifact. A good result applies the method rather
-than paraphrasing it. A missed step becomes one clarified instruction; a
-failure unique to the edge case becomes one boundary.
-
-## Pattern evaluation
-
-Use a matched pair as sequential cycles:
-
-1. **Recognition:** run recognition RED → GREEN where the pattern should apply.
-2. **Counter-example:** only after recognition is green, run counter-example
-   RED → GREEN on a similar-looking case where it must not apply.
-
-The pair detects both under-triggering and over-triggering. Add trigger symptoms
-or exclusions only when the corresponding case fails.
-
-## Reference evaluation
-
-Use three sequential cycles:
-
-1. **Retrieval:** run retrieval RED → GREEN by locating the exact fact, field,
-   command, or constraint.
-2. **Application:** only after retrieval is green, run application RED → GREEN
-   by using that fact in a realistic decision or artifact.
-3. **Gap:** only after application is green, run gap RED → GREEN by asking for a
-   nearby unsupported case and verifying the skill exposes the limit instead of
-   inventing an answer.
-
-Reference skill evaluation should favor precise outputs and source locations.
-Do not add pressure language unless the reference also enforces a discipline.
-
-## Micro-tests
-
-Use micro-tests to compare wording before an expensive campaign:
-
-1. Include a no-guidance or pre-edit control.
-2. Keep context and task fixed between variants.
-3. Sample enough fresh runs to reveal variance.
-4. Read flagged outputs; quoted examples can create false positives.
-5. Promote only wording that improves behavior consistently.
-
-Micro-tests refine wording. They do not replace full pressure scenarios for a
-discipline skill.
-
-## Evidence record
-
-Keep the report short:
-
-```text
-Skill:
-Type:
-Baseline:
-Observed failure:
-Change:
-Verification:
-Remaining limit:
-```
-
-If one edit affects another skill's route or contract, run that skill's relevant
-evaluation too. A local pass does not justify a cross-skill contradiction.
+Record the source/version, candidate, case, expected outcome, actual response or
+trace, repetitions, and failure classification. Report what changed and the remaining
+limits. Judge value by the agreed result and unnecessary context removed, not by
+word count alone, stronger language, or how many evaluation calls were made.
