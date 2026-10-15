@@ -73,7 +73,7 @@ For `skills/<name>/SKILL.md`, use YAML frontmatter:
 - `description`: at most 1024 characters; starts with `Use when` and states
   triggering conditions only. Put capabilities and workflow in the body.
 
-Default to one trigger per distinct case. Broaden it with more trigger phrases
+Default the description to one trigger per distinct case. Broaden it with more trigger phrases
 or "even when the user does not name X" only when a discovery evaluation shows
 the skill missed requests it should own and no router or sibling skill owns them;
 then rerun the non-use cases to catch over-triggering. When a router or
