@@ -73,6 +73,12 @@ For `skills/<name>/SKILL.md`, use YAML frontmatter:
 - `description`: at most 1024 characters; starts with `Use when` and states
   triggering conditions only. Put capabilities and workflow in the body.
 
+Default to one trigger per distinct case. Broaden it with more trigger phrases
+or "even when the user does not name X" only when a discovery evaluation shows
+the skill missed requests it should own and no router or sibling skill owns them;
+then rerun the non-use cases to catch over-triggering. When a router or
+sibling skill owns those requests, fix the route instead.
+
 Keep the main file comfortably below 500 lines. Add supporting files only for
 needed reference or reusable executable helpers. Preserve cross-skill routes;
 use harness-neutral instructions unless an actual interface is host-specific.
@@ -87,8 +93,11 @@ its evidence and grader before changing the skill; clarify ambiguous requirement
 without erasing the original result.
 
 Repeat affected cases for the skill being created or edited after each correction.
-Once the agreed cases pass, rerun them together and exercise a fresh variation not
-used to tune the wording.
+Once the agreed cases pass, REFACTOR the guidance written or changed in this cycle,
+even when it looks small: remove one section, example, or restated rule at a time,
+rerun the affected cases, and keep each removal that still passes. Leave
+pre-existing content outside the request as it is. Then rerun the agreed cases
+together and exercise a fresh variation not used to tune the wording.
 If it exposes a real gap, fix it and reserve another variation for confirmation.
 For executable helpers, follow code TDD and run the actual entrypoint as well as
 its tests. Report adapter execution separately from native host integration.
