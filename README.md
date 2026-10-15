@@ -37,7 +37,7 @@ After comparing several Claude Code harnesses ([`design/2026-05-05-comparison.md
 
 ## Skill chain — the order work flows in
 
-Routing applies the first matching rule. An approved plan or agreed small-change brief goes to `implement`, while an approved spec goes to `writing-plans`. Skill-only creation, editing, or verification takes priority over generic read-only analysis and goes directly to `writing-skills`. A bug, test failure, or unexpected behavior without a confirmed root cause goes to `systematic-debugging` first, even when the user requests an implementation plan; it proceeds to `writing-plans` or `implement` only after the root cause is confirmed. An explicit code review takes priority over generic read-only analysis and goes directly to `requesting-code-review`. Explicit specs go to `brainstorming`, non-bug implementation plans go to `writing-plans`, and other code work or codebase investigations go to `brainstorming`. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
+Routing applies the first matching rule. Skill-only creation, editing, or verification goes directly to `writing-skills`, even with an approved spec, plan, or agreed brief. When product/source code changes are also in scope, the remaining routes apply: an approved plan or agreed small-change brief goes to `implement`, while an approved spec goes to `writing-plans`. A bug, test failure, or unexpected behavior without a confirmed root cause goes to `systematic-debugging` first, even when the user requests an implementation plan; it proceeds to `writing-plans` or `implement` only after the root cause is confirmed. An explicit code review takes priority over generic read-only analysis and goes directly to `requesting-code-review`. Explicit specs go to `brainstorming`, non-bug implementation plans go to `writing-plans`, and other code work or codebase investigations go to `brainstorming`. General-knowledge questions stay outside the chain. Every chain skill is also independently invocable — preconditions are guards, not gates: invoked without its usual input, the skill recovers it (e.g. `writing-plans` asks the 1–2 settling questions first).
 
 ```mermaid
 flowchart LR
@@ -64,6 +64,7 @@ flowchart LR
     end
 
     REQ(["user request"]) --> UHF(["using-harness-flow"])
+    UHF -- "skill-only creation /<br/>editing / verification" --> WS(["writing-skills"])
     UHF -- "feature / refactor" --> BS
     UHF -- "codebase research /<br/>technical report" --> BS
     UHF -- "bug / test failure" --> SD(["systematic-debugging"])
@@ -83,7 +84,7 @@ flowchart LR
     classDef debug fill:#ffebee,stroke:#e57373,color:#b71c1c
 
     class REQ,UHF entry
-    class BS,SPEC,WP design
+    class BS,SPEC,WP,WS design
     class TDD,IMPL build
     class REVIEW,LMR ship
     class SD debug
@@ -117,6 +118,14 @@ Skills create artifacts inside the current checkout on demand:
 docs/harness-flow/specs/YYYY-MM-DD-<topic>.md   # brainstorming large-exit output
 docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 ```
+
+---
+
+## Parallel track — skill authoring
+
+**writing-skills** — creates, edits, and verifies `SKILL.md` files and skill-shipped supporting files. Skill-only work routes here directly, even with an approved spec, plan, or agreed brief; it stays outside the `brainstorming` → `writing-plans` → `implement` chain. When product/source code changes are also in scope, the regular code-work routes apply.
+
+The workflow establishes observable acceptance cases, evaluates the pre-edit skill, makes the smallest correction, and verifies it with fresh consumers. It then simplifies the guidance, reruns affected cases, and checks a fresh variation. The result is the skill files plus observed evaluation evidence and unverified boundaries. Installation, publication, and commits require explicit approval; pushing requires separate approval.
 
 ---
 

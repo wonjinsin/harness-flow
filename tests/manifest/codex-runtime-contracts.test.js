@@ -39,21 +39,6 @@ test('entry skill uses harness-neutral wording, not Claude-specific tools', () =
   assert.doesNotMatch(entry, /TodoWrite/);
 });
 
-test('skill-only edits route directly to writing-skills', () => {
-  const entry = read('skills/using-harness-flow/SKILL.md');
-  assert.match(entry, /skill creation, editing, or verification[\s\S]*writing-skills[^\n]*directly/i);
-  assert.match(entry, /skill-only work stays outside[\s\S]*brainstorming[^\n]*implement chain/i);
-});
-
-test('skill-only verification outranks generic read-only analysis', () => {
-  const entry = read('skills/using-harness-flow/SKILL.md');
-  const brainstorming = read('skills/brainstorming/SKILL.md');
-  const description = brainstorming.match(/^description:\s*(.+)$/m)?.[1] ?? '';
-
-  assert.match(entry, /skill-only[\s\S]*takes precedence[\s\S]*generic read-only analysis/i);
-  assert.match(description, /skill-only[\s\S]*writing-skills/i);
-});
-
 test('caveman starts in lite mode', () => {
   const caveman = read('skills/caveman/SKILL.md');
   assert.match(

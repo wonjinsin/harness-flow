@@ -18,14 +18,13 @@ skills — skip a skill's workflow only when the user explicitly tells you to.
 Apply the first matching route. `Directly` means no lower-priority route runs
 first:
 
-1. Approved plan or agreed small-change brief → `implement`.
+1. Skill creation, editing, or verification (`SKILL.md` and skill-shipped supporting
+   files), with no product/source code changes → `writing-skills` directly, even
+   with an approved spec, plan, or agreed brief.
+2. Approved plan or agreed small-change brief → `implement`.
    Approved spec → `writing-plans`. A confirmed bug-fix brief → `writing-plans`
    only when the user explicitly requested an implementation plan; otherwise →
    `implement`.
-2. Skill creation, editing, or verification (`SKILL.md` and skill-shipped prompt
-   templates) → `writing-skills` directly. Skill-only work stays outside the
-   brainstorming → implement chain; enter that chain only when product/source code
-   is also in scope. This skill-only route takes precedence over generic read-only analysis.
 3. Unconfirmed bug / test failure / unexpected behavior, including an explicit implementation plan request
    about that symptom → `systematic-debugging`.
    Root-cause confirmation must precede any plan or fix proposal.
