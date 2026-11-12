@@ -118,6 +118,58 @@ docs/harness-flow/specs/YYYY-MM-DD-<topic>.md   # brainstorming large-exit outpu
 docs/harness-flow/plans/YYYY-MM-DD-<feature>.md   # writing-plans output
 ```
 
+## Architecture setup — explicit and opt-in
+
+Invoke **`harness-flow:setup`** when a project needs a detailed architecture and
+coding handbook. It is a standalone adoption workflow, not a new mandatory step
+in the skill chain. See the [setup skill](skills/setup/SKILL.md) and
+[shared reference index](skills/setup/references/index.md).
+
+The default Go profile is layer-first Clean/Hexagonal architecture with core
+input/output ports and adapter-local mapping. Examples use Chi, Ent, PostgreSQL,
+and Zerolog. Dependency versions are not architectural requirements. The handbook
+addresses context propagation, multi-repository transactions, and safe public
+errors alongside the chosen structure.
+
+The handbook includes detailed layer examples, domain/aggregate modeling,
+transactions and concurrency, idempotency and events, security and operations,
+and behavioral verification. Each topic distinguishes baseline rules from
+conditional mechanisms and unresolved project decisions. It does not prescribe
+brokers, caches, microservices, or full DDD to every CRUD application.
+
+Setup inspects the target stack and existing conventions, then asks the user how
+the guidance should be stored and loaded: **Claude Code native rules** under
+`.claude/rules/`, or **a shared handbook with selected reader wiring**. The shared
+mode asks which tools to connect: Claude Code, Codex, OMP, or several of them.
+It does not infer those choices from the active session or silently pick
+`docs/guidelines`. That path is a proposal only after shared-handbook mode is
+selected and no accepted location exists.
+
+Explicitly chosen modes and readers are reused rather than asked again.
+Unresolved choices pause writing, not discovery. Existing handbook locations
+are preserved unless the user approves a migration.
+
+Guidance and examples are adapted semantically to the project. Native mode uses
+common and path-scoped rules; shared mode keeps one handbook with thin approved
+reader pointers. Existing authority, human edits, and accepted exceptions are
+preserved. Meaningful architecture conflicts, missing business/provider
+guarantees, and changes affecting a shared instruction entrypoint require
+decisions, not invented defaults. Each selected reader's loading is verified
+separately; writing a link alone is not activation.
+
+The existing workflow skills remain unchanged. Setup proposes handbook-reading
+requirements through the project's own canonical instruction surface, subject to
+its approval policy. Without adoption, existing project standards still apply;
+installing this library does not impose the Go layout. Markdown instructions are
+not a mechanical import gate: projects needing hard enforcement must adopt an
+appropriate checker/CI rule.
+
+The [runnable Go example](skills/setup/examples/go/README.md) exercises a real
+HTTP-to-SQL transaction with rollback/cancellation/concurrent-uniqueness cases.
+It deliberately uses standard-library HTTP and SQLite as a self-contained
+alternative; it does **not** validate Ent/PostgreSQL, production authorization,
+broker delivery, or every recipe in the reference.
+
 ---
 
 ## Parallel track — bug fixing
@@ -286,6 +338,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 - **writing-plans** — task-level implementation plan generation
 - **implement** — settled-work executor: inline TDD, relevant verification, acceptance checking, a Conventional Commit, and ordered next-action suggestions
 - **pr-creator** — standalone GitHub pull request creation
+- **setup** — explicit adoption or refresh of a detailed project-owned architecture handbook from the shared Go blueprint, with stack-specific examples, conditional production rules, and protected local exceptions
 
 **Quality assurance**
 

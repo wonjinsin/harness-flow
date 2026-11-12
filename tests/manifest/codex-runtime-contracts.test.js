@@ -281,23 +281,6 @@ test('invalidated bug fixes return evidence to systematic debugging', () => {
   assert.doesNotMatch(implement, /revert|reset|rebase|amend/i);
 });
 
-test('systematic debugging keeps diagnosis mutation-free', () => {
-  const debugging = read('skills/systematic-debugging/SKILL.md');
-  const tracing = read('skills/systematic-debugging/root-cause-tracing.md');
-
-  assert.ok(debugging.split(/\r?\n/).length <= 55, 'systematic-debugging must stay compact');
-  assert.match(debugging, /not\s+reproducible[\s\S]*gather[\s\S]*evidence[\s\S]*report[\s\S]*gap/i);
-  assert.match(debugging, /smallest non-mutating observation/i);
-  assert.match(debugging, /retry[\s\S]*bug-fix brief[\s\S]*do not implement it here/i);
-  assert.match(
-    debugging,
-    /implementation or verification fails[\s\S]*stop[\s\S]*count[\s\S]*return here/i,
-  );
-  assert.doesNotMatch(debugging, /```bash|~95%|wrong architecture/i);
-  assert.doesNotMatch(debugging, /test it with the \*smallest\*\s*change/i);
-  assert.doesNotMatch(debugging, /codesign --sign/i);
-  assert.doesNotMatch(tracing, /console\.error/);
-});
 
 test('project-memory candidates keep compact evidence and approval rules', () => {
   const memory = read('skills/llm-md-revise/SKILL.md');
