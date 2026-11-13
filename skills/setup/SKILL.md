@@ -70,12 +70,14 @@ policy. Keep delivery choices separate from the agreed application architecture.
 
 ## 3. Map the reference to the project
 
-Read `references/go/architecture.md` and `references/go/layers.md`. Use Go as the
-canonical teaching language, not as a requirement to replace another stack.
+Read `references/go/architecture.md`, `references/go/layers.md`, and
+[behavior ownership](references/go/behavior-ownership.md). Use Go as the canonical
+teaching language, not as a requirement to replace another stack.
 
-Produce a concrete architecture map: source responsibility → actual target path → target
-language/framework mechanism → applicable rule → verification. Keep the canonical
-Go layout when starting a Go project without contrary adopted constraints.
+Produce a concrete architecture map: source responsibility → actual target path
+and owning type/API → target language/framework mechanism → applicable rule →
+verification. Keep the canonical Go layout when starting a Go project without
+contrary adopted constraints.
 
 For an existing layout or another language, distinguish a harmless naming
 adaptation from an architectural departure. Do not silently rename modules,
@@ -103,6 +105,15 @@ project-specific, detailed pages with:
 
 Keep the entry index short; do not shorten the substantive handbook into slogans.
 Include at least one complete vertical slice across the project's actual layers.
+Make top-to-bottom, book-like readability an explicit baseline: orchestration
+tells the operation's story; named behavior on domain values/collections,
+application inputs/results, DTOs, and handwritten persistence mappers owns the
+details appropriate to each. Trace a real compound condition, collection
+calculation, and representation conversion to their owners, showing before/after
+calls and direct behavioral checks. Calling primitive validators while composing
+the rule inline is still a gap. Do not satisfy this by moving business rules into
+DTOs/DAOs, private service helpers, or trivial forwarding layers.
+
 Adapt cancellation, error/cause propagation, ORM transactions, async execution,
 and mapping semantics, not only syntax and filenames. Validate unfamiliar APIs
 against the actual installed framework or official documentation. Do not invent
@@ -150,6 +161,10 @@ commands, public error behavior, and any transaction claim against the real
 adapter. A generic Go example cannot validate a Python transaction scope or an
 Ent/PostgreSQL isolation guarantee.
 
+Exercise the extracted decision or transformation directly with supplied values
+and a negative/boundary case, without booting its orchestrator or infrastructure.
+Then read the resulting orchestration top to bottom to verify its operation
+sequence is clear without reconstructing helper internals.
 
 Verify loading for each selected reader as well as the example behavior. Check
 actual loaded instructions or read traces, including matching/nonmatching paths

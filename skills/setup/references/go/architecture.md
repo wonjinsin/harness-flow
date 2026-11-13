@@ -134,8 +134,8 @@ Interfaces live in core here because they express the application's inbound and 
 | JSON fields, compatibility envelope, transport validation | `adapter/in/http/dto/user.go`, `response.go` | Persistence constraints or use-case execution |
 | Request-to-command and result-to-response conversion | `adapter/in/http/dto/user_mapper.go` | Repository calls or business side effects |
 | HTTP-independent operation and command/query/result | `core/port/in/usecase.go` | JSON tags, HTTP status, framework request/context types |
-| Coordination, clock usage, authorization orchestration, atomic unit | `core/service/user_service.go` | HTTP decoding, SQL, Ent entities |
-| Entity state and invariant-preserving behavior | `core/domain/user.go` | Database clients, network calls, response envelopes |
+| Coordination, clock usage, authorization orchestration, atomic unit | `core/service/user_service.go` | HTTP decoding, SQL, Ent entities, inline business calculations |
+| Entity behavior, composed rules, business summaries and matching over values/collections | `core/domain/` | Database clients, network calls, response envelopes |
 | Persistence/external capability needed by service | `core/port/out/repository.go` | ORM predicates, vendor response types |
 | Query construction, database error classification, transaction-bound implementation | `adapter/out/persistence/user_repo.go` | HTTP errors or deciding a business transition |
 | Domain-to-write fields and persisted-to-domain mapping | `adapter/out/persistence/user_mapper.go` | HTTP mapping or loading associations as a hidden side effect |

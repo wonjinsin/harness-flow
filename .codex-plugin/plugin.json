@@ -1,7 +1,7 @@
 {
   "name": "harness-flow",
   "description": "Personal skills library: TDD, implementation workflows, fresh-context code review, and battle-tested engineering patterns. Cross-harness (Claude Code + Codex + OMP).",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "author": {
     "name": "wonjinsin",
     "email": "slgktn92@gmail.com"

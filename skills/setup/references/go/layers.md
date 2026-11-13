@@ -6,6 +6,12 @@ Use this chapter with the [canonical tree and dependency contract](architecture.
 
 **Portable principles:** separate transport, application, domain, and persistence representations; carry the operation context through I/O; express contracts through application-owned types; enforce domain rules for every caller; and compose concrete dependencies only at the process boundary. The commands, errors, context signatures, and pagination below illustrate these contracts; adopting them requires migrating existing implementations and callers together.
 
+**Readability baseline:** follow [behavior ownership](behavior-ownership.md).
+Each orchestration method should read naturally from top to bottom at one level
+of abstraction. Domain owns composed decisions and collection calculations;
+application inputs/results and adapter-local DTO/DAO mappers own their respective
+validation and conversion details. Keep I/O, errors, and transactions visible.
+
 ## 1. Start with the application contracts, not a JSON or database struct
 
 ### Inbound port and application data
@@ -34,6 +40,26 @@ type UserPage struct {
 
 var ErrInvalidInput = errors.New("invalid use-case input")
 
+func (q ListUsersQuery) Normalize() (ListUsersQuery, error) {
+    if q.Offset < 0 || q.Offset > 100000 || q.Limit < 0 || q.Limit > 100 {
+        return ListUsersQuery{}, ErrInvalidInput
+    }
+    if q.Limit == 0 {
+        q.Limit = 50
+    }
+    return q, nil
+}
+
+func NewUserPage(users domain.Users, q ListUsersQuery) UserPage {
+    more := len(users) > q.Limit
+    if more {
+        users = users[:q.Limit]
+    }
+    return UserPage{
+        Users: users, Offset: q.Offset, Limit: q.Limit, HasMore: more,
+    }
+}
+
 type UserService interface {
     CreateUser(context.Context, CreateUserCommand) (*domain.User, error)
     GetUser(context.Context, int) (*domain.User, error)
@@ -42,6 +68,11 @@ type UserService interface {
 ```
 
 This contract does not know that creation arrived through `POST`, that pagination came from a query string, or that users are stored with Ent. A worker can construct a command without a fake HTTP request. Do not put `json` tags, an `http.ResponseWriter`, a Chi context, a database ID allocation object, or an ORM entity in it. A command does not need a wrapper for every scalar operation: `GetUser(ctx, id int)` is reasonable when there is only one input and no meaningful ambiguity.
+
+`ListUsersQuery.Normalize` owns the accepted bounds/defaults for every caller.
+`NewUserPage` consumes a normalized query and the bounded lookahead result; it
+owns trimming and `HasMore` without copying the user collection. These are
+application query/result behaviors, not JSON conversion or domain identity rules.
 
 **Needs project decision.** Protected use cases need a trusted actor/tenant representation and authorization semantics; this public CRUD illustration does not implement an identity system. Do not let a `TenantID` in an untrusted JSON body stand in for authenticated scope. See [security and operations](security-and-operations.md).
 
@@ -203,23 +234,15 @@ func (s *userService) GetUser(ctx context.Context, id int) (*domain.User, error)
 }
 
 func (s *userService) ListUsers(ctx context.Context, q inport.ListUsersQuery) (inport.UserPage, error) {
-    if q.Offset < 0 || q.Offset > 100000 || q.Limit < 0 || q.Limit > 100 {
-        return inport.UserPage{}, inport.ErrInvalidInput
-    }
-    if q.Limit == 0 {
-        q.Limit = 50
+    q, err := q.Normalize()
+    if err != nil {
+        return inport.UserPage{}, err
     }
     users, err := s.repo.List(ctx, q.Offset, q.Limit+1)
     if err != nil {
         return inport.UserPage{}, fmt.Errorf("list users: %w", err)
     }
-    more := len(users) > q.Limit
-    if more {
-        users = users[:q.Limit]
-    }
-    return inport.UserPage{
-        Users: users, Offset: q.Offset, Limit: q.Limit, HasMore: more,
-    }, nil
+    return inport.NewUserPage(users, q), nil
 }
 ```
 
@@ -227,7 +250,7 @@ This is a single-write create use case. It needs the database's atomic insert/un
 
 `now` is a small injectable function, not a clock service framework. Composition supplies `time.Now`; a test can supply a fixed function. Constructors assume composition supplies valid non-nil dependencies; validate dependency wiring according to the project's startup convention, not by adding silent fallback repositories or clocks.
 
-The list policy chooses default 50, maximum 100, and a maximum offset 100000. These exact numbers are **project decisions** illustrated by this example, not universal limits. Enforcing them in the service protects worker/CLI callers too; HTTP parsing alone is insufficient. A repository returns at most the number requested by this internal contract, including the one extra lookahead row.
+The list policy chooses default 50, maximum 100, and maximum offset 100000. These numbers are **project decisions**, not universal limits. The service invokes the query's normalization so worker/CLI callers receive the same checks; the result owns page shaping. HTTP parsing alone is insufficient. The repository returns at most the requested bounded count, including one lookahead row.
 
 **Required when the use case is protected:** orchestrate authorization before exposing or mutating data, using an explicit policy and trusted scope. **Required when two writes share an invariant:** use the transaction contract from [data and transactions](data-and-transactions.md). **Required when publishing must survive crashes:** use the durable delivery contract from [reliability and events](reliability-and-events.md). Do not append `go publishEvent(...)` to this service and claim reliability.
 
@@ -244,7 +267,7 @@ func (s *userService) CreateUser(_ context.Context, req dto.CreateUserRequest) (
 
 A subtler wrong version decodes correctly but checks `err.Error() == "duplicate email"`, sets an HTTP status inside the service, or logs every returned error before the handler logs it again. These are also boundary violations.
 
-**Review target:** service tests use a small fake repository and fixed time; verify the command becomes normalized domain state, invalid input never writes, repository categories survive wrapping, the exact context reaches the fake, and lookahead pagination trims only the extra row. Test transaction/cancellation failures when those guarantees are introduced; see [testing and evolution](testing-and-evolution.md).
+**Review target:** test query normalization and result shaping directly for invalid bounds, defaults, empty/exact/overfull pages, and no loss of returned users. Service checks use a small repository double and fixed time for rejected writes, normalized stored state, retained error categories and orchestration failures. Do not retest every pure rule through service mocks. See [testing and evolution](testing-and-evolution.md) for transaction/cancellation and real-adapter evidence.
 
 ## 4. HTTP DTO and mapper: preserve the wire contract deliberately
 

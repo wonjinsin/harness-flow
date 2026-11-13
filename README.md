@@ -137,6 +137,14 @@ and behavioral verification. Each topic distinguishes baseline rules from
 conditional mechanisms and unresolved project decisions. It does not prescribe
 brokers, caches, microservices, or full DDD to every CRUD application.
 
+The baseline is code that reads naturally from top to bottom, like a book.
+Services tell the use-case story; domain values and collections own composed
+rules, summaries, and matching; application inputs/results own normalization and
+page shaping; DTOs and handwritten persistence mappers own representation work.
+See [behavior ownership](skills/setup/references/go/behavior-ownership.md) for
+the worked review example and direct checks. Shorter methods alone are not the
+goal, and moving business policy into DTOs/DAOs is not a correction.
+
 Setup inspects the target stack and existing conventions, then asks the user how
 the guidance should be stored and loaded: **Claude Code native rules** under
 `.claude/rules/`, or **a shared handbook with selected reader wiring**. The shared

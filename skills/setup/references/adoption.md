@@ -225,6 +225,17 @@ Include a complete representative vertical slice: route → handler and DTO mapp
 → concrete adapter and mapping → composition, with success and negative behavior.
 When the project does not use HTTP, use its real entry adapter instead.
 
+The slice must read naturally from top to bottom, with business steps at a
+consistent level of abstraction. Apply [behavior ownership](go/behavior-ownership.md):
+show an actual compound decision, collection calculation, and representation
+conversion before and after assigning each to a named type/package/API and
+direct behavioral check. Include read models and application commands/results,
+not only entity constructors. If a behavior is absent, state that rather than
+inventing it. Pure business rules belong in domain; DTOs and handwritten DAO
+mappers own representation behavior, not use-case execution. Services retain
+sequencing, scoped I/O and transactions. Private service helpers, trivial
+forwarders, or \"thin service\" slogans alone do not satisfy this contract.
+
 Do not leave placeholders or `TODO` code in an accepted example. A scoped fragment
 is fine when its surrounding types and assumptions are explicit; label it as a
 fragment, not a runnable application. If a framework API is unknown, verify it or

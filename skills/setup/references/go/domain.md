@@ -4,7 +4,7 @@ Use this chapter with [layers](layers.md) and [data and transactions](data-and-t
 
 ## Adoption levels
 
-- **Required baseline:** identify the actual invariants, represent meaningful values explicitly, validate construction and mutation, separate transport/storage mapping, and keep domain code independent of HTTP, Ent, and SQL.
+- **Required baseline:** identify actual invariants; give pure decisions, composed validation, derived business values, and collection/read-model calculations a named domain owner; validate construction and mutation; separate transport/storage mapping; keep domain independent of HTTP, Ent, and SQL.
 - **Required when behavior is stateful:** give one owner responsibility for legal state transitions and prevent callers from bypassing it.
 - **Required when several writes protect one fact:** define the consistency boundary and its concurrent persistence enforcement. An in-memory aggregate alone cannot protect against other processes.
 - **Optional:** rich aggregates, domain services, specifications, domain events, and multiple bounded contexts. Adopt a mechanism because a named rule needs it, not because a directory exists.
@@ -328,6 +328,12 @@ For example, trimming surrounding whitespace from a submitted display name may b
 ## 5. Domain service versus application service
 
 **Required baseline:** let the application service own the workflow; keep a pure business decision with the domain if it does not naturally belong to one entity.
+
+This applies even without a complex aggregate or state machine. Calling several
+domain validators but composing their eligibility rule, summary counters, or
+canonical matching in a service leaves that behavior outside its owner. Follow
+[behavior ownership](behavior-ownership.md) for named pure APIs and direct
+verification while keeping the surrounding workflow readable.
 
 | Concern | Placement |
 | --- | --- |

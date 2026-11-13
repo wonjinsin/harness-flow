@@ -15,8 +15,9 @@ parts are actually retrieved and translated into accepted project rules.
 
 1. Read [adoption](adoption.md) and resolve the user's storage/loading mode and
    intended readers before writing guidance. There is no automatic directory choice.
-2. Read [architecture](go/architecture.md) and [layers](go/layers.md) for the
-   canonical structure and a complete cross-layer responsibility model.
+2. Read [architecture](go/architecture.md), [layers](go/layers.md), and
+   [behavior ownership](go/behavior-ownership.md) for structure, responsibilities,
+   and code that reads naturally from top to bottom.
 3. Select the additional chapters below by the behavior being introduced.
 4. Produce guidance in the chosen mode with actual paths, stack-specific examples,
    explicit adoption decisions, and verified claims. Keep its entrypoint small.
@@ -25,10 +26,10 @@ parts are actually retrieved and translated into accepted project rules.
 
 | Work or decision | Required reference material |
 | --- | --- |
-| Initial setup or refreshing generated guidance | Adoption and delivery/reader selection, architecture, layers, then assess every chapter for applicability |
-| New route, handler, DTO, inbound port, or vertical slice | Architecture, layers, security/error mapping, testing |
-| Business rule, entity, value object, aggregate, or context boundary | Domain, relevant layers, testing |
-| Database write, transaction, uniqueness, concurrent update, pagination, cache, or migration | Data and transactions, domain ownership, testing |
+| Initial setup or refreshing generated guidance | Adoption and delivery/reader selection, architecture, layers, behavior ownership, then assess every chapter for applicability |
+| New route, handler, DTO, inbound port, or vertical slice | Architecture, layers, behavior ownership, security/error mapping, testing |
+| Business rule, entity, value object, read model, or collection calculation | Domain, behavior ownership, relevant layers, testing |
+| Database write, transaction, uniqueness, concurrent update, pagination, cache, or migration | Data and transactions, behavior/domain ownership, testing |
 | External HTTP call, job, webhook, retry, idempotency, broker, or event | Reliability and events, data atomicity, security/operations, testing |
 | Authentication, authorization, tenancy, logging, configuration, or deployment | Security and operations, relevant data/reliability sections, testing |
 | Refactor, legacy adoption, framework change, or new bounded context | Architecture, domain, testing/evolution, and the affected adapters |
@@ -53,6 +54,13 @@ Router and middleware; handlers/controllers; request/response DTOs and mappers;
 inbound application contracts; services; domain; outbound contracts; repositories,
 DAO/schema/generated ORM code; configuration, shared packages, logging, and
 composition. Includes correct examples and plausible violations.
+
+### [Behavior ownership and readable orchestration](go/behavior-ownership.md)
+
+Top-to-bottom, book-like flow; ownership of composed decisions, collection
+calculations, application inputs/results, DTO transformations and handwritten
+DAO mapping. Includes a review-summary/duplicate-matching fragment, direct
+behavior checks, and limits that keep I/O and transactions in their orchestrators.
 
 ### [Domain modeling and boundaries](go/domain.md)
 
