@@ -12,14 +12,21 @@ import (
 )
 
 type UseCase struct {
-	userProvider outport.UserProvider
-	transactor   outport.Transactor
+	userProvider    outport.UserProvider
+	userRepository  outport.UserRepository
+	auditRepository outport.AuditRepository
+	transactor      outport.Transactor
 }
 
 var _ inport.UserUseCase = (*UseCase)(nil)
 
-func NewUseCase(userProvider outport.UserProvider, transactor outport.Transactor) *UseCase {
-	return &UseCase{userProvider: userProvider, transactor: transactor}
+func NewUseCase(userProvider outport.UserProvider, userRepository outport.UserRepository, auditRepository outport.AuditRepository, transactor outport.Transactor) *UseCase {
+	return &UseCase{
+		userProvider:    userProvider,
+		userRepository:  userRepository,
+		auditRepository: auditRepository,
+		transactor:      transactor,
+	}
 }
 
 func (s *UseCase) CreateUser(ctx context.Context, input command.CreateUserCommand) (*domain.User, error) {
@@ -28,13 +35,13 @@ func (s *UseCase) CreateUser(ctx context.Context, input command.CreateUserComman
 		return nil, err
 	}
 	var created *domain.User
-	err = s.transactor.WithinTransaction(ctx, func(repositories outport.Transaction) error {
+	err = s.transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
 		var err error
-		created, err = repositories.UserRepository().Insert(ctx, user)
+		created, err = s.userRepository.Insert(txCtx, user)
 		if err != nil {
 			return err
 		}
-		return repositories.AuditRepository().RecordUserCreated(ctx, created)
+		return s.auditRepository.RecordUserCreated(txCtx, created)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create user: %w", err)

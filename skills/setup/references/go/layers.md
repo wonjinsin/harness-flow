@@ -739,7 +739,7 @@ func UserStoreError(op string, err error) error {
 
 ### Write-only repository
 
-Put this fragment in `internal/adapter/out/persistence/postgres/repository/user_repo.go`, importing standard `context`, generated `ent`, `dao`, `domain`, and `outport`:
+Put this fragment in `internal/adapter/out/persistence/postgres/repository/user_repo.go`, importing standard `context`, generated `ent`, `dao`, `domain`, `outport`, and `postgresdb` (the adapter's `db` package). `postgresdb.Client` is defined in [data and transactions](data-and-transactions.md#4-concrete-ent-adaptation):
 
 ```go
 package repository
@@ -755,8 +755,12 @@ func NewUserRepository(client *ent.Client) outport.UserRepository {
 var _ outport.UserRepository = (*userRepo)(nil)
 
 func (r *userRepo) Insert(ctx context.Context, u *domain.User) (*domain.User, error) {
+    client, err := postgresdb.Client(ctx, r.client)
+    if err != nil {
+        return nil, dao.UserStoreError("insert user", err)
+    }
     data := dao.ToUserWriteData(u)
-    row, err := r.client.User.Create().
+    row, err := client.User.Create().
         SetName(data.Name).
         SetEmail(data.Email).
         SetCreatedAt(data.CreatedAt).
@@ -770,7 +774,7 @@ func (r *userRepo) Insert(ctx context.Context, u *domain.User) (*domain.User, er
 
 ### Read-only provider
 
-Put this fragment in `internal/adapter/out/persistence/postgres/provider/user_provider.go`, importing standard `context`, generated `ent` and `ent/user`, `dao`, `domain`, and `outport`:
+Put this fragment in `internal/adapter/out/persistence/postgres/provider/user_provider.go`, importing standard `context`, generated `ent` and `ent/user`, `dao`, `domain`, `outport`, and the same `postgresdb` resolver:
 
 ```go
 package provider
@@ -786,7 +790,11 @@ func NewUserProvider(client *ent.Client) outport.UserProvider {
 var _ outport.UserProvider = (*userProvider)(nil)
 
 func (p *userProvider) FindByID(ctx context.Context, id int) (*domain.User, error) {
-    row, err := p.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
+    client, err := postgresdb.Client(ctx, p.client)
+    if err != nil {
+        return nil, dao.UserStoreError("find user", err)
+    }
+    row, err := client.User.Query().Where(user.IDEQ(id)).Only(ctx)
     if err != nil {
         return nil, dao.UserStoreError("find user", err)
     }
@@ -794,7 +802,11 @@ func (p *userProvider) FindByID(ctx context.Context, id int) (*domain.User, erro
 }
 
 func (p *userProvider) List(ctx context.Context, offset, limit int) (domain.Users, error) {
-    rows, err := p.client.User.Query().
+    client, err := postgresdb.Client(ctx, p.client)
+    if err != nil {
+        return nil, dao.UserStoreError("list users", err)
+    }
+    rows, err := client.User.Query().
         Order(ent.Asc(user.FieldCreatedAt), ent.Asc(user.FieldID)).
         Offset(offset).Limit(limit).All(ctx)
     if err != nil {
@@ -814,7 +826,7 @@ A broad `ent.IsConstraintError(err)` does **not** prove duplicate email. The fai
 
 Pass `ctx` to every Ent terminal operation. Do not store context on `userRepo`/`userProvider`, replace it with `Background`, or use panic-on-error helpers such as `SaveX`/`AllX` for ordinary request failures. An in-process service deadline is useful only if the database call receives it. Providers never perform writes; repositories do not expose read methods. Both use generated Ent directly rather than forwarding through one another or a redundant handwritten DAO interface.
 
-**Required when a use case needs an atomic multi-repository write:** use the common `WithinTransaction` contract for operations sharing a consistency boundary; no dedicated UoW type or per-operation wrapper is required. Transaction-scoped assembly belongs in `postgres/repository`; generic begin/commit/rollback mechanics belong in `postgres/db`, which must not import providers/repositories or contain business queries/mapping. Participating repositories and providers must share `tx.Client()` or the equivalent transaction-bound handle. Do not accept a transaction context while continuing to query a root client. See [data and transactions](data-and-transactions.md) for justified contract splits, the full implementation, and failure handling.
+**Required when a use case needs an atomic multi-repository write:** call `WithinTransaction(ctx, func(txCtx context.Context) error)` and use the existing injected repositories/providers with `txCtx`. The `postgres/db` resolver selects the transaction-bound `tx.Client()` for those calls, or the base client when no scope exists; invalid, expired or foreign scopes fail rather than fall back. No repository bundle, shared-field swap, or separate runner for owner-lock policy. Keep owner/tenant validation and locking explicit inside the callback. The `db` package owns lifecycle and context binding, without provider/repository imports or business queries. Never pass the outer context or query a captured root client for participating I/O. See [data and transactions](data-and-transactions.md) for the full implementation and failure handling.
 
 **Wrong:**
 

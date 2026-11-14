@@ -26,10 +26,11 @@ Google architecture standard:
 - Dependency fields, parameters and composition variables retain the role:
   userProvider, userRepo, transactor, aiProvider. Do not name every outbound
   dependency repo, and do not append Repository to every operation name.
-- Use the common WithinTransaction contract; Transactor names its role, not a
-  mandatory new layer or UoW suffix. Keep compatible existing names. Apply the
-  [transaction contract reuse and split criteria](data-and-transactions.md#2-application-owned-atomicity-without-a-root-client-escape)
-  instead of deriving one runner per operation name.
+- Use the common WithinTransaction callback with txCtx and existing injected
+  repositories/providers, not a repository bundle. Transactor names its role,
+  not a mandatory UoW layer. Apply the
+  [transaction binding contract](data-and-transactions.md#2-application-owned-atomicity-without-a-root-client-escape);
+  do not derive a runner from each operation or owner-lock policy.
 - Use meaningful verbs for operations: CreateCategory, ArchiveCategory,
   ConfirmImport; FindByID and List for persistence reads; Insert, Update and Delete
   for writes. Plain field accessors need no Get prefix. An established GetUser

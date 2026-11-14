@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/db"
 	"example.com/architecture-handbook/internal/core/domain"
 	outport "example.com/architecture-handbook/internal/core/port/out"
 )
@@ -21,7 +22,11 @@ func NewUserProvider(db *sql.DB) *UserProvider {
 }
 
 func (p *UserProvider) FindByID(ctx context.Context, id int) (*domain.User, error) {
-	user, err := scanUser(p.db.QueryRowContext(ctx,
+	executor, err := db.Executor(ctx, p.db)
+	if err != nil {
+		return nil, fmt.Errorf("select user: %w", err)
+	}
+	user, err := scanUser(executor.QueryRowContext(ctx,
 		"SELECT id, name, email, created_at FROM users WHERE id = ?", id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound

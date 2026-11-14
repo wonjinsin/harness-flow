@@ -16,11 +16,10 @@ import (
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/repository"
 	"example.com/architecture-handbook/internal/core/domain"
 	"example.com/architecture-handbook/internal/core/port/in/command"
-	outport "example.com/architecture-handbook/internal/core/port/out"
 	"example.com/architecture-handbook/internal/core/service/usecase/user"
 )
 
-func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider, *repository.Transactor) {
+func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider, *sqlitedb.Transactor) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	t.Cleanup(cancel)
@@ -33,7 +32,7 @@ func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider
 			t.Errorf("close database: %v", err)
 		}
 	})
-	return ctx, db, provider.NewUserProvider(db), repository.NewTransactor(db)
+	return ctx, db, provider.NewUserProvider(db), sqlitedb.NewTransactor(db)
 }
 
 type rowCounts struct {
@@ -57,7 +56,7 @@ func assertCounts(t *testing.T, ctx context.Context, db *sql.DB, want rowCounts)
 
 func TestCreateUserCommitsUserAndAuditAndCanBeRead(t *testing.T) {
 	ctx, db, userProvider, transactor := newDatabase(t)
-	users := user.NewUseCase(userProvider, transactor)
+	users := user.NewUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
 	created, err := users.CreateUser(ctx, command.CreateUserCommand{Name: " Alice ", Email: "ALICE@example.com"})
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +79,34 @@ func TestCreateUserCommitsUserAndAuditAndCanBeRead(t *testing.T) {
 	assertCounts(t, ctx, db, rowCounts{users: 1, audits: 1})
 }
 
+func TestRepositoryRemainsReusableAfterContextTransactionRollback(t *testing.T) {
+	ctx, db, _, transactor := newDatabase(t)
+	first, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicate, err := domain.NewUser("Another", "alice@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	userRepository := repository.NewUserRepository(db)
+	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if _, err := userRepository.Insert(txCtx, first); err != nil {
+			return err
+		}
+		_, err := userRepository.Insert(txCtx, duplicate)
+		return err
+	})
+	if !errors.Is(err, domain.ErrEmailConflict) {
+		t.Fatalf("transaction error = %v, want ErrEmailConflict", err)
+	}
+	assertCounts(t, ctx, db, rowCounts{})
+	if _, err := userRepository.Insert(ctx, first); err != nil {
+		t.Fatalf("same repository cannot perform an ordinary write after rollback: %v", err)
+	}
+	assertCounts(t, ctx, db, rowCounts{users: 1})
+}
+
 func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
 	ctx, db, userProvider, transactor := newDatabase(t)
 	_, err := db.ExecContext(ctx, `CREATE TRIGGER reject_user_audit
@@ -88,7 +115,7 @@ func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	users := user.NewUseCase(userProvider, transactor)
+	users := user.NewUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
 	_, err = users.CreateUser(ctx, command.CreateUserCommand{Name: "Alice", Email: "alice@example.com"})
 	if err == nil {
 		t.Fatal("creation succeeded despite the database rejecting the audit write")
@@ -110,7 +137,7 @@ func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
 
 func TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint(t *testing.T) {
 	ctx, db, userProvider, transactor := newDatabase(t)
-	users := user.NewUseCase(userProvider, transactor)
+	users := user.NewUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
 	const callers = 8
 	start := make(chan struct{})
 	results := make(chan error, callers)
@@ -162,15 +189,17 @@ func TestCancellationBetweenTransactionWritesRollsBackPersistedUser(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	userRepository := repository.NewUserRepository(db)
+	auditRepository := repository.NewAuditRepository(db)
 	var insertedID int
-	err = transactor.WithinTransaction(transactionContext, func(repositories outport.Transaction) error {
-		inserted, err := repositories.UserRepository().Insert(transactionContext, user)
+	err = transactor.WithinTransaction(transactionContext, func(txCtx context.Context) error {
+		inserted, err := userRepository.Insert(txCtx, user)
 		if err != nil {
 			return err
 		}
 		insertedID = inserted.ID
 		cancel()
-		return repositories.AuditRepository().RecordUserCreated(transactionContext, inserted)
+		return auditRepository.RecordUserCreated(txCtx, inserted)
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("transaction error = %v, want context.Canceled", err)
@@ -193,6 +222,238 @@ func TestAuditForeignKeyRejectsUnknownUser(t *testing.T) {
 	var sqliteError sqlite3.Error
 	if !errors.As(err, &sqliteError) || sqliteError.ExtendedCode != sqlite3.ErrConstraintForeignKey {
 		t.Fatalf("orphan audit error = %v, want SQLite foreign-key constraint", err)
+	}
+	assertCounts(t, ctx, db, rowCounts{})
+}
+
+func TestProviderReadsUncommittedWriteThroughTransactionContext(t *testing.T) {
+	ctx, db, userProvider, transactor := newDatabase(t)
+	userRepository := repository.NewUserRepository(db)
+	input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		inserted, err := userRepository.Insert(txCtx, input)
+		if err != nil {
+			return err
+		}
+		found, err := userProvider.FindByID(txCtx, inserted.ID)
+		if err != nil {
+			return err
+		}
+		if found.ID != inserted.ID || found.Name != inserted.Name || found.Email != inserted.Email || !found.CreatedAt.Equal(inserted.CreatedAt) {
+			t.Fatalf("transaction read = %+v, inserted = %+v", found, inserted)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCounts(t, ctx, db, rowCounts{users: 1})
+}
+
+func TestTransactionScopeExpiresAfterCallback(t *testing.T) {
+	for _, outcome := range []string{"commit", "rollback", "panic"} {
+		t.Run(outcome, func(t *testing.T) {
+			ctx, db, userProvider, transactor := newDatabase(t)
+			userRepository := repository.NewUserRepository(db)
+			input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var escaped context.Context
+			callbackErr := errors.New("reject operation")
+			panicValue := new(int)
+			var recovered any
+			func() {
+				defer func() { recovered = recover() }()
+				err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+					escaped = txCtx
+					if _, err := userRepository.Insert(txCtx, input); err != nil {
+						return err
+					}
+					switch outcome {
+					case "rollback":
+						return callbackErr
+					case "panic":
+						panic(panicValue)
+					default:
+						return nil
+					}
+				})
+			}()
+			switch outcome {
+			case "commit":
+				if err != nil || recovered != nil {
+					t.Fatalf("commit error/panic = %v/%v", err, recovered)
+				}
+			case "rollback":
+				if !errors.Is(err, callbackErr) || recovered != nil {
+					t.Fatalf("rollback error/panic = %v/%v", err, recovered)
+				}
+			case "panic":
+				if recovered != panicValue {
+					t.Fatalf("recovered = %v, want original panic", recovered)
+				}
+			}
+			if escaped == nil {
+				t.Fatal("transaction callback did not run")
+			}
+			if _, err := userRepository.Insert(escaped, input); !errors.Is(err, sqlitedb.ErrTransactionScopeExpired) {
+				t.Fatalf("expired write error = %v, want ErrTransactionScopeExpired", err)
+			}
+			if _, err := userProvider.FindByID(escaped, input.ID); !errors.Is(err, sqlitedb.ErrTransactionScopeExpired) {
+				t.Fatalf("expired read error = %v, want ErrTransactionScopeExpired", err)
+			}
+			if err := transactor.WithinTransaction(escaped, func(context.Context) error {
+				t.Fatal("runner accepted an expired scope")
+				return nil
+			}); !errors.Is(err, sqlitedb.ErrNestedTransaction) {
+				t.Fatalf("expired runner error = %v, want ErrNestedTransaction", err)
+			}
+			want := rowCounts{}
+			if outcome == "commit" {
+				want.users = 1
+			}
+			assertCounts(t, ctx, db, want)
+		})
+	}
+}
+
+func TestNestedTransactionsRejectExistingScopeWithoutOpeningAnotherTransaction(t *testing.T) {
+	ctx, db, _, transactor := newDatabase(t)
+	_, otherDB, _, otherTransactor := newDatabase(t)
+	err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		for _, runner := range []*sqlitedb.Transactor{transactor, otherTransactor} {
+			err := runner.WithinTransaction(txCtx, func(context.Context) error {
+				t.Fatal("nested callback ran")
+				return nil
+			})
+			if !errors.Is(err, sqlitedb.ErrNestedTransaction) {
+				t.Fatalf("nested transaction error = %v, want ErrNestedTransaction", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCounts(t, ctx, db, rowCounts{})
+	assertCounts(t, ctx, otherDB, rowCounts{})
+}
+
+func TestForeignPoolScopeRejectsRepositoryAndProviderOperations(t *testing.T) {
+	ctx, db, _, transactor := newDatabase(t)
+	_, otherDB, otherProvider, _ := newDatabase(t)
+	otherUsers := repository.NewUserRepository(otherDB)
+	otherAudits := repository.NewAuditRepository(otherDB)
+	input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if _, err := otherUsers.Insert(txCtx, input); !errors.Is(err, sqlitedb.ErrTransactionPoolMismatch) {
+			t.Fatalf("foreign write error = %v, want ErrTransactionPoolMismatch", err)
+		}
+		if err := otherAudits.RecordUserCreated(txCtx, input); !errors.Is(err, sqlitedb.ErrTransactionPoolMismatch) {
+			t.Fatalf("foreign audit error = %v, want ErrTransactionPoolMismatch", err)
+		}
+		if _, err := otherProvider.FindByID(txCtx, 1); !errors.Is(err, sqlitedb.ErrTransactionPoolMismatch) {
+			t.Fatalf("foreign read error = %v, want ErrTransactionPoolMismatch", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCounts(t, ctx, db, rowCounts{})
+	assertCounts(t, ctx, otherDB, rowCounts{})
+}
+
+func TestConcurrentOrdinaryCallDoesNotBorrowTransactionScope(t *testing.T) {
+	ctx, db, _, transactor := newDatabase(t)
+	userRepository := repository.NewUserRepository(db)
+	transactionUser, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordinaryUser, err := domain.NewUser("Bob", "bob@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rollbackErr := errors.New("roll back held transaction")
+	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if _, err := userRepository.Insert(txCtx, transactionUser); err != nil {
+			return err
+		}
+		ordinaryCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		result := make(chan error, 1)
+		go func() {
+			_, err := userRepository.Insert(ordinaryCtx, ordinaryUser)
+			result <- err
+		}()
+		if err := <-result; !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("ordinary concurrent write error = %v, want waiting for base connection to time out", err)
+		}
+		return rollbackErr
+	})
+	if !errors.Is(err, rollbackErr) {
+		t.Fatalf("transaction error = %v, want callback rollback error", err)
+	}
+	assertCounts(t, ctx, db, rowCounts{})
+	if _, err := userRepository.Insert(ctx, ordinaryUser); err != nil {
+		t.Fatalf("ordinary write after rollback: %v", err)
+	}
+	assertCounts(t, ctx, db, rowCounts{users: 1})
+}
+
+func TestCommitConstraintFailureRollsBackTransaction(t *testing.T) {
+	ctx, db, _, transactor := newDatabase(t)
+	auditRepository := repository.NewAuditRepository(db)
+	input := &domain.User{ID: 999, CreatedAt: time.Unix(0, 0)}
+	err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		executor, err := sqlitedb.Executor(txCtx, db)
+		if err != nil {
+			return err
+		}
+		if _, err := executor.ExecContext(txCtx, "PRAGMA defer_foreign_keys = ON"); err != nil {
+			return err
+		}
+		return auditRepository.RecordUserCreated(txCtx, input)
+	})
+	var sqliteError sqlite3.Error
+	if !errors.As(err, &sqliteError) || sqliteError.ExtendedCode != sqlite3.ErrConstraintForeignKey {
+		t.Fatalf("commit error = %v, want SQLite foreign-key constraint cause", err)
+	}
+	if errors.Is(err, domain.ErrEmailConflict) {
+		t.Fatalf("commit foreign-key error was mislabeled as an email conflict: %v", err)
+	}
+	assertCounts(t, ctx, db, rowCounts{})
+}
+
+func TestCancellationAfterFinalWritePreventsCommit(t *testing.T) {
+	ctx, db, _, transactor := newDatabase(t)
+	userRepository := repository.NewUserRepository(db)
+	input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	transactionContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	err = transactor.WithinTransaction(transactionContext, func(txCtx context.Context) error {
+		if _, err := userRepository.Insert(txCtx, input); err != nil {
+			return err
+		}
+		cancel()
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("transaction error = %v, want context.Canceled", err)
+	}
+	if input.ID == 0 {
+		t.Fatal("real write did not finish before cancellation")
 	}
 	assertCounts(t, ctx, db, rowCounts{})
 }

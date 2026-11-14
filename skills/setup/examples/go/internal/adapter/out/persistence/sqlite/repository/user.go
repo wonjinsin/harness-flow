@@ -9,18 +9,27 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 
+	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/db"
 	"example.com/architecture-handbook/internal/core/domain"
 	outport "example.com/architecture-handbook/internal/core/port/out"
 )
 
-type userRepository struct {
-	tx *sql.Tx
+type UserRepository struct {
+	database *sql.DB
 }
 
-var _ outport.UserRepository = (*userRepository)(nil)
+var _ outport.UserRepository = (*UserRepository)(nil)
 
-func (r *userRepository) Insert(ctx context.Context, user *domain.User) (*domain.User, error) {
-	result, err := r.tx.ExecContext(ctx,
+func NewUserRepository(database *sql.DB) *UserRepository {
+	return &UserRepository{database: database}
+}
+
+func (r *UserRepository) Insert(ctx context.Context, user *domain.User) (*domain.User, error) {
+	executor, err := db.Executor(ctx, r.database)
+	if err != nil {
+		return nil, fmt.Errorf("insert user: %w", err)
+	}
+	result, err := executor.ExecContext(ctx,
 		"INSERT INTO users (name, email, created_at) VALUES (?, ?, ?)",
 		user.Name, user.Email, user.CreatedAt.Format(time.RFC3339Nano))
 	if err != nil {

@@ -47,8 +47,10 @@ func run(address, databasePath string, logger *slog.Logger) (err error) {
 	}()
 
 	userProvider := provider.NewUserProvider(db)
-	transactor := repository.NewTransactor(db)
-	users := user.NewUseCase(userProvider, transactor)
+	userRepository := repository.NewUserRepository(db)
+	auditRepository := repository.NewAuditRepository(db)
+	transactor := sqlitedb.NewTransactor(db)
+	users := user.NewUseCase(userProvider, userRepository, auditRepository, transactor)
 	server := &http.Server{
 		Addr:              address,
 		Handler:           httpadapter.NewRouter(users, db.PingContext, logger),

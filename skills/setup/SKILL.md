@@ -98,11 +98,14 @@ added Go quality runner, not gofumpt or a silently added custom analyzer. State
 what the selected checks do not enforce; Markdown and passing lint are not proof
 of every contract.
 
-Default to the project's common `WithinTransaction` execution contract for
-operations sharing a consistency boundary. Require transaction-bound reads/writes
-and correct commit/rollback behavior, not a `UoW` type or suffix. Do not introduce
-per-operation `WithX`, `XTx`, or `XUoW` contracts without a concrete policy or
-capability difference; follow `references/go/data-and-transactions.md`.
+Default to `WithinTransaction(ctx, func(txCtx context.Context) error)`:
+services call their existing injected repositories/providers with `txCtx`, not a
+callback bundle such as `OwnerTx` or `Transaction`. Persistence resolves the same
+transaction from a private context scope; never swap shared adapter fields.
+Keep owner/tenant checks and lock ordering explicit inside the workflow, separate
+from the common execution mechanism. Account creation without an owner lock does
+not require a separate runner. Preserve atomicity, cancellation and lifecycle
+errors; follow `references/go/data-and-transactions.md` for binding and scope safety.
 
 For an existing layout or another language, distinguish a harmless naming
 adaptation from an architectural departure. Do not silently rename modules,

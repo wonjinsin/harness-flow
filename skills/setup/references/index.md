@@ -80,9 +80,10 @@ anti-corruption, and the conditions under which simple CRUD should remain simple
 
 ### [Data, context, transactions, and concurrent change](go/data-and-transactions.md)
 
-Request context through persistence; transaction-scoped repositories; SQL and Ent
-binding; rollback/cancellation/commit ambiguity; uniqueness races and optimistic
-locking; query design; tenant scoping; migrations and cache consistency.
+Request context through persistence; existing repositories/providers resolve a
+transaction from `txCtx`; SQL and Ent binding; rollback/cancellation/commit
+ambiguity; uniqueness races and optimistic locking; query design; tenant scoping;
+migrations and cache consistency.
 
 ### [Reliability, idempotency, and events](go/reliability-and-events.md)
 
@@ -134,9 +135,9 @@ These paths define the default Go profile, not a universal naming convention:
 
 Preserve request contexts through services and repositories; do not replace them
 with `context.Background()` for ordinary I/O. All-or-nothing writes across
-repositories need an application-owned transaction with correctly scoped
-repositories. A request `TrID` is a correlation identifier, not a transaction
-handle.
+repositories need an application-owned transaction: pass its callback's `txCtx`
+to every participating repository/provider call. Do not pass repository bundles
+or mutate shared clients. A request `TrID` is correlation, not a transaction handle.
 
 An email existence precheck does not serialize concurrent creation. The database
 constraint remains authoritative. Keep raw internal errors private, preserve

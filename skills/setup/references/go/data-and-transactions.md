@@ -5,19 +5,19 @@ This chapter extends the canonical Chi/Ent/PostgreSQL profile while preserving t
 ## Adoption levels and implementation boundaries
 
 - **Required baseline:** pass `context.Context` from inbound request through service/port/adapter to every database operation; parameterize values; enforce database constraints; scope access by trusted authority; bound queries and release resources.
-- **Required when one operation must write several records atomically:** the application owns one transaction boundary and receives transaction-scoped repositories sharing exactly one transaction handle. Reuse the common `WithinTransaction` contract for the same consistency boundary; a separate UoW type is not required per operation or domain. No root-client escape.
+- **Required when one operation must write several records atomically:** the application owns one `WithinTransaction(ctx, func(txCtx context.Context) error) error` boundary and calls its existing injected repositories/providers with `txCtx`. Their adapters resolve exactly one transaction handle from that context; core sees no SQL/Ent types or repository bundle. No root-client escape.
 - **Required when concurrent writes can overwrite decisions:** use a conditional write, version check, suitable lock, or serializable transaction chosen for the actual invariant.
 - **Required when deploying schema changes to a running service:** reviewed versioned migrations and an explicit old/new application compatibility window.
 - **Optional:** caching, read replicas, separate read models, stronger isolation, and asynchronous propagation. Each changes observable guarantees and needs a reason.
 - **Needs project decision:** which facts must commit together, conflict semantics, uniqueness scope, tenant model, isolation, deadlines, stale-read tolerance, retry safety, compatibility window, and treatment of an uncertain commit outcome.
 
-Read-provider methods such as `Find/List` and write-repository methods such as `Insert/Save` must accept caller context; do not discard service context or replace it with `context.Background()` inside adapters. Database reads belong in `internal/adapter/out/persistence/postgres/provider`, writes and application transaction-scope assembly in `postgres/repository`, reusable pool/transaction lifecycle mechanics in `postgres/db`, and generated Ent code in `postgres/dao/ent`. Handwritten shared mapping can live in `postgres/dao/*_mapper.go` (separate from generated code), or beside its adapter owner; never put mapping/business SQL in `db`. `db` must not import `provider` or `repository`. An email existence precheck does not replace the database unique constraint. A request `TrID` is correlation, **not** a database transaction. The transaction infrastructure in this chapter must be implemented explicitly.
+Read-provider methods such as `Find/List` and write-repository methods such as `Insert/Save` must accept caller context; do not discard service context or replace it with `context.Background()` inside adapters. Database reads belong in `internal/adapter/out/persistence/postgres/provider`, writes in `postgres/repository`, and pool/transaction lifecycle, private context scope, and executor/client resolution in `postgres/db`. Generated Ent code belongs in `postgres/dao/ent`. Handwritten shared mapping can live in `postgres/dao/*_mapper.go` (separate from generated code), or beside its adapter owner; never put mapping/business SQL in `db`. `db` must not import `provider` or `repository`. An email existence precheck does not replace the database unique constraint. A request `TrID` is correlation, **not** a database transaction. The transaction infrastructure in this chapter must be implemented explicitly.
 
 ## 1. Propagate cancellation all the way to the driver
 
 **Required baseline:** `ctx` is the first parameter of inbound use cases and outbound I/O operations. Start with `r.Context()` in an HTTP handler; pass it unchanged unless deriving a deliberately shorter deadline. Use `ExecContext`, `QueryContext`, `QueryRowContext`, `BeginTx`, and Ent's `Save(ctx)`, `Only(ctx)`, `All(ctx)` equivalents. Never replace it with `Background()` to make a timed-out operation finish.
 
-A context is cancellation/deadline/request metadata, not an implicit dependency container. Do not store an untyped `*sql.Tx` or `*ent.Tx` in it and make repositories guess whether to use a transaction. Explicit transaction-scoped interfaces below make that choice visible and testable.
+A context is not a general dependency container. Here it carries one deliberately narrow, adapter-owned transaction capability: a private typed key identifies a pointer scope with handle identity and lifetime checks. Only `db` writes or resolves that value. The application explicitly chooses the boundary and passes `txCtx`; it cannot inspect, commit, or roll back the handle. Never put string-keyed transaction values or request contexts in shared adapter fields.
 
 This handler fragment assumes the existing handler owns an inbound port `h.userUseCase` and an existing `cmd` of the port's command type; it shows only the context handoff, not a complete HTTP response implementation:
 
@@ -29,7 +29,7 @@ result, err := h.userUseCase.CreateUser(ctx, cmd)
 
 The two-second budget is illustrative, not a universal production default. Put the configured budget in the layer that owns the operation; a query-specific adapter budget may shorten but must not lengthen its caller's deadline. Do not store per-request contexts in long-lived services or repositories. Pure domain calculations usually take values, not context.
 
-**Correct:** a repository calls `r.tx.QueryRowContext(ctx, query, args...)`; an Ent adapter uses its scoped client and `.Save(ctx)`.
+**Correct:** a repository resolves `executor, err := postgresdb.Executor(ctx, r.pool)` and calls `executor.QueryRowContext(ctx, query, args...)`; an Ent adapter resolves `client, err := postgresdb.Client(ctx, r.client)` before `.Save(ctx)`. Handle resolver errors before issuing any operation.
 
 **Incorrect:** a service accepts `ctx` but calls `repo.Save(user)`, and the adapter silently creates `context.Background()`. Request cancellation then cannot release blocked pool acquisition, lock waits, or query work promptly.
 
@@ -45,11 +45,11 @@ If “reserve inventory and record the reservation” must be atomic, put both w
 
 Ports belong in `internal/core/port/out`; the service depends on them using the `outport` alias. The adapter owns `*sql.DB`, `*sql.Tx`, `*ent.Client`, and `*ent.Tx`. Neither transaction implementation enters core.
 
-Default to one shared `Transactor.WithinTransaction` execution contract for operations using the same database, tenant/lock policy, isolation policy, and atomicity scope. Reuse it across services and domains within that consistency boundary; a new use case or domain name alone is not a reason to introduce another runner or `WithX`/`Tx`/`UoW` layer. “Unit of work” can describe the pattern, and a project may keep that name, but a separately named UoW type is optional, not an architectural requirement. Split contracts only for concrete differences such as another database, a distinct tenant/locking or isolation policy, or an intentionally restricted transaction capability. State the difference rather than mechanically renaming one per-operation UoW to one per-operation transactor.
+Default to one shared `Transactor.WithinTransaction` execution contract for operations on the same database. Reuse it across services and domains; a new operation, domain, or locking policy alone is not a reason for another runner or `WithX`/`Tx`/`UoW` layer. Account provisioning and owner-locked updates can use the same runner: explicit provider/repository operations perform owner/tenant validation and acquire required locks inside that workflow's `txCtx`. Isolation configuration must suit the invariant, but it does not require per-policy callback bundles. Different databases still cannot share one local transaction. This example rejects nested calls rather than starting an independent transaction or silently reusing one; helpers already inside a boundary use the supplied context directly.
 
-The next three sections form one scoped example using the reservation model from [domain](domain.md). Its example module path is `example.com/reservations`; substitute the target module path when adapting it. Stock plus reservation is a real cross-domain operation, so `service/orchestration/reservation` owns it without calling stock/reservation use cases or peer services, even through interfaces. The transaction callback cannot start a nested transaction, commit, roll back, or access a root client through its port. The orchestration deliberately has **no separately injected root stock/reservation providers or repositories** to capture accidentally.
+The next three sections form one example using the reservation model from [domain](domain.md). Its example module path is `example.com/reservations`; substitute the target module path when adapting it. Stock plus reservation is a real cross-domain operation, so `service/orchestration/reservation` owns it without calling stock/reservation use cases or peer services, even through interfaces. The orchestration keeps its ordinary injected repositories/providers. They work both inside a transaction with `txCtx` and independently with the caller's ordinary context; adapters never mutate shared fields to switch handles.
 
-### Outbound port: a typed transaction scope
+### Outbound port: existing repositories and a context callback
 
 `internal/core/port/out/reservation.go`:
 
@@ -65,6 +65,10 @@ import (
 
 var ErrStockUnavailable = errors.New("stock unavailable")
 
+type StockProvider interface {
+    Available(context.Context, domain.TenantID, domain.SKU) (int64, error)
+}
+
 type StockRepository interface {
     TryReserve(context.Context, domain.TenantID, domain.SKU, int64) error
 }
@@ -74,7 +78,7 @@ type ReservationRepository interface {
 }
 ```
 
-`internal/core/port/out/transaction.go` declares the shared execution contract and its typed scope:
+`internal/core/port/out/transaction.go` declares the common execution contract:
 
 ```go
 package outport
@@ -85,12 +89,7 @@ import (
 )
 
 type Transactor interface {
-    WithinTransaction(context.Context, func(Transaction) error) error
-}
-
-type Transaction interface {
-    StockRepo() StockRepository
-    ReservationRepo() ReservationRepository
+    WithinTransaction(context.Context, func(txCtx context.Context) error) error
 }
 
 // CommitError identifies the failing phase; its cause determines whether the
@@ -104,7 +103,7 @@ func (e *CommitError) Error() string { return fmt.Sprintf("commit failed: %v", e
 func (e *CommitError) Unwrap() error { return e.Cause }
 ```
 
-`Transaction` exposes the typed repositories needed by this application's consistency boundary, not every repository in the process. Other operations with the same policies reuse `Transactor` and this scope; do not create reservation-specific runners merely because this example reserves stock. Keep domain repository contracts in their domain files and shared execution declarations in `transaction.go`. Neither a universal all-repository object nor a generic `Tx[T]` framework is required. Reads belong to providers, not write repositories: when a decision requires transactional reads, add a narrow scoped read-provider accessor constructed from the same transaction handle. Never inject/call an independent root provider inside the callback, retain the scope/providers/repositories beyond it, or launch goroutines that outlive it.
+Keep domain repository/provider contracts in their domain files and the shared execution declaration in `transaction.go`. Reads stay in providers: inject the existing provider and pass `txCtx` for invariant-relevant reads, just as for writes. Do not use the outer `ctx` inside the callback, strip its scope, retain `txCtx` after return, or launch work that outlives it.
 
 ### Inbound command package and interface
 
@@ -168,14 +167,20 @@ type Clock interface {
 }
 
 type Orchestration struct {
-    transactor outport.Transactor
-    clock      Clock
+    transactor      outport.Transactor
+    stockRepo       outport.StockRepository
+    reservationRepo outport.ReservationRepository
+    clock           Clock
 }
 
 var _ inport.ReservationUseCase = (*Orchestration)(nil)
 
-func NewOrchestration(transactor outport.Transactor, clock Clock) *Orchestration {
-    return &Orchestration{transactor: transactor, clock: clock}
+func NewOrchestration(transactor outport.Transactor, stockRepo outport.StockRepository,
+    reservationRepo outport.ReservationRepository, clock Clock) *Orchestration {
+    return &Orchestration{
+        transactor: transactor, stockRepo: stockRepo,
+        reservationRepo: reservationRepo, clock: clock,
+    }
 }
 
 func (s *Orchestration) Reserve(ctx context.Context, cmd command.ReserveCommand) (*domain.Reservation, error) {
@@ -186,11 +191,11 @@ func (s *Orchestration) Reserve(ctx context.Context, cmd command.ReserveCommand)
     if err != nil {
         return nil, err
     }
-    err = s.transactor.WithinTransaction(ctx, func(tx outport.Transaction) error {
-        if err := tx.StockRepo().TryReserve(ctx, cmd.Tenant, cmd.SKU, cmd.Quantity); err != nil {
+    err = s.transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+        if err := s.stockRepo.TryReserve(txCtx, cmd.Tenant, cmd.SKU, cmd.Quantity); err != nil {
             return fmt.Errorf("reserve inventory: %w", err)
         }
-        if err := tx.ReservationRepo().Insert(ctx, reservation); err != nil {
+        if err := s.reservationRepo.Insert(txCtx, reservation); err != nil {
             return fmt.Errorf("record reservation: %w", err)
         }
         return nil
@@ -206,11 +211,11 @@ The example accepts a preallocated reservation ID to keep identity policy separa
 
 **Incorrect:** return the reservation, emit a success response, publish to a broker, or invalidate shared cache inside the callback. The transaction may fail afterward. An HTTP socket failure after successful commit also cannot undo that commit.
 
-**Verification cases:** stock failure causes no reservation insert; insert failure leaves stock unchanged; commit failure returns no successful result; successful response is produced only after a successful commit; inspection of the service constructor and callback shows no root repository/client dependency.
+**Verification cases:** stock failure causes no reservation insert; insert failure leaves stock unchanged; commit failure returns no successful result; success is produced only after commit. Inspect every callback call, including reads/helpers, for `txCtx` propagation; adapters with that context must never select a root handle. Reuse the same injected adapter with an ordinary context for an independent operation.
 
 ## 3. Explicit PostgreSQL / `database/sql` implementation
 
-**Scope:** this is an alternative adapter to Ent, not an additional persistence stack required by the canonical blueprint. The SQL implements the same ports. Every write repository contains only `*sql.Tx`; it cannot fall back to a root `*sql.DB`.
+**Scope:** this is an alternative adapter to Ent, not an additional persistence stack required by the canonical blueprint. The SQL implements the same ports. Long-lived repositories/providers hold the base pool; every method resolves the operation's executor from its supplied context. A present scope must be valid, live, and owned by that exact pool; only an absent scope permits ordinary base-pool access.
 
 ### Schema assumptions and constraints
 
@@ -247,26 +252,27 @@ CREATE INDEX reservations_tenant_created_id
 
 Constraints mirror only the example's accepted facts. `btrim` and Go's Unicode-aware `TrimSpace` are not identical normalization operations: the application/domain admission rule is stricter for additional whitespace characters. Do not claim their equivalence. If exact storage-level SKU canonicalization is required, define a matching database expression/collation or a persisted canonical key and migrate existing values.
 
-### Reusable SQL lifecycle mechanics
+### Adapter-owned scope and SQL lifecycle
 
-`internal/adapter/out/persistence/postgres/db/transaction_error.go` supplies the mechanics-layer phase marker used by either alternative:
+`internal/adapter/out/persistence/postgres/db/transaction_scope.go` is shared by the SQL and Ent alternatives. Its key and scope implementations remain private to this adapter package; only the runners create scopes:
 
 ```go
 package db
 
-import "fmt"
+import "errors"
 
-// CommitError identifies a commit-phase failure without classifying its outcome.
-type CommitError struct {
-    Cause error
-}
+type transactionScopeKey struct{}
 
-func (e *CommitError) Error() string { return fmt.Sprintf("commit failed: %v", e.Cause) }
-
-func (e *CommitError) Unwrap() error { return e.Cause }
+var (
+    ErrNestedTransaction         = errors.New("nested transaction is not supported")
+    ErrInvalidTransactionScope   = errors.New("invalid transaction scope")
+    ErrTransactionScopeExpired   = errors.New("transaction scope expired")
+    ErrTransactionPoolMismatch   = errors.New("transaction belongs to another pool")
+    ErrTransactionClientMismatch = errors.New("transaction belongs to another client")
+)
 ```
 
-`internal/adapter/out/persistence/postgres/db/sql_transaction.go` owns generic begin/rollback/commit, not stock/reservation scope construction:
+`internal/adapter/out/persistence/postgres/db/sql_transaction.go` owns the runner and resolver, not business SQL or repository construction:
 
 ```go
 package db
@@ -276,49 +282,44 @@ import (
     "database/sql"
     "errors"
     "fmt"
-)
+    "sync/atomic"
 
-func WithinSQLTransaction(ctx context.Context, pool *sql.DB, options *sql.TxOptions,
-    fn func(*sql.Tx) error) (err error) {
-    tx, err := pool.BeginTx(ctx, options)
-    if err != nil {
-        return fmt.Errorf("begin transaction: %w", err)
-    }
-    defer func() {
-        // Also executes during panic unwinding. The original panic propagates.
-        rollbackErr := tx.Rollback()
-        if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-            err = errors.Join(err, fmt.Errorf("rollback transaction: %w", rollbackErr))
-        }
-    }()
-    if err = fn(tx); err != nil {
-        return err
-    }
-    if err = ctx.Err(); err != nil {
-        return err
-    }
-    if err = tx.Commit(); err != nil {
-        return &CommitError{Cause: err}
-    }
-    return nil
-}
-```
-
-### Shared SQL transactor and scoped writes
-
-`internal/adapter/out/persistence/postgres/repository/transaction_sql.go` assembles the shared transaction scope:
-
-```go
-package repository
-
-import (
-    "context"
-    "database/sql"
-    "errors"
-
-    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
     outport "example.com/reservations/internal/core/port/out"
 )
+
+// SQLExecutor is the common operation surface of *sql.DB and *sql.Tx.
+type SQLExecutor interface {
+    ExecContext(context.Context, string, ...any) (sql.Result, error)
+    QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+    QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type sqlScope struct {
+    pool   *sql.DB
+    tx     *sql.Tx
+    active atomic.Bool
+}
+
+func Executor(ctx context.Context, pool *sql.DB) (SQLExecutor, error) {
+    if err := ctx.Err(); err != nil {
+        return nil, err
+    }
+    value := ctx.Value(transactionScopeKey{})
+    if value == nil {
+        return pool, nil // Ordinary independent operation only.
+    }
+    scope, ok := value.(*sqlScope)
+    if !ok || scope == nil {
+        return nil, ErrInvalidTransactionScope
+    }
+    if !scope.active.Load() {
+        return nil, ErrTransactionScopeExpired
+    }
+    if scope.pool != pool {
+        return nil, ErrTransactionPoolMismatch
+    }
+    return scope.tx, nil
+}
 
 type SQLTransactor struct {
     pool *sql.DB
@@ -330,36 +331,50 @@ func NewSQLTransactor(pool *sql.DB) *SQLTransactor {
 
 var _ outport.Transactor = (*SQLTransactor)(nil)
 
-type sqlTransaction struct {
-    stockRepo       *sqlStockRepository
-    reservationRepo *sqlReservationRepository
-}
-
-func (s sqlTransaction) StockRepo() outport.StockRepository { return s.stockRepo }
-
-func (s sqlTransaction) ReservationRepo() outport.ReservationRepository {
-    return s.reservationRepo
-}
-
 func (t *SQLTransactor) WithinTransaction(ctx context.Context,
-    fn func(outport.Transaction) error) error {
-    err := postgresdb.WithinSQLTransaction(ctx, t.pool,
-        &sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
-            return fn(sqlTransaction{
-                stockRepo:       &sqlStockRepository{tx: tx},
-                reservationRepo: &sqlReservationRepository{tx: tx},
-            })
-        })
-    var commitErr *postgresdb.CommitError
-    if errors.As(err, &commitErr) {
-        // Preserve the complete lifecycle error, including a joined rollback cause.
+    fn func(txCtx context.Context) error) (err error) {
+    // Reject any existing capability, including expired or foreign scopes.
+    if ctx.Value(transactionScopeKey{}) != nil {
+        return ErrNestedTransaction
+    }
+    if err := ctx.Err(); err != nil {
+        return err
+    }
+    tx, err := t.pool.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+    if err != nil {
+        return fmt.Errorf("begin transaction: %w", err)
+    }
+    scope := &sqlScope{pool: t.pool, tx: tx}
+    scope.active.Store(true)
+    defer func() {
+        scope.active.Store(false)
+        // Also executes during panic unwinding. The original panic propagates.
+        rollbackErr := tx.Rollback()
+        if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+            err = errors.Join(err, fmt.Errorf("rollback transaction: %w", rollbackErr))
+        }
+    }()
+    txCtx := context.WithValue(ctx, transactionScopeKey{}, scope)
+    err = fn(txCtx)
+    scope.active.Store(false) // Callback capability ends before commit.
+    if err != nil {
+        return err
+    }
+    if err = ctx.Err(); err != nil {
+        return err
+    }
+    if err = tx.Commit(); err != nil {
         return &outport.CommitError{Cause: err}
     }
-    return err
+    return nil
 }
 ```
 
-`internal/adapter/out/persistence/postgres/repository/reservation_sql.go` implements the domain-specific write contracts:
+The pointer scope is never copied; its atomic lifetime flag prevents a data race when an accidentally retained context is inspected after return. It does not authorize concurrent callback work or make a resolved executor safe to retain. Resolve per operation, use it synchronously, and never expose/cache it outside the adapter. Different `*sql.DB` values are different owners even when their DSNs match. Composition must pass the same pool pointer to the runner and all participating adapters. The shared key also prevents a scope from the alternative Ent runner from being mistaken for absence.
+
+### Reusable SQL repositories
+
+There is no repository-side transaction assembly or scoped repository constructor. `internal/adapter/out/persistence/postgres/repository/reservation_sql.go` implements the domain-specific write contracts:
 
 ```go
 package repository
@@ -369,12 +384,17 @@ import (
     "database/sql"
     "fmt"
 
+    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
     "example.com/reservations/internal/core/domain"
     outport "example.com/reservations/internal/core/port/out"
 )
 
 type sqlStockRepository struct {
-    tx *sql.Tx
+    pool *sql.DB
+}
+
+func NewSQLStockRepository(pool *sql.DB) outport.StockRepository {
+    return &sqlStockRepository{pool: pool}
 }
 
 func (r *sqlStockRepository) TryReserve(ctx context.Context,
@@ -382,7 +402,11 @@ func (r *sqlStockRepository) TryReserve(ctx context.Context,
     if tenant <= 0 || sku == "" || quantity <= 0 {
         return domain.ErrInvalidReservation
     }
-    result, err := r.tx.ExecContext(ctx, `
+    executor, err := postgresdb.Executor(ctx, r.pool)
+    if err != nil {
+        return err
+    }
+    result, err := executor.ExecContext(ctx, `
         UPDATE stocks
            SET available = available - $3
          WHERE tenant_id = $1 AND sku = $2 AND available >= $3`,
@@ -401,7 +425,11 @@ func (r *sqlStockRepository) TryReserve(ctx context.Context,
 }
 
 type sqlReservationRepository struct {
-    tx *sql.Tx
+    pool *sql.DB
+}
+
+func NewSQLReservationRepository(pool *sql.DB) outport.ReservationRepository {
+    return &sqlReservationRepository{pool: pool}
 }
 
 func (r *sqlReservationRepository) Insert(ctx context.Context, reservation *domain.Reservation) error {
@@ -412,7 +440,11 @@ func (r *sqlReservationRepository) Insert(ctx context.Context, reservation *doma
     if s.State != domain.ReservationActive {
         return domain.ErrInvalidReservation
     }
-    _, err := r.tx.ExecContext(ctx, `
+    executor, err := postgresdb.Executor(ctx, r.pool)
+    if err != nil {
+        return err
+    }
+    _, err = executor.ExecContext(ctx, `
         INSERT INTO reservations
             (tenant_id, id, sku, quantity, state, created_at, version)
         VALUES ($1, $2, $3, $4, $5, $6, 1)`,
@@ -431,15 +463,15 @@ The deferred rollback is harmless after SQL commit (`sql.ErrTxDone`) and runs on
 
 The `ctx.Err()` check reduces unnecessary commit attempts after cancellation; cancellation may still race after the check. Do not add a post-commit cancellation check that turns an acknowledged successful commit into an apparent rollback. See the outcome rules below.
 
-**Incorrect:** one repository receives `tx` but another is built with the root pool; a helper performs its insert through `pool.ExecContext`; or a shared `{pool, tx}` repository chooses the root database when `tx == nil`. A separately injected root read provider also escapes the scope and can observe independent state. A generalized executor interface can be appropriate for genuinely shared query code, but construct transaction providers/repositories only from the exact scoped handle and do not add fallback logic. The repository imports `postgres/db`, never the reverse.
+**Incorrect:** call `pool.ExecContext` directly from any repository/helper receiving `txCtx`; ignore a resolver error and retry on the pool; pass outer `ctx` to a callback provider; or mutate `r.pool`/a shared `r.tx` field to select a transaction. Base-pool use is valid only when the resolver finds no scope. Expired, malformed, and foreign-pool scopes are errors, never absence. The repository/provider imports `postgres/db`, never the reverse.
 
-**Verification cases:** induce a reservation constraint failure after the decrement and verify stock is unchanged using a new independent connection; cause callback panic and recover outside `WithinTransaction`, then verify rollback and pool reuse; cancel after decrement; simulate commit failure; use a pool with more than one connection so root-client escape cannot hide behind accidental connection reuse. Trace/assert that both repositories execute on the same transaction. Do not launch asynchronous work inside the callback.
+**Verification cases:** induce a reservation constraint failure after the decrement and verify stock is unchanged using a new independent connection; panic and recover outside `WithinTransaction`, then verify rollback and pool reuse; cancel after decrement; simulate commit failure. Use a multi-connection pool and trace/assert every read/write uses the same transaction. Reject nested calls, reuse of saved `txCtx` after success/error/panic, and a foreign pool; none may issue base-pool work. Confirm the same adapters work independently with ordinary `ctx`. Do not launch asynchronous callback work.
 
 ## 4. Concrete Ent adaptation
 
 The production blueprint keeps schemas in `internal/adapter/out/persistence/postgres/dao/schema` and generated code in `postgres/dao/ent`. Map generated objects to domain entities/values in handwritten `postgres/dao/user_mapper.go` or the equivalent feature mapper, or an adapter-owner local mapper. Core never imports `dao/ent`; `db` contains neither mapping nor business SQL.
 
-**Required when using Ent transactions:** the reusable lifecycle helper calls `client.Tx(ctx)` (or `BeginTx` for explicit supported isolation); repository-owned scope assembly obtains `tx.Client()` and builds **every** callback repository and any scoped read provider from that transactional client. Passing the root client to even one constructor escapes the transaction. Ent builders must receive the same propagated operation context.
+**Required when using Ent transactions:** `db` begins the transaction and records `tx.Client()` in a private live scope. Existing repositories/providers keep the root client only as their immutable owner/base handle; each operation calls `db.Client(ctx, root)` and uses the returned client. A present scope cannot fall back to the root client. Ent builders receive the same propagated operation context.
 
 ### Generated API assumptions
 
@@ -450,9 +482,9 @@ The following adapter is concrete for schemas with these fields:
 
 Use reviewed migration SQL to add the appropriate check constraints and tenant-qualified references. Declaring these field names alone is not equivalent to the PostgreSQL schema above. In particular, this Ent variant has a **globally unique string reservation ID**, unlike the SQL example's composite primary key; choose that identity policy explicitly or configure composite identity using the project's supported Ent features. The tenant predicate is still required even with a globally unique ID. These are alternative schema adaptations, not interchangeable generated code for the source's existing `User` schema.
 
-### Reusable Ent lifecycle mechanics
+### Ent-owned scope, client resolution, and lifecycle
 
-`internal/adapter/out/persistence/postgres/db/ent_transaction.go` uses the same `CommitError` from `transaction_error.go` above. Adopt this helper instead of the SQL helper when using Ent; neither alternative requires a second persistence stack:
+`internal/adapter/out/persistence/postgres/db/ent_transaction.go` uses the shared private key/errors from `transaction_scope.go`. Adopt it instead of the SQL runner when using Ent; neither alternative requires a second persistence stack. The [official Ent transaction documentation](https://entgo.io/docs/transactions/) documents `BeginTx(ctx, *sql.TxOptions)`, `tx.Client()`, `Commit()`, and `Rollback()`:
 
 ```go
 package db
@@ -462,57 +494,38 @@ import (
     "database/sql"
     "errors"
     "fmt"
+    "sync/atomic"
 
     "example.com/reservations/internal/adapter/out/persistence/postgres/dao/ent"
-)
-
-func WithinEntTransaction(ctx context.Context, client *ent.Client, options *sql.TxOptions,
-    fn func(*ent.Tx) error) (err error) {
-    tx, err := client.BeginTx(ctx, options)
-    if err != nil {
-        return fmt.Errorf("begin transaction: %w", err)
-    }
-    committed := false
-    defer func() {
-        if committed {
-            return
-        }
-        // Runs for errors, cancellation, commit failure, and panics.
-        rollbackErr := tx.Rollback()
-        if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-            err = errors.Join(err, fmt.Errorf("rollback transaction: %w", rollbackErr))
-        }
-    }()
-    if err = fn(tx); err != nil {
-        return err
-    }
-    if err = ctx.Err(); err != nil {
-        return err
-    }
-    if err = tx.Commit(); err != nil {
-        return &CommitError{Cause: err}
-    }
-    committed = true
-    return nil
-}
-```
-
-### Shared Ent transactor and scoped repositories
-
-`internal/adapter/out/persistence/postgres/repository/transaction_ent.go` is the alternative implementation of the same shared transaction contract:
-
-```go
-package repository
-
-import (
-    "context"
-    "database/sql"
-    "errors"
-
-    "example.com/reservations/internal/adapter/out/persistence/postgres/dao/ent"
-    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
     outport "example.com/reservations/internal/core/port/out"
 )
+
+type entScope struct {
+    root   *ent.Client
+    client *ent.Client
+    active atomic.Bool
+}
+
+func Client(ctx context.Context, root *ent.Client) (*ent.Client, error) {
+    if err := ctx.Err(); err != nil {
+        return nil, err
+    }
+    value := ctx.Value(transactionScopeKey{})
+    if value == nil {
+        return root, nil
+    }
+    scope, ok := value.(*entScope)
+    if !ok || scope == nil {
+        return nil, ErrInvalidTransactionScope
+    }
+    if !scope.active.Load() {
+        return nil, ErrTransactionScopeExpired
+    }
+    if scope.root != root {
+        return nil, ErrTransactionClientMismatch
+    }
+    return scope.client, nil
+}
 
 type EntTransactor struct {
     client *ent.Client
@@ -524,34 +537,52 @@ func NewEntTransactor(client *ent.Client) *EntTransactor {
 
 var _ outport.Transactor = (*EntTransactor)(nil)
 
-type entTransaction struct {
-    stockRepo       *entStockRepository
-    reservationRepo *entReservationRepository
-}
-
-func (s entTransaction) StockRepo() outport.StockRepository { return s.stockRepo }
-
-func (s entTransaction) ReservationRepo() outport.ReservationRepository {
-    return s.reservationRepo
-}
-
 func (t *EntTransactor) WithinTransaction(ctx context.Context,
-    fn func(outport.Transaction) error) error {
-    err := postgresdb.WithinEntTransaction(ctx, t.client,
-        &sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *ent.Tx) error {
-            client := tx.Client()
-            return fn(entTransaction{
-                stockRepo:       &entStockRepository{client: client},
-                reservationRepo: &entReservationRepository{client: client},
-            })
-        })
-    var commitErr *postgresdb.CommitError
-    if errors.As(err, &commitErr) {
+    fn func(txCtx context.Context) error) (err error) {
+    if ctx.Value(transactionScopeKey{}) != nil {
+        return ErrNestedTransaction
+    }
+    if err := ctx.Err(); err != nil {
+        return err
+    }
+    tx, err := t.client.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+    if err != nil {
+        return fmt.Errorf("begin transaction: %w", err)
+    }
+    scope := &entScope{root: t.client, client: tx.Client()}
+    scope.active.Store(true)
+    committed := false
+    defer func() {
+        scope.active.Store(false)
+        if committed {
+            return
+        }
+        // Runs for callback errors, cancellation, commit failure, and panics.
+        rollbackErr := tx.Rollback()
+        if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+            err = errors.Join(err, fmt.Errorf("rollback transaction: %w", rollbackErr))
+        }
+    }()
+    txCtx := context.WithValue(ctx, transactionScopeKey{}, scope)
+    err = fn(txCtx)
+    scope.active.Store(false)
+    if err != nil {
+        return err
+    }
+    if err = ctx.Err(); err != nil {
+        return err
+    }
+    if err = tx.Commit(); err != nil {
         return &outport.CommitError{Cause: err}
     }
-    return err
+    committed = true
+    return nil
 }
 ```
+
+Identity is the exact root `*ent.Client` pointer, not a matching DSN. Construct the runner and all reusable adapters with that same root. The resolver returns `tx.Client()` only while its pointer scope is live; expired/foreign/other-adapter scopes return errors, not root clients. No shared repository/client field is replaced. Resolve for every operation, including hooks/helpers that issue database work; never retain the resolved client.
+
+### Reusable Ent repositories
 
 `internal/adapter/out/persistence/postgres/repository/reservation_ent.go` implements the same domain-specific write contracts using Ent:
 
@@ -564,6 +595,7 @@ import (
 
     "example.com/reservations/internal/adapter/out/persistence/postgres/dao/ent"
     "example.com/reservations/internal/adapter/out/persistence/postgres/dao/ent/stock"
+    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
     "example.com/reservations/internal/core/domain"
     outport "example.com/reservations/internal/core/port/out"
 )
@@ -572,12 +604,20 @@ type entStockRepository struct {
     client *ent.Client
 }
 
+func NewEntStockRepository(client *ent.Client) outport.StockRepository {
+    return &entStockRepository{client: client}
+}
+
 func (r *entStockRepository) TryReserve(ctx context.Context,
     tenant domain.TenantID, sku domain.SKU, quantity int64) error {
     if tenant <= 0 || sku == "" || quantity <= 0 {
         return domain.ErrInvalidReservation
     }
-    n, err := r.client.Stock.Update().
+    client, err := postgresdb.Client(ctx, r.client)
+    if err != nil {
+        return err
+    }
+    n, err := client.Stock.Update().
         Where(stock.TenantIDEQ(int64(tenant)), stock.SkuEQ(string(sku)),
             stock.AvailableGTE(quantity)).
         AddAvailable(-quantity).
@@ -595,6 +635,10 @@ type entReservationRepository struct {
     client *ent.Client
 }
 
+func NewEntReservationRepository(client *ent.Client) outport.ReservationRepository {
+    return &entReservationRepository{client: client}
+}
+
 func (r *entReservationRepository) Insert(ctx context.Context, reservation *domain.Reservation) error {
     if reservation == nil {
         return domain.ErrInvalidReservation
@@ -603,7 +647,11 @@ func (r *entReservationRepository) Insert(ctx context.Context, reservation *doma
     if s.State != domain.ReservationActive {
         return domain.ErrInvalidReservation
     }
-    _, err := r.client.Reservation.Create().
+    client, err := postgresdb.Client(ctx, r.client)
+    if err != nil {
+        return err
+    }
+    _, err = client.Reservation.Create().
         SetID(string(s.ID)).
         SetTenantID(int64(s.TenantID)).
         SetSku(string(s.SKU)).
@@ -622,9 +670,130 @@ Ent's generated API depends on field names/types/features; generate against the 
 
 Map Ent entities into domain snapshots inside the adapter before returning. Do not leak an Ent entity retaining its transactional driver or lazy edge queries outside the scope. Ent's `Unwrap()` supports edge queries after a successfully committed transaction; returning mapped domain/read models avoids this coupling. Never call `Unwrap()` blindly on arbitrary/nontransactional entities; it can panic. Ent transaction hooks are not a durable broker-delivery guarantee.
 
-**Incorrect:** `stockRepo: newStockRepo(tx.Client()), reservationRepo: newReservationRepo(t.client)` looks almost correct but makes the insert independent of rollback. The same escape can hide in a scoped provider, hook, mapper, or helper that closes over the root client.
+**Incorrect:** call `r.client.Reservation.Create()` directly rather than resolve the operation client, ignore the resolver error, pass the outer context, or replace a shared `r.client` during a callback. The same escape can hide in a provider, hook, mapper, or helper. Every path receiving `txCtx` must use the resolved transaction client or fail.
 
-**Verification cases:** repeat the SQL failure/panic/cancel/commit tests against Ent and PostgreSQL; verify generated constraints with the actual migration; test hook/helper paths; prove a returned domain object performs no later database query.
+**Verification cases:** repeat the SQL failure/panic/cancel/commit, expired-context, nested-call, foreign-owner, and independent-operation tests against Ent and PostgreSQL; verify generated constraints with the actual migration; test hook/helper paths; prove a returned domain object performs no later database query. The runnable SQLite example provides executable evidence only for its own driver/adapters; these PostgreSQL/Ent fragments have not been runtime-validated by that example.
+
+### Existing read providers participate without reconstruction
+
+The `StockProvider` port returns a scalar projection. An ordinary independent read is `stockProvider.Available(ctx, tenant, sku)`; no transaction runner is necessary. If a command also returns remaining availability after reserving, it can use the same injected provider in its callback. This service-body fragment assumes existing injected `transactor`, `stockRepo`, `reservationRepo`, and `stockProvider`, a validated `reservation`, and its trusted `tenant`, `sku`, and positive `quantity`; the enclosing method returns `(int64, error)`:
+
+```go
+var remaining int64
+err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+    if err := stockRepo.TryReserve(txCtx, tenant, sku, quantity); err != nil {
+        return err
+    }
+    if err := reservationRepo.Insert(txCtx, reservation); err != nil {
+        return err
+    }
+    var readErr error
+    remaining, readErr = stockProvider.Available(txCtx, tenant, sku)
+    return readErr
+})
+if err != nil {
+    return 0, err
+}
+return remaining, nil
+```
+
+That read observes this transaction's own stock decrement; it is not a new root-pool snapshot. Do not add this read if the response does not need it, and do not promise availability remains unchanged after commit. The guarded write, not a precheck, protects the inventory invariant.
+
+The SQL provider lives in `internal/adapter/out/persistence/postgres/provider/stock_sql.go`:
+
+```go
+package provider
+
+import (
+    "context"
+    "database/sql"
+    "errors"
+    "fmt"
+
+    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
+    "example.com/reservations/internal/core/domain"
+    outport "example.com/reservations/internal/core/port/out"
+)
+
+type sqlStockProvider struct {
+    pool *sql.DB
+}
+
+func NewSQLStockProvider(pool *sql.DB) outport.StockProvider {
+    return &sqlStockProvider{pool: pool}
+}
+
+func (p *sqlStockProvider) Available(ctx context.Context,
+    tenant domain.TenantID, sku domain.SKU) (int64, error) {
+    if tenant <= 0 || sku == "" {
+        return 0, domain.ErrInvalidReservation
+    }
+    executor, err := postgresdb.Executor(ctx, p.pool)
+    if err != nil {
+        return 0, err
+    }
+    var available int64
+    err = executor.QueryRowContext(ctx,
+        `SELECT available FROM stocks WHERE tenant_id = $1 AND sku = $2`,
+        int64(tenant), string(sku)).Scan(&available)
+    if errors.Is(err, sql.ErrNoRows) {
+        return 0, outport.ErrStockUnavailable
+    }
+    if err != nil {
+        return 0, fmt.Errorf("read stock: %w", err)
+    }
+    return available, nil
+}
+```
+
+The alternative Ent provider lives in `internal/adapter/out/persistence/postgres/provider/stock_ent.go` and uses the same port:
+
+```go
+package provider
+
+import (
+    "context"
+    "fmt"
+
+    "example.com/reservations/internal/adapter/out/persistence/postgres/dao/ent"
+    "example.com/reservations/internal/adapter/out/persistence/postgres/dao/ent/stock"
+    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
+    "example.com/reservations/internal/core/domain"
+    outport "example.com/reservations/internal/core/port/out"
+)
+
+type entStockProvider struct {
+    client *ent.Client
+}
+
+func NewEntStockProvider(client *ent.Client) outport.StockProvider {
+    return &entStockProvider{client: client}
+}
+
+func (p *entStockProvider) Available(ctx context.Context,
+    tenant domain.TenantID, sku domain.SKU) (int64, error) {
+    if tenant <= 0 || sku == "" {
+        return 0, domain.ErrInvalidReservation
+    }
+    client, err := postgresdb.Client(ctx, p.client)
+    if err != nil {
+        return 0, err
+    }
+    row, err := client.Stock.Query().
+        Where(stock.TenantIDEQ(int64(tenant)), stock.SkuEQ(string(sku))).
+        Select(stock.FieldAvailable).
+        Only(ctx)
+    if ent.IsNotFound(err) {
+        return 0, outport.ErrStockUnavailable
+    }
+    if err != nil {
+        return 0, fmt.Errorf("read stock: %w", err)
+    }
+    return row.Available, nil
+}
+```
+
+Composition constructs each selected adapter once with the same base pool/client as its runner and injects those ports into services. Both the independent read and the transactional read use these same instances; only their supplied context differs.
 
 ## 5. Commit outcomes, rollback, and retry boundaries
 
@@ -723,10 +892,14 @@ UPDATE reservations
 
 Use the domain's validated release instant, not a caller's arbitrary timestamp. Check `RowsAffected() == 1`; zero means no authorized matching current state. Treat it as the application's conflict/not-found outcome without revealing another tenant's data. Do not retry this update without reloading and deciding the intended command again. If returning inventory is part of release, perform the conditional release and inventory increment in the **same** application transaction; roll back both when either fails.
 
-In Ent, under the schema assumptions above, the equivalent update fragment uses generated `reservation` predicates and the scoped client. Here `tenant`, `id`, `expectedVersion`, and `releasedAt` are validated values loaded/computed by the use case:
+In Ent, under the schema assumptions above, the equivalent update fragment first resolves the client from the repository method's context, then uses generated `reservation` predicates. Here `tenant`, `id`, `expectedVersion`, and `releasedAt` are validated values loaded/computed by the use case; a transactional caller supplies `txCtx` as this method's `ctx`:
 
 ```go
-n, err := scopedClient.Reservation.Update().
+client, err := postgresdb.Client(ctx, r.client)
+if err != nil {
+    return err
+}
+n, err := client.Reservation.Update().
     Where(reservation.TenantIDEQ(int64(tenant)),
         reservation.IDEQ(string(id)),
         reservation.VersionEQ(expectedVersion),
@@ -776,7 +949,7 @@ The first page omits the cursor predicate. Fetch `pageSize + 1` to detect anothe
 
 Offset pagination is acceptable for small bounded administrative lists, but large offsets still scan/discard work and concurrent insert/delete can shift page boundaries. Keyset pagination also is not a snapshot across HTTP requests: new inserts, deletions, or changed sort keys can change observations. If an export requires a stable snapshot, define an export/snapshot strategy and its resource/retention cost rather than keeping a transaction open across user requests. Counts may be a separate query with a different snapshot; state whether an exact count is necessary.
 
-**Resource-safe projection example:** this independent read-provider helper belongs in `internal/adapter/out/persistence/postgres/provider/reservation_query.go` and consumes an existing query/args selected according to the pagination rules above; it does not accept raw client SQL. The caller owns the bounded, parameterized SQL shape. `ReservationRow` is a pure read projection, so `[]ReservationRow` correctly retains value semantics. It demonstrates closing rows, checking scan errors, and checking the terminal iteration error:
+**Resource-safe projection example:** this reusable read-provider helper belongs in `internal/adapter/out/persistence/postgres/provider/reservation_query.go` and consumes an existing query/args selected according to the pagination rules above; it does not accept raw client SQL. The caller owns the bounded, parameterized SQL shape. `ReservationRow` is a pure read projection, so `[]ReservationRow` correctly retains value semantics. It demonstrates context-based executor resolution, closing rows, checking scan errors, and checking the terminal iteration error:
 
 ```go
 package provider
@@ -786,6 +959,8 @@ import (
     "database/sql"
     "fmt"
     "time"
+
+    postgresdb "example.com/reservations/internal/adapter/out/persistence/postgres/db"
 )
 
 type ReservationRow struct {
@@ -796,8 +971,12 @@ type ReservationRow struct {
     CreatedAt time.Time
 }
 
-func scanReservationPage(ctx context.Context, db *sql.DB, query string, args ...any) ([]ReservationRow, error) {
-    rows, err := db.QueryContext(ctx, query, args...)
+func scanReservationPage(ctx context.Context, pool *sql.DB, query string, args ...any) ([]ReservationRow, error) {
+    executor, err := postgresdb.Executor(ctx, pool)
+    if err != nil {
+        return nil, err
+    }
+    rows, err := executor.QueryContext(ctx, query, args...)
     if err != nil {
         return nil, fmt.Errorf("query reservation page: %w", err)
     }
@@ -817,7 +996,7 @@ func scanReservationPage(ctx context.Context, db *sql.DB, query string, args ...
 }
 ```
 
-This is a read-provider helper, not a public contract that permits caller-provided arbitrary SQL. If a command needs the same read inside a transaction, build an explicitly scoped provider on the same query handle rather than calling this root-DB helper from the transaction callback. SQL values use placeholders; dynamic sort/column identifiers require an allowlist because identifiers cannot be safely parameterized as values.
+This is a read-provider helper, not a public contract that permits caller-provided arbitrary SQL. The existing provider passes its immutable base pool and the received context: ordinary `ctx` selects the pool, while `txCtx` selects the transaction for the same query code. No provider reconstruction or separate scoped accessor is needed. SQL values use placeholders; dynamic sort/column identifiers require an allowlist because identifiers cannot be safely parameterized as values.
 
 **Required when reading relationships:** batch by known IDs, use a projection/join, or use Ent eager loading (`With...`) deliberately. Eager loading may issue several bounded queries rather than one join; measure the actual query count and selected columns. Joining a parent to many children before applying a parent page limit can truncate/duplicate the parent page; page parents first, then batch children under the same tenant. Prevent unbounded relation expansion from a request's arbitrary `include` parameter.
 
@@ -916,7 +1095,7 @@ Before adopting an implementation, trace one command from trusted request inputs
 
 1. Does `ctx` reach every database operation, including begin, hooks, and helpers?
 2. Which exact writes must be atomic, and which application method owns that scope?
-3. Are every repository/helper/hook and optional outbox insert bound to the same transaction handle, without root-client fallback?
+3. Do existing repositories/providers/helpers/hooks and optional outbox inserts propagate `txCtx` and resolve the same transaction handle, rejecting nested, expired, and foreign scopes without root fallback or shared-field mutation?
 4. Do error, panic, cancellation, and commit failure execute cleanup without returning early success?
 5. Does the response distinguish a conflict, known abort, and uncertain commit instead of claiming every error means no commit?
 6. Do unique/check/foreign-key constraints and concurrency predicates protect against independent processes?

@@ -126,9 +126,10 @@ A target-language profile must explain at least these conversions:
   transaction context in that framework. An async keyword is not cancellation.
 - Go error wrapping → typed errors/exceptions and retained causes, with stable
   safe public mapping at the adapter boundary.
-- Transaction callback → one real target-ORM transaction/session and repositories
-  bound to it. A decorator that opens a session does not prove every repository
-  uses that session.
+- Transaction callback → a scoped context passed to existing repositories and
+  providers, which resolve one real target-ORM transaction/session internally.
+  Use the target framework's supported request/task-local equivalent when needed;
+  never mutate singleton adapter fields or assume opening a session binds all I/O.
 - DTO/domain/record mapping → explicit transformations and validation ownership,
   including lazy ORM state, serialization, and hydration constraints.
 - Composition → dependency lifetime and transaction/request scope supported by
@@ -155,16 +156,17 @@ Examples:
 
 A CRUD service with one insert does not need an event broker. It still needs a
 unique constraint for a concurrent uniqueness invariant. Creating two rows with
-an all-or-nothing promise requires transaction-scoped repositories now, even if
-the service is called a PoC. Sending a webhook reliably after a commit introduces
+an all-or-nothing promise requires both writes to use the same transaction now,
+even if the service is called a PoC. Sending a webhook reliably after a commit introduces
 an outbox/equivalent decision; it must not be described as solved by an inline
 HTTP call. A service without tenants should not acquire a fictional tenant
 model, but adding tenant-owned resources reopens authorization and data scoping.
-Reuse a common `WithinTransaction` contract when operations share a consistency
-boundary. Transaction guarantees are required where applicable, but a UoW type
-or separate `WithX`/`XTx` per operation is not. Do not wrap a single atomic
-statement solely to satisfy a pattern; keep its constraints and concurrency
-requirements intact.
+Reuse `WithinTransaction(ctx, func(txCtx context.Context) error)` and call the
+existing repositories/providers with `txCtx`; do not introduce callback repository
+bundles or per-operation `WithX`/`XTx`/UoW contracts. Keep owner/tenant checks and
+lock ordering in the workflow, not separate execution contracts merely because
+creation has no existing owner to lock. Do not wrap a single atomic statement
+solely to satisfy a pattern; retain its constraints and concurrency requirements.
 
 Do not turn every optional section into a library dependency or future-proofing
 layer. The handbook should make a mechanism available when needed, not force

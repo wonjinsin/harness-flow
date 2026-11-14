@@ -23,9 +23,9 @@ A database constraint and a request deadline are often the entire solution for l
 - `internal/core/domain`: invariants and domain facts; no HTTP client, broker, Ent, or retry loop.
 - `internal/core/port/in` (`inport`): context-aware use cases and application results.
 - `internal/core/service/usecase/<domain>`: domain operation order and recoverable application states; `service/shared/<capability>`: reusable application capabilities; `service/orchestration/<workflow>`: a real cross-domain workflow and its transaction scope. Follow the dependency rules in [architecture](architecture.md), not peer-service calls or orchestration-to-usecase calls. Pure shared business calculations remain domain behavior.
-- `internal/core/port/out` (`outport`): context-aware read providers, write repositories, transaction-scoped capabilities, external vendor operations, and durable event recording as required.
+- `internal/core/port/out` (`outport`): context-aware read providers, write repositories, the common context-callback transactor, external vendor operations, and durable event recording as required.
 - `internal/adapter/in/http`: parse the key, authenticate, validate input, invoke the input port, and map typed outcomes to HTTP. Do not implement a second business workflow in middleware.
-- `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: read queries in `provider`; writes, durable idempotency/inbox/outbox mutations, and domain-specific transaction scopes in `repository`; reusable pool/transaction lifecycle mechanics in `db`; generated Ent code and handwritten mapping in separate `dao/ent` and `dao/*_mapper.go` files (or adapter-owner local mappers). Bind participating repositories and any scoped read providers to the same transaction. `db` must not import `provider` or `repository`.
+- `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: read queries in `provider`; writes and durable idempotency/inbox/outbox mutations in `repository`; reusable pool/transaction lifecycle and context-handle resolution in `db`; generated Ent code and handwritten mapping in separate `dao/ent` and `dao/*_mapper.go` files (or adapter-owner local mappers). Pass callback `txCtx` to existing providers/repositories so all participating I/O resolves the same transaction. `db` must not import `provider` or `repository`.
 - External vendor adapters remain outside persistence: HTTP protocol, credentials, vendor error translation, and provider-documented retry rules belong to the corresponding outbound integration adapter. “Provider” under persistence means database reads, not an external vendor. Add an adapter directory only if the integration exists.
 - `cmd/api/main.go`: own reusable clients, database pools, workers, startup, and shutdown. A separate publisher executable is optional, not a requirement.
 
@@ -154,7 +154,7 @@ func retryRead(
 }
 ```
 
-Do not apply this helper to payment submission or a database transaction that already made external calls. For a serialization/deadlock retry, restart the **entire local transaction** with fresh transaction-scoped repositories; keep irreversible work outside it. A commit connection failure may leave the commit outcome unknown; do not assume rollback or retry with a new identity. A circuit breaker cannot establish idempotency or recover an unknown outcome.
+Do not apply this helper to payment submission or a database transaction that already made external calls. For a serialization/deadlock retry, restart the **entire local transaction** with a fresh `txCtx`, passing it to the same existing repositories/providers and reloading state; keep irreversible work outside it. A commit connection failure may leave the commit outcome unknown; do not assume rollback or retry with a new identity. A circuit breaker cannot establish idempotency or recover an unknown outcome.
 
 **Verification:** assert exact maximum attempts, cancellation during backoff, no retry on permanent errors, and stable operation identity across attempts. Fault-inject an accepted request followed by connection loss. A retry that creates a second external effect is not reliable.
 

@@ -33,13 +33,19 @@ fragments, not a self-evaluation, within 1500 words.
   under `service/orchestration/<workflow>`. Neither sibling use cases nor shared
   services nor orchestrations call peers; orchestration does not call use cases.
   Pure eligibility/calculation remains in domain, not shared.
-- The application owns one transaction. Participating providers/repositories use
-  the same scoped SQL/Ent handle; no root-client reads, independent commits, or
-  driver types in core. `db` must not import provider/repository to assemble them.
-- Operations sharing database, locking/isolation policy and consistency scope
-  reuse the common `WithinTransaction` contract. Do not require UoW types or
-  per-operation `WithX`/`XTx` wrappers; split only for concrete policy or capability
-  differences. A single atomic statement needs no pattern-only wrapper.
+- The application owns one transaction through
+  `WithinTransaction(ctx, func(txCtx context.Context) error)`. It calls existing
+  injected providers/repositories with txCtx, not a callback repository bundle.
+  Persistence privately resolves the same SQL/Ent handle for every participating
+  read/write; no outer-context/root-client escape or driver types in core.
+- Reuse the common execution mechanism. Owner locking/tenant checks remain
+  explicit workflow operations; creation without an owner lock does not require
+  a separate runner. Do not require UoW types or per-operation WithX/XTx wrappers.
+  A single atomic statement needs no pattern-only wrapper.
+- Shared adapters never change fields per transaction. No context scope means
+  ordinary base-client I/O; nested, expired or foreign-database scopes must not
+  silently fall back or open an independent transaction. db owns lifecycle and
+  handle resolution, without importing providers/repositories.
 - Entity inputs/results are pointers, their collection is a defined plural slice
   of entity pointers, and small Money remains a value. No pointer to a slice,
   nil entity elements, or successful missing `(nil, nil)` result.
@@ -283,3 +289,105 @@ UoW/Tx/WithX types, while preserving independent single-statement writes.
 The SQL/Ent reference examples were updated consistently, but this execution
 used the SQLite teaching adapter, not a PostgreSQL/Ent runtime. No Ledger source,
 installed plugin, native reader activation, commit, or publication was changed.
+
+## Context-carried transaction adoption
+
+### Consumer prompt
+
+Adopt the supplied setup guidance for a Go service with injected categoryRepo
+and ruleRepo. Saving a rule must insert a category then save the rule atomically;
+ordinary independent reads also use those existing adapters. Account creation
+has no owner row to lock; changes to an existing account must lock that owner
+before other rows. Show the outbound transaction contract, service call, and
+persistence binding design you would put in the handbook. Explain how the
+account cases share or split execution and how single-statement writes work.
+Include cancellation/rollback and concurrent-request behavior. Output concrete
+Go fragments and concise rules, not a plan.
+
+### Acceptance
+
+- The port is `WithinTransaction(context.Context, func(context.Context) error) error`.
+- Service callbacks call their existing injected repositories/providers with the
+  callback context. No `OwnerTx`/`Transaction` repository bundle or new per-use-case
+  runner substitutes for this calling convention.
+- A private adapter-owned context key resolves one transaction for all
+  participating reads/writes; an ordinary context uses the base client.
+  No SQL/Ent handle crosses into core and no shared adapter fields change.
+- Account creation and owner-locked updates share execution. Existing-account
+  changes acquire the required owner lock before other dependent operations;
+  creation does not pretend to lock a nonexistent row. Tenant checks remain.
+- Callback failure, panic and cancellation attempt rollback; commit errors
+  propagate, successful results wait for commit, and unknown outcomes are not
+  claimed aborted. Nested, expired and foreign-database scopes cannot silently
+  escape to a base connection or a new independent transaction.
+- Independent atomic statements stay direct when no wider lock/consistency
+  requirement applies. Do not add retries, outboxes or distributed atomicity.
+
+### Observed baseline
+
+One fresh consumer given the pre-edit setup skill and transaction chapter
+produced `WithinTransaction(context.Context, func(Transaction) error) error`
+with repository accessors. It explicitly said injected repositories “must not
+be used inside the transaction callback.” This fails the first two criteria.
+It preserved locking, cancellation and rollback concerns; those are not failures.
+
+The real SQLite baseline regression
+`TestRepositoryRemainsReusableAfterContextTransactionRollback` performed two
+writes with one adapter, rolled back after the duplicate insert, then reused
+that adapter for an ordinary write. It failed with:
+`same repository cannot perform an ordinary write after rollback: insert user: sql: transaction has already been committed or rolled back`.
+This exposes the old adapter's transaction-bound lifetime; the migrated case
+must preserve rollback while using the same injected adapter inside and outside
+the callback.
+
+### Candidate, simplification, and fresh variation
+
+- **Candidate: 1/1 passed.** With the same prompt and rubric, a fresh consumer
+  produced the context callback, called the existing category/rule adapters with
+  `txCtx`, and kept ordinary reads direct. Creation and owner-locked updates used
+  one runner with explicit workflow locking. Private context binding, immutable
+  adapters, scope rejection and lifecycle errors remained present.
+- **Simplification: 1/1 passed.** Removed repeated bundle/lifetime prose from the
+  transaction chapter's port explanation, retaining the entry rule and concrete
+  binding implementation. A fresh consumer of the simplified guidance passed
+  the unchanged case with the same call shape and boundary behavior.
+- **Reserved variation: 1/1 passed.** The Ent inventory case decremented stock,
+  inserted a reservation and read remaining availability through existing
+  adapters with one `txCtx`. It left an independent read and guarded settings
+  UPDATE direct, rejected nested execution and foreign billing-client binding,
+  and prohibited retained contexts without inventing distributed transactions.
+- **Evaluation boundary:** these were stateless consumers supplied the setup
+  skill and transaction chapter, not native discovery/on-demand-loading tests.
+  An initial JavaScript evaluation wait timed out and lost its handle; it was
+  excluded from behavioral scoring. The successful baseline above used a fresh
+  Python-hosted consumer.
+
+### Executable evidence
+
+- `go test -race ./...` passed all three tested packages in the runnable example,
+  including the migrated failing-before regression, same-context reads,
+  cancellation, panic/commit failures, expired/nested/foreign scopes and
+  concurrent ordinary-call isolation.
+- A built HTTP server returned health/create/read 200/201/200. A real SQLite
+  trigger rejected the audit write; HTTP returned a safe 500 and an independent
+  connection found no partial user/audit. Removing the trigger allowed the same
+  create to return 201; duplicate/invalid requests returned 409/400. Final row
+  counts were 2 users and 2 audits. SIGTERM exited cleanly.
+- Extracted SQL and Ent chapter fragments compiled with the documented domain,
+  ports and schemas against generated Ent v0.14.5. The generated Ent adapters
+  executed on SQLite: commit/read-own-writes, duplicate-insert rollback, panic
+  rollback, cancellation, expired scope and nested rejection passed. Exactly
+  one reservation committed and stock decreased from 20 to 18.
+- The temporary generator harness required a parent Go package and canonical
+  macOS temporary-directory paths. An attempted PostgreSQL SQL-fragment smoke
+  on SQLite was excluded: SQLite binds `$n` placeholders by first appearance,
+  not PostgreSQL's numeric positions. No shipped SQL was changed to satisfy
+  that incompatible harness. PostgreSQL SQL runtime/isolation remains unverified.
+- `node --test` passed all 216 tests. All 148 local links in the touched
+  documentation resolved, including anchors; setup metadata and its 225-line
+  entry file were valid. Temporary binaries, databases, generated code and smoke
+  programs were removed.
+
+No Ledger source/rules, installed plugin cache, native reader activation,
+commit, push or publication was changed. SQLite Ent execution does not establish
+PostgreSQL constraint, locking, isolation or network-failure behavior.

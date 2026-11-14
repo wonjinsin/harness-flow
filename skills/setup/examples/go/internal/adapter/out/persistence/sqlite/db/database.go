@@ -53,8 +53,12 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 }
 
 func initialize(ctx context.Context, db *sql.DB) error {
-	return WithinTransaction(ctx, db, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, schema); err != nil {
+	return WithinTransaction(ctx, db, func(txCtx context.Context) error {
+		executor, err := Executor(txCtx, db)
+		if err != nil {
+			return err
+		}
+		if _, err := executor.ExecContext(txCtx, schema); err != nil {
 			return fmt.Errorf("initialize schema: %w", err)
 		}
 		return nil

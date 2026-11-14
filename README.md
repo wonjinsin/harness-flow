@@ -147,10 +147,12 @@ blank lines between functions. Go setup plans pinned project-local
 quality runner. Tool installation and config/CI changes require the approved
 scope; handbook-only requests do not install anything. Built-in lint does not
 automatically enforce every architectural, type or spacing rule.
-Operations sharing a consistency boundary reuse the common `WithinTransaction`
-contract. Correct transaction binding and commit/rollback behavior are required
-where atomicity needs them; dedicated UoW types and per-operation `WithX` wrappers
-are not.
+Atomic operations use `WithinTransaction(ctx, func(txCtx context.Context) error)`
+and call existing injected repositories/providers with `txCtx`. Persistence binds
+those calls to one transaction without mutating shared adapters or passing a
+repository bundle. Owner/tenant checks and lock ordering remain workflow policy,
+not reasons for per-operation UoW runners. Correct commit/rollback and context
+lifetime handling remain required; independent atomic statements need no wrapper.
 
 The handbook includes detailed layer examples, domain/aggregate modeling,
 transactions and concurrency, idempotency and events, security and operations,
