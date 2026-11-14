@@ -36,15 +36,24 @@ fragments, not a self-evaluation, within 1500 words.
 - The application owns one transaction. Participating providers/repositories use
   the same scoped SQL/Ent handle; no root-client reads, independent commits, or
   driver types in core. `db` must not import provider/repository to assemble them.
+- Operations sharing database, locking/isolation policy and consistency scope
+  reuse the common `WithinTransaction` contract. Do not require UoW types or
+  per-operation `WithX`/`XTx` wrappers; split only for concrete policy or capability
+  differences. A single atomic statement needs no pattern-only wrapper.
 - Entity inputs/results are pointers, their collection is a defined plural slice
   of entity pointers, and small Money remains a value. No pointer to a slice,
   nil entity elements, or successful missing `(nil, nil)` result.
 - A total of five parameters including ctx, excluding the receiver, requires a
   named Command/Query; ctx stays first and outside that struct. Four total is
   allowed. No JSON tags or transport DTOs at core boundaries.
-- Dependencies expose `...Provider`, `...Repo`, `...UoW` roles; names use Go
-  MixedCaps/initialisms and specific operation vocabulary. Do not suffix every
-  method with the dependency's role.
+- Inbound `*Command` types live in `core/port/in/command`; interfaces, Query and
+  result types remain in `core/port/in`. The parent and consumers import the
+  child package, never the reverse. Preserve fields and omitted/false semantics,
+  migrate callers directly without aliases, and keep transport/outbound inputs
+  at their existing boundaries.
+- Dependencies expose provider, repository and transaction roles; a UoW suffix
+  is not required. Names use Go MixedCaps/initialisms and specific operation
+  vocabulary. Do not suffix every method with the dependency's role.
 - The quality runner is `golangci-lint`, no gofumpt adoption. Use the project's
   Go-compatible pinned official binary/config in local and CI paths, not a
   floating global installation or application-module tooling dependency.
@@ -209,3 +218,68 @@ The temporary harnesses, binary and database were removed after execution.
 No ledger migration, installed-plugin update, global quality-tool install,
 commit, publication, Ent/PostgreSQL generated-adapter execution or native
 Claude/Codex/OMP reader activation was performed or claimed.
+
+## Command-package separation evaluation
+
+The focused consumer task supplied `SaveCategoryCommand` with `OwnerID`,
+`CategoryID`, `Name`, `ParentID`, and `Archived *bool`, alongside
+`ListCategoriesQuery`, `CategoryPage`, and `CatalogUseCase`. It asked for concrete
+paths, signatures, dependency direction, and migration steps without changing
+behavior or adding CQRS infrastructure.
+
+- **Baseline:** the pre-edit coding chapter produced “Keep SaveCategoryCommand,
+  ListCategoriesQuery, CategoryPage, and CatalogUseCase in core/port/in/catalog.go.”
+  This failed the requested independent command-package ownership.
+- **Candidate and final:** fresh consumers moved only the command to
+  `core/port/in/command`, kept Query/result/interface ownership, preserved
+  nil/false semantics, and migrated callers without aliases. The final run used
+  both the setup entry and coding chapter after removing a redundant entry-level
+  warning already covered by the chapter.
+- **Fresh variation:** a worker/HTTP `UpdateRuleCommand` with `Enabled *bool` and
+  `Version` rejected a parent-package alias, moving queries/results, and a
+  `command → in` dependency. It retained optional-value and version semantics.
+- **Executable evidence:** the migrated Go example passed `go test -race ./...`
+  (three tested packages), and changed Go files passed `gofmt -l`. Its built
+  process returned health/create/get/duplicate/invalid/unknown-field statuses
+  200/201/200/409/400/400, persisted one user and one `audit_events` row, and
+  shut down cleanly. An initial smoke query used the wrong audit table name;
+  correcting the harness to the actual schema made the complete smoke pass.
+  `node --test` passed all 216 tests.
+
+These are focused consumer and local executable checks, not plugin installation
+or native reader-activation evidence. Temporary binaries/databases were removed.
+
+## Shared transaction execution evaluation
+
+The focused prompt described category/rule operations with the same database,
+tenant lock, isolation, atomicity boundary, and required provider/repository set.
+It requested concrete contract/call shapes and a decision about per-operation
+UoW/Tx/WithX types, while preserving independent single-statement writes.
+
+- **Baseline:** the existing handbook already chose a shared runner for that
+  matching-scope case. No behavioral failure is claimed. The authorized change
+  makes sharing the explicit default and removes mandatory UoW naming and
+  operation-specific teaching examples.
+- **Candidate and final:** fresh consumers reused the common WithinTransaction
+  contract, rejected redundant per-operation wrappers, preserved typed
+  transaction-bound capabilities, and kept independent atomic statements direct.
+  The final run followed removal of repeated split/naming detail from the coding
+  chapter in favor of its link to the transaction chapter.
+- **Fresh variation:** inventory operations shared a runner; billing with a
+  different database and Serializable policy retained a distinct boundary.
+  A single settings UPDATE needed no wrapper. The consumer rejected an injected
+  root provider inside the callback, preserved error/cancellation/panic cleanup,
+  and treated an uncertain commit as requiring reconciliation rather than proof
+  of rollback or permission for blind replay.
+- **Executable evidence:** the common Transactor/Transaction Go example passed
+  `go test -race ./...` (three tested packages); changed Go files passed
+  `gofmt -l`. A built server created/read a user and audit, then a temporary
+  database trigger rejected the next audit insert. HTTP returned a generic 500
+  and an independent connection confirmed no partial user or audit. Removing
+  the trigger allowed the same create to succeed; duplicate/invalid requests
+  returned 409/400, final row counts were 2/2, and shutdown succeeded.
+  `node --test` passed all 216 tests.
+
+The SQL/Ent reference examples were updated consistently, but this execution
+used the SQLite teaching adapter, not a PostgreSQL/Ent runtime. No Ledger source,
+installed plugin, native reader activation, commit, or publication was changed.

@@ -15,12 +15,12 @@ import (
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/provider"
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/repository"
 	"example.com/architecture-handbook/internal/core/domain"
-	inport "example.com/architecture-handbook/internal/core/port/in"
+	"example.com/architecture-handbook/internal/core/port/in/command"
 	outport "example.com/architecture-handbook/internal/core/port/out"
 	"example.com/architecture-handbook/internal/core/service/usecase/user"
 )
 
-func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider, *repository.UserUnitOfWork) {
+func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider, *repository.Transactor) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	t.Cleanup(cancel)
@@ -33,7 +33,7 @@ func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider
 			t.Errorf("close database: %v", err)
 		}
 	})
-	return ctx, db, provider.NewUserProvider(db), repository.NewUserUnitOfWork(db)
+	return ctx, db, provider.NewUserProvider(db), repository.NewTransactor(db)
 }
 
 type rowCounts struct {
@@ -56,9 +56,9 @@ func assertCounts(t *testing.T, ctx context.Context, db *sql.DB, want rowCounts)
 }
 
 func TestCreateUserCommitsUserAndAuditAndCanBeRead(t *testing.T) {
-	ctx, db, userProvider, userUoW := newDatabase(t)
-	users := user.NewUseCase(userProvider, userUoW)
-	created, err := users.CreateUser(ctx, inport.CreateUserCommand{Name: " Alice ", Email: "ALICE@example.com"})
+	ctx, db, userProvider, transactor := newDatabase(t)
+	users := user.NewUseCase(userProvider, transactor)
+	created, err := users.CreateUser(ctx, command.CreateUserCommand{Name: " Alice ", Email: "ALICE@example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,15 +81,15 @@ func TestCreateUserCommitsUserAndAuditAndCanBeRead(t *testing.T) {
 }
 
 func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
-	ctx, db, userProvider, userUoW := newDatabase(t)
+	ctx, db, userProvider, transactor := newDatabase(t)
 	_, err := db.ExecContext(ctx, `CREATE TRIGGER reject_user_audit
 		BEFORE INSERT ON audit_events
 		BEGIN SELECT RAISE(ABORT, 'audit rejected'); END`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	users := user.NewUseCase(userProvider, userUoW)
-	_, err = users.CreateUser(ctx, inport.CreateUserCommand{Name: "Alice", Email: "alice@example.com"})
+	users := user.NewUseCase(userProvider, transactor)
+	_, err = users.CreateUser(ctx, command.CreateUserCommand{Name: "Alice", Email: "alice@example.com"})
 	if err == nil {
 		t.Fatal("creation succeeded despite the database rejecting the audit write")
 	}
@@ -102,15 +102,15 @@ func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
 	if _, err := db.ExecContext(ctx, "DROP TRIGGER reject_user_audit"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := users.CreateUser(ctx, inport.CreateUserCommand{Name: "Alice", Email: "alice@example.com"}); err != nil {
+	if _, err := users.CreateUser(ctx, command.CreateUserCommand{Name: "Alice", Email: "alice@example.com"}); err != nil {
 		t.Fatalf("failed transaction leaked state or reserved the email: %v", err)
 	}
 	assertCounts(t, ctx, db, rowCounts{users: 1, audits: 1})
 }
 
 func TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint(t *testing.T) {
-	ctx, db, userProvider, userUoW := newDatabase(t)
-	users := user.NewUseCase(userProvider, userUoW)
+	ctx, db, userProvider, transactor := newDatabase(t)
+	users := user.NewUseCase(userProvider, transactor)
 	const callers = 8
 	start := make(chan struct{})
 	results := make(chan error, callers)
@@ -120,7 +120,7 @@ func TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint(t *testing.T)
 		go func() {
 			defer group.Done()
 			<-start
-			_, err := users.CreateUser(ctx, inport.CreateUserCommand{Name: "Alice", Email: "ALICE@example.com"})
+			_, err := users.CreateUser(ctx, command.CreateUserCommand{Name: "Alice", Email: "ALICE@example.com"})
 			results <- err
 		}()
 	}
@@ -155,7 +155,7 @@ func TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint(t *testing.T)
 }
 
 func TestCancellationBetweenTransactionWritesRollsBackPersistedUser(t *testing.T) {
-	ctx, db, userProvider, userUoW := newDatabase(t)
+	ctx, db, userProvider, transactor := newDatabase(t)
 	transactionContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	user, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
@@ -163,7 +163,7 @@ func TestCancellationBetweenTransactionWritesRollsBackPersistedUser(t *testing.T
 		t.Fatal(err)
 	}
 	var insertedID int
-	err = userUoW.WithinTransaction(transactionContext, func(repositories outport.UserTransaction) error {
+	err = transactor.WithinTransaction(transactionContext, func(repositories outport.Transaction) error {
 		inserted, err := repositories.UserRepository().Insert(transactionContext, user)
 		if err != nil {
 			return err

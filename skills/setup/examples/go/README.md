@@ -99,8 +99,10 @@ The request body limit is 1 MiB. An array instead of an object is rejected; `nul
 ```text
 cmd/api/main.go                                                     Composition, flags, lifecycle
 internal/core/domain/user.go                                        User invariants and semantic errors
-internal/core/port/in/user.go                                       Commands and UserUseCase interface
-internal/core/port/out/user.go                                      Provider, write repositories and user UnitOfWork
+internal/core/port/in/user.go                                       UserUseCase interface
+internal/core/port/in/command/user.go                               CreateUserCommand input data
+internal/core/port/out/user.go                                      User provider and typed write repository interfaces
+internal/core/port/out/transaction.go                               Common Transactor execution contract and Transaction bundle
 internal/core/service/usecase/user/user.go                           User create/get application implementation
 internal/adapter/in/http/router.go                                  Method/path registration only
 internal/adapter/in/http/handler/user.go                             Transport, safe status mapping
@@ -112,23 +114,27 @@ internal/adapter/out/persistence/sqlite/provider/user.go             Read-only u
 internal/adapter/out/persistence/sqlite/provider/user_mapper.go      Provider-owned persisted-row mapping
 internal/adapter/out/persistence/sqlite/repository/user.go           User insert using the scoped transaction
 internal/adapter/out/persistence/sqlite/repository/audit.go          Audit insert using the scoped transaction
-internal/adapter/out/persistence/sqlite/repository/user_unit_of_work.go User+audit transaction bundle assembly
+internal/adapter/out/persistence/sqlite/repository/transaction.go    Shared transaction-bound repository bundle assembly
 ```
 
-Dependencies flow inward: HTTP handlers depend on `inport.UserUseCase`; its `user.UseCase` implementation depends on domain and outbound ports. `main` selects the concrete SQLite provider and user UnitOfWork. The domain and application import neither HTTP nor SQL. The provider owns reads; repositories own writes and the cohesive user+audit UnitOfWork; `db` owns pool/schema/transaction mechanics and imports neither provider nor repository. HTTP and persisted-row mapping are separate; neither database rows nor HTTP request types cross a core port.
+Dependencies flow inward: HTTP handlers depend on `inport.UserUseCase`; its `user.UseCase` implementation depends on domain and outbound ports. `main` selects the concrete SQLite provider and `repository.Transactor`. The domain and application import neither HTTP nor SQL. The provider owns reads; repositories own writes and transaction-bound bundle assembly; `db` owns pool/schema/transaction mechanics and imports neither provider nor repository. HTTP and persisted-row mapping are separate; neither database rows nor HTTP request types cross a core port.
+
+Inbound interfaces stay in `internal/core/port/in`; their `*Command` input structs live in its `command` child package and are used directly as `command.CreateUserCommand`, without parent-package aliases or re-exports. Queries and results stay in the parent `in` package when needed; this example uses a scalar ID query and a domain result rather than dedicated query/result structs. The command package is not a generic parameter or HTTP DTO package: it may depend on domain types and the standard library, never its parent `in` package, services, transport, or ORM code. HTTP DTO mapping constructs the command; `context.Context` remains a separate method argument.
 
 This example has only the user application capability. The local audit write is part of user creation, not a separate multi-domain workflow, so there are no empty shared or orchestration packages. Entity inputs and results use `*domain.User`; `domain.Users` is `[]*User`, while small scalar values and timestamps remain values. `FindByID` returns `ErrNotFound`, never a successful nil result. Application boundaries with five or more total arguments, counting context but excluding the receiver, use a named command/query; contexts stay separate from those data types.
 
+`outport.Transactor.WithinTransaction` is the common execution contract for operations sharing the same database, tenant/lock policy, isolation, and atomicity scope. `outport.Transaction` exposes the typed repositories needed by this application's consistency boundary, not a global untyped service locator. Reuse this contract for further operations in that scope rather than adding per-domain `WithX`, `Tx`, UnitOfWork, or Transactor layers. Separate contracts are warranted only by concrete policy or capability differences. “Unit of Work” is an optional conceptual label, not a required type or package. A single atomic statement needs no extra transaction wrapper unless it participates in a multi-operation invariant.
+
 ### Creation boundary
 
-1. The DTO decoder accepts one JSON value with known fields and constructs a `CreateUserCommand`.
+1. The DTO decoder accepts one JSON value with known fields and constructs a `command.CreateUserCommand`.
 2. `domain.NewUser` trims the name, requires 1–100 valid UTF-8 characters without NUL, and validates a plain email address of at most 254 bytes. NUL is rejected before persistence because SQLite's `length()` stops at that character. This example **chooses** to trim and lowercase the entire email, including its local part; a real product must decide its own identity normalization policy. Syntax validation does not establish address ownership or deliverability.
-3. The application calls `UserUnitOfWork.WithinTransaction` once. It does not perform a racy "email exists" precheck.
-4. The repository package asks `db` to open a real `sql.Tx`, then assembles a narrow `UserTransaction` with explicit `UserRepository()` and `AuditRepository()` accessors. Both repositories use that same `*sql.Tx`; neither exposes a base-database writer.
+3. The application calls the shared `Transactor.WithinTransaction` once. It does not perform a racy "email exists" precheck.
+4. The repository package asks `db` to open a real `sql.Tx`, then assembles an `outport.Transaction` with explicit `UserRepository()` and `AuditRepository()` accessors. Both repositories use that same `*sql.Tx`; neither exposes a base-database writer, commit/rollback method, or driver type to core.
 5. The application inserts the user, obtains its database ID, and writes `user.created` with that ID. The schema enforces unique email and an audit foreign key. Only the users table's unique constraint is translated into `ErrEmailConflict`; a failing audit is not mislabeled as a duplicate email.
 6. A callback error, panic, or cancellation triggers rollback. The database transaction helper checks the transaction context before commit. The application returns a created user only after commit succeeds.
 
-Transaction repositories must not escape the callback, start nested transactions, or be used concurrently. Reading through the base provider from inside this callback would also wait for the one occupied connection; the port intentionally supplies only the write roles needed by this use case. Extend a transaction-specific port if a future operation genuinely requires transaction-bound reads. The example needs only insert operations; add update/delete behavior to the owning repository when a real use case requires it, not to the read-only provider.
+Transaction repositories must not escape the callback, start nested transactions, or be used concurrently. Reading through the base provider from inside this callback would also wait for the one occupied connection; the bundle intentionally supplies only the write roles currently needed by this application's consistency boundary. If a future operation in the same scope needs transaction-bound reads, extend the common `Transaction` with a typed read capability backed by that same transaction handle, rather than using the root provider or adding an operation-specific contract. The example needs only insert operations; add update/delete behavior to the owning repository when a real use case requires it, not to the read-only provider.
 
 `r.Context()` reaches the service, transaction callback, and every SQL operation. The readiness probe derives a one-second deadline from its request context. A disconnect after a successful commit does not undo that commit; cancellation is not a guarantee that a previously submitted operation never happened. There is no idempotency key protocol to resolve an ambiguous client outcome here.
 

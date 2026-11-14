@@ -58,7 +58,7 @@ composition. Includes correct examples and plausible violations.
 
 ### [Go coding conventions and quality tooling](go/coding-conventions.md)
 
-Google-based naming and explicit Provider/Repo/UoW dependency roles; entity
+Google-based naming and explicit provider/repository/transaction dependency roles; entity
 pointers and defined plural pointer collections with small value-type exceptions;
 named boundary inputs at five total parameters including context; blank lines
 between function declarations; project-local pinned golangci-lint and local/CI

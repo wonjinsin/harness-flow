@@ -160,6 +160,11 @@ the service is called a PoC. Sending a webhook reliably after a commit introduce
 an outbox/equivalent decision; it must not be described as solved by an inline
 HTTP call. A service without tenants should not acquire a fictional tenant
 model, but adding tenant-owned resources reopens authorization and data scoping.
+Reuse a common `WithinTransaction` contract when operations share a consistency
+boundary. Transaction guarantees are required where applicable, but a UoW type
+or separate `WithX`/`XTx` per operation is not. Do not wrap a single atomic
+statement solely to satisfy a pattern; keep its constraints and concurrency
+requirements intact.
 
 Do not turn every optional section into a library dependency or future-proofing
 layer. The handbook should make a mechanism available when needed, not force
@@ -256,6 +261,11 @@ Include a complete representative vertical slice: route → handler and DTO mapp
 → inbound command/interface → application service → domain → outbound interface
 → concrete adapter and mapping → composition, with success and negative behavior.
 When the project does not use HTTP, use its real entry adapter instead.
+For Go, place inbound `*Command` inputs in `core/port/in/command`; keep
+interfaces, Query and result types in `core/port/in`. Show imports flowing from
+the parent port and consumers to `command`, never back to the parent or a service.
+Migrate every command caller without compatibility aliases; retain transport DTOs
+and outbound-specific inputs at their existing boundaries.
 
 The slice must read naturally from top to bottom, with business steps at a
 consistent level of abstraction. Apply [behavior ownership](go/behavior-ownership.md):

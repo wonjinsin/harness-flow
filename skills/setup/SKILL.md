@@ -92,11 +92,17 @@ create empty areas or move pure domain rules into shared services.
 Carry the coding chapter's concrete contracts into adopted examples: entity
 pointers and defined plural pointer collections, value semantics for small value
 objects, named inputs at five total boundary parameters including `ctx` (receiver
-excluded), explicit Provider/Repo/UoW dependency roles, Google-based Go naming,
+excluded), explicit provider/repository/transaction dependency roles, Google-based Go naming,
 and blank lines between function declarations. Use golangci-lint only as the
 added Go quality runner, not gofumpt or a silently added custom analyzer. State
 what the selected checks do not enforce; Markdown and passing lint are not proof
 of every contract.
+
+Default to the project's common `WithinTransaction` execution contract for
+operations sharing a consistency boundary. Require transaction-bound reads/writes
+and correct commit/rollback behavior, not a `UoW` type or suffix. Do not introduce
+per-operation `WithX`, `XTx`, or `XUoW` contracts without a concrete policy or
+capability difference; follow `references/go/data-and-transactions.md`.
 
 For an existing layout or another language, distinguish a harmless naming
 adaptation from an architectural departure. Do not silently rename modules,
@@ -127,6 +133,9 @@ project-specific, detailed pages with:
 
 Keep the entry index short; do not shorten the substantive handbook into slogans.
 Include at least one complete vertical slice across the project's actual layers.
+For Go, separate inbound `*Command` inputs into `core/port/in/command`, with
+interfaces, Query and result types staying in `core/port/in`. Follow the import
+direction and complete caller migration in `references/go/coding-conventions.md`.
 Make top-to-bottom, book-like readability an explicit baseline: orchestration
 tells the operation's story; named behavior on domain values/collections,
 application inputs/results, DTOs, and handwritten persistence mappers owns the

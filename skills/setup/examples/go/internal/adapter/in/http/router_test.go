@@ -33,8 +33,8 @@ func newAPI(t *testing.T) (http.Handler, *sql.DB) {
 		}
 	})
 	userProvider := provider.NewUserProvider(db)
-	userUoW := repository.NewUserUnitOfWork(db)
-	users := user.NewUseCase(userProvider, userUoW)
+	transactor := repository.NewTransactor(db)
+	users := user.NewUseCase(userProvider, transactor)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return httpadapter.NewRouter(users, db.PingContext, logger), db
 }

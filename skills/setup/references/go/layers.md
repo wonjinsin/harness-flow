@@ -2,7 +2,7 @@
 
 Use this chapter with the [canonical tree and dependency contract](architecture.md). The examples show a complete create/get/list vertical slice at the important boundaries, with scoped fragments rather than a single compilable file. Replace `example.com/app` with the target module; retain that project's compatible dependency versions. Fragments sharing a file/package are meant to be combined; imports are described where useful rather than repeated around every method. The [runnable example](../../examples/go) is a separate standard-library HTTP/SQLite adaptation, not an Ent implementation of these fragments.
 
-**Default profile:** use Chi, Ent, PostgreSQL, Zerolog; inbound ports remain in `internal/core/port/in`, outbound ports in `internal/core/port/out`. Persistence lives under `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: reads use providers, writes use repositories, and `db` owns only pool/client lifecycle and generic transaction mechanics. For an existing project, replace `postgres` with its real engine and adapt its actual driver/ORM; this profile is not authorization to migrate its database. Use aliases `inport`, `outport`, and `httpadapter` where package names would be ambiguous. The example HTTP object is `UserController`; “handler” and “controller” are one responsibility, not two layers.
+**Default profile:** use Chi, Ent, PostgreSQL, Zerolog; inbound interfaces, queries/results, and input errors remain in `internal/core/port/in`, inbound `*Command` structs live in `internal/core/port/in/command`, and outbound ports in `internal/core/port/out`. Persistence lives under `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: reads use providers, writes use repositories, and `db` owns only pool/client lifecycle and generic transaction mechanics. For an existing project, replace `postgres` with its real engine and adapt its actual driver/ORM; this profile is not authorization to migrate its database. Use aliases `inport`, `outport`, and `httpadapter` where package names would be ambiguous; import `command` by its package name. The example HTTP object is `UserController`; “handler” and “controller” are one responsibility, not two layers.
 
 **Portable principles:** separate transport, application, domain, and persistence representations; carry the operation context through I/O; express contracts through application-owned types; enforce domain rules for every caller; and compose concrete dependencies only at the process boundary. The commands, errors, context signatures, and pagination below illustrate these contracts; adopting them requires migrating existing implementations and callers together.
 
@@ -12,21 +12,35 @@ of abstraction. Domain owns composed decisions and collection calculations;
 application inputs/results and adapter-local DTO/DAO mappers own their respective
 validation and conversion details. Keep I/O, errors, and transactions visible.
 
-Read [coding conventions](coding-conventions.md) for the required boundary input rule: count every argument including `ctx`, excluding the receiver; at five or more use a named Command/Query, keeping `ctx` first and outside the struct. Entity inputs/returns use pointers and defined plural `[]*Entity` collections; small value objects and pure projection collections may stay values. Follow Google Go naming and explicit dependency roles (`userProvider`, `userRepo`, `...UoW`), and adopt golangci-lint only—no gofumpt or new custom analyzers. Blank lines between all handwritten functions remain required even where built-in lint coverage is incomplete.
+Read [coding conventions](coding-conventions.md) for the required boundary input rule: count every argument including `ctx`, excluding the receiver; at five or more use a named Command/Query, keeping `ctx` first and outside the struct. Entity inputs/returns use pointers and defined plural `[]*Entity` collections; small value objects and pure projection collections may stay values. Follow Google Go naming and explicit dependency roles (`userProvider`, `userRepo`, `transactor`), and adopt golangci-lint only—no gofumpt or new custom analyzers. Blank lines between all handwritten functions remain required even where built-in lint coverage is incomplete.
 
 ## 1. Start with the application contracts, not a JSON or database struct
 
 ### Inbound port and application data
 
-**Required baseline.** Put the following domain-based boundary in `internal/core/port/in/user.go`. Commands express intent; queries express selection; results express application outcomes. They are not DTOs just because they contain fields. The import set is standard `context`/`errors` and `internal/core/domain`. Use `UserUseCase`, not an application-wide `UseCase`/`Service` interface.
+**Required baseline.** Commands express intent; queries express selection; results express application outcomes. They are not HTTP DTOs just because they contain fields. Declare inbound command structs in `internal/core/port/in/command/user.go`, retaining the `*Command` names:
 
 ```go
-package in
+package command
 
 type CreateUserCommand struct {
     Name  string
     Email string
 }
+```
+
+Keep interfaces, queries/results, and `ErrInvalidInput` in `internal/core/port/in/user.go`. Use `UserUseCase`, not an application-wide `UseCase`/`Service` interface. The parent imports `command` for its signatures:
+
+```go
+package in
+
+import (
+    "context"
+    "errors"
+
+    "example.com/app/internal/core/domain"
+    "example.com/app/internal/core/port/in/command"
+)
 
 type ListUsersQuery struct {
     Offset int
@@ -63,13 +77,15 @@ func NewUserPage(users domain.Users, q ListUsersQuery) UserPage {
 }
 
 type UserUseCase interface {
-    CreateUser(context.Context, CreateUserCommand) (*domain.User, error)
+    CreateUser(context.Context, command.CreateUserCommand) (*domain.User, error)
     GetUser(context.Context, int) (*domain.User, error)
     ListUsers(context.Context, ListUsersQuery) (UserPage, error)
 }
 ```
 
 This contract does not know that creation arrived through `POST`, that pagination came from a query string, or that users are stored with Ent. A worker can construct a command without a fake HTTP request. Do not put `json` tags, an `http.ResponseWriter`, a Chi context, a database ID allocation object, or an ORM entity in it. A command does not need a wrapper for every scalar operation: `GetUser(ctx, id int)` is reasonable when there is only one input and no meaningful ambiguity.
+
+The `command` package may depend only on domain and standard-library types; it must not import parent `in`, services, transport, or ORM packages. It is not a generic parameter package: queries/results and interfaces stay in parent `in`, and transport DTOs stay in the adapter. Every consumer imports `command` directly; do not add aliases or re-exports in `in`. Moving existing commands preserves fields, pointer/collection shapes, nil-versus-empty and false-versus-omitted semantics, validation, and behavior. Keep `ctx` outside structs and use `cmd` for a local command variable so it does not shadow the package.
 
 `ListUsersQuery.Normalize` owns the accepted bounds/defaults for every caller.
 `NewUserPage` consumes a normalized query and the bounded lookahead result; it
@@ -198,10 +214,21 @@ The first combines three owners. The second bypasses the constructor and assumes
 
 ## 3. Application service: coordinate, do not translate protocols
 
-Place this fragment in `internal/core/service/usecase/user/usecase.go`, importing standard `context`, `fmt`, `time`, `domain`, and the aliased ports. The package is `user`; its `NewUseCase` implements `UserUseCase`. Returning an inbound interface is this example's convention; a concrete constructor return is also valid when the caller still depends on the boundary it needs.
+Place this fragment in `internal/core/service/usecase/user/usecase.go`. The package is `user`; its `NewUseCase` implements `UserUseCase`. Returning an inbound interface is this example's convention; a concrete constructor return is also valid when the caller still depends on the boundary it needs.
 
 ```go
 package user
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    "example.com/app/internal/core/domain"
+    inport "example.com/app/internal/core/port/in"
+    "example.com/app/internal/core/port/in/command"
+    outport "example.com/app/internal/core/port/out"
+)
 
 type useCase struct {
     userProvider outport.UserProvider
@@ -215,7 +242,7 @@ func NewUseCase(userProvider outport.UserProvider, userRepo outport.UserReposito
 
 var _ inport.UserUseCase = (*useCase)(nil)
 
-func (s *useCase) CreateUser(ctx context.Context, cmd inport.CreateUserCommand) (*domain.User, error) {
+func (s *useCase) CreateUser(ctx context.Context, cmd command.CreateUserCommand) (*domain.User, error) {
     if err := ctx.Err(); err != nil {
         return nil, err
     }
@@ -312,11 +339,19 @@ type ErrorResult struct {
 
 Keep `ErrorResult` in the existing `dto/response.go`. **Default wire style:** responses use `utils.StandardResponse` from `internal/pkg/utils/http.go`: `trid` is a string, `code` is a four-digit string, and `result` is omitted when empty. Creation returns code `"0201"`; ordinary success uses `"0200"`; the baseline error codes are `"0400"`, `"0404"`, `"0409"`, and `"0500"`. An error result is `{"msg": safeMessage}`, never a raw internal error string. The controller below preserves that envelope rather than adopting a different problem-details or bare-response default. Reuse a target project's established helper; do not create a second envelope authority. Moving an existing transport helper out of `utils` can be a deliberate cleanup, but is not a prerequisite or a silent layout change. Exposing `Email` is also an explicit API/data-access decision; an authenticated list may need a narrower representation.
 
-Put conversion in the **HTTP** mapper `internal/adapter/in/http/dto/user_mapper.go`, importing `domain` and `inport`:
+Put conversion in the **HTTP** mapper `internal/adapter/in/http/dto/user_mapper.go`:
 
 ```go
-func (r CreateUserRequest) ToCommand() inport.CreateUserCommand {
-    return inport.CreateUserCommand{Name: r.Name, Email: r.Email}
+package dto
+
+import (
+    "example.com/app/internal/core/domain"
+    inport "example.com/app/internal/core/port/in"
+    "example.com/app/internal/core/port/in/command"
+)
+
+func (r CreateUserRequest) ToCommand() command.CreateUserCommand {
+    return command.CreateUserCommand{Name: r.Name, Email: r.Email}
 }
 
 func ToUserResponse(u *domain.User) UserResponse {
@@ -350,9 +385,9 @@ type CreateUserRequest = ent.User
 json.NewEncoder(w).Encode(domainUser)
 
 // Wrong: mapping is no longer a pure representation conversion.
-func ToCommand(req CreateUserRequest, repo outport.UserRepository) inport.CreateUserCommand {
+func ToCommand(req CreateUserRequest, repo outport.UserRepository) command.CreateUserCommand {
     repo.Insert(context.Background(), &domain.User{Name: req.Name})
-    return inport.CreateUserCommand{Name: req.Name, Email: req.Email}
+    return command.CreateUserCommand{Name: req.Name, Email: req.Email}
 }
 ```
 
@@ -590,7 +625,7 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 
 This deliberately avoids request bodies, authorization headers, query strings, and raw paths that may embed personal identifiers. Add a normalized route template, if needed, through the router's supported route context, not an unbounded user-controlled label. HTTP request logging does not replace business audit records.
 
-**Required baseline ownership:** middleware emits one access record; the HTTP error boundary emits one unexpected-failure record; service/repository usually return enriched errors without re-logging the same failure. An adapter may emit its own operation metrics or a meaningful event, but four identical error logs for one failed request are not observability. Domain code does not log successful construction on every invocation.
+**Required baseline ownership:** middleware emits one access record; the HTTP error boundary emits one unexpected-failure record. The same ownership applies to worker/job consumers and CLI command boundaries: domain, service/use-case, provider, repository, and outbound-adapter code return contextual errors without logging the propagated failure. Follow the [cross-inbound ownership rule and exception policy](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs); operation metrics and required audit records are separate signals. Domain code does not log successful construction on every invocation.
 
 **Required when security-sensitive actions occur:** audit logging has its own schema, access controls, retention, and sometimes atomicity requirements. It is not merely the middleware's access line. [Security and operations](security-and-operations.md) covers this distinction.
 
@@ -779,7 +814,7 @@ A broad `ent.IsConstraintError(err)` does **not** prove duplicate email. The fai
 
 Pass `ctx` to every Ent terminal operation. Do not store context on `userRepo`/`userProvider`, replace it with `Background`, or use panic-on-error helpers such as `SaveX`/`AllX` for ordinary request failures. An in-process service deadline is useful only if the database call receives it. Providers never perform writes; repositories do not expose read methods. Both use generated Ent directly rather than forwarding through one another or a redundant handwritten DAO interface.
 
-**Required when a use case needs an atomic multi-repository write:** transaction-scoped assembly belongs in `postgres/repository`; generic begin/commit/rollback mechanics belong in `postgres/db`, which must not import providers/repositories or contain business queries/mapping. Participating repositories and any narrow scoped providers must share `tx.Client()` or the equivalent transaction-bound handle. Do not accept a transaction context while continuing to query a root client. See [data and transactions](data-and-transactions.md) for the full transaction implementation and failure handling.
+**Required when a use case needs an atomic multi-repository write:** use the common `WithinTransaction` contract for operations sharing a consistency boundary; no dedicated UoW type or per-operation wrapper is required. Transaction-scoped assembly belongs in `postgres/repository`; generic begin/commit/rollback mechanics belong in `postgres/db`, which must not import providers/repositories or contain business queries/mapping. Participating repositories and providers must share `tx.Client()` or the equivalent transaction-bound handle. Do not accept a transaction context while continuing to query a root client. See [data and transactions](data-and-transactions.md) for justified contract splits, the full implementation, and failure handling.
 
 **Wrong:**
 
@@ -994,7 +1029,7 @@ A named type is not an alias: `type UserID = int` does not prevent accidentally 
 
 **Wrong:** a function with six positional `int` IDs that repeatedly swaps tenant and user, or adding wrappers to every string solely because named types look architectural. A type should encode useful meaning/invariants, not add conversion work without preventing mistakes. See [domain](domain.md).
 
-**Required baseline interface placement:** keep application boundary interfaces in the canonical core port directories. Implementations are structs in adapters or service. Put compile-time assertions beside implementations, as shown above. The domain may define a meaningful behavior abstraction if its own rules need it; it must not import a repository simply to query its own invariants.
+**Required baseline interface placement:** keep inbound interfaces in parent `core/port/in` and outbound interfaces in `core/port/out`, never in the inbound `command` subpackage. Queries/results and `ErrInvalidInput` also remain in parent `in`. Implementations are structs in adapters or service. Put compile-time assertions beside implementations, as shown above. The domain may define a meaningful behavior abstraction if its own rules need it; it must not import a repository simply to query its own invariants.
 
 A persistence implementation may have private helper interfaces when several query builders genuinely share behavior. Those are not new application ports and should not be exported as a universal `BaseRepository[T]`. Avoid a generic CRUD contract whose unrestricted update map bypasses domain operations. A use case that needs `ReserveInventory` should express that business capability, not `Save(any)` plus a sequence of adapter-specific casts.
 
@@ -1007,8 +1042,9 @@ To add an HTTP operation in this architecture, identify the exact representation
 ```text
 router.go: POST /users/
   handler/user.go: decodeCreateUser -> dto.CreateUserRequest
-  dto/user_mapper.go: request.ToCommand -> inport.CreateUserCommand
-  core/port/in/user.go: UserUseCase.CreateUser(ctx, command)
+  dto/user_mapper.go: request.ToCommand -> command.CreateUserCommand
+  core/port/in/command/user.go: CreateUserCommand declaration
+  core/port/in/user.go: UserUseCase.CreateUser(context.Context, command.CreateUserCommand)
   core/service/usecase/user/usecase.go: domain.NewUser -> userRepo.Insert(ctx, entity)
   core/port/out/user.go: UserRepository.Insert contract
   persistence/postgres/dao/user_mapper.go: entity -> write data
@@ -1025,7 +1061,9 @@ For a reviewer, concrete rejection examples are:
 
 | Observed change | Specific violation and correction |
 | --- | --- |
-| `service` imports `adapter/in/http/dto` | Transport leaked inward; define/use an input-port command and map in the HTTP mapper. |
+| `service` imports `adapter/in/http/dto` | Transport leaked inward; define/use `command.XCommand` from `core/port/in/command` and map in the HTTP mapper. |
+| Parent `in` declares or re-exports `CreateUserCommand` | Commands belong in `core/port/in/command`; migrate signatures, services, mappers, mocks, and tests to `command.CreateUserCommand` directly, preserving fields and nil/false semantics. |
+| `command` imports parent `in`, services, transport, or ORM | The command package points outward or creates a cycle; limit it to domain/standard-library dependencies and leave queries/results/input errors in parent `in`. |
 | `domain.User` embeds `ent.User` | Storage schema became business state; separate domain fields/behavior and use the persistence mapper. |
 | Handler fields include `*ent.Client` | Handler bypasses application orchestration; inject the inbound port. |
 | `router.go` checks email availability | A route declaration now owns business/storage behavior; move it into the use case if needed and still enforce uniqueness in storage. |

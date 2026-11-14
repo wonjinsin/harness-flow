@@ -141,12 +141,16 @@ use cases, and pure business rules remain in domain.
 The [Go coding conventions](skills/setup/references/go/coding-conventions.md)
 define entity pointers and named plural pointer collections, value semantics for
 small values, Command/Query inputs at five total boundary parameters including
-context, explicit Provider/Repo/UoW dependency names, Google-based Go naming and
+context, explicit provider/repository/transaction dependency roles, Google-based Go naming and
 blank lines between functions. Go setup plans pinned project-local
 `golangci-lint` configuration and local/CI checks, without gofumpt or another
 quality runner. Tool installation and config/CI changes require the approved
 scope; handbook-only requests do not install anything. Built-in lint does not
 automatically enforce every architectural, type or spacing rule.
+Operations sharing a consistency boundary reuse the common `WithinTransaction`
+contract. Correct transaction binding and commit/rollback behavior are required
+where atomicity needs them; dedicated UoW types and per-operation `WithX` wrappers
+are not.
 
 The handbook includes detailed layer examples, domain/aggregate modeling,
 transactions and concurrency, idempotency and events, security and operations,

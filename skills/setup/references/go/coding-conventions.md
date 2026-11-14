@@ -24,8 +24,12 @@ Google architecture standard:
   clients can use AIProvider or PaymentProvider, but their implementations stay
   under their own outbound adapter, not persistence.
 - Dependency fields, parameters and composition variables retain the role:
-  userProvider, userRepo, reservationUoW, aiProvider. Do not name every outbound
+  userProvider, userRepo, transactor, aiProvider. Do not name every outbound
   dependency repo, and do not append Repository to every operation name.
+- Use the common WithinTransaction contract; Transactor names its role, not a
+  mandatory new layer or UoW suffix. Keep compatible existing names. Apply the
+  [transaction contract reuse and split criteria](data-and-transactions.md#2-application-owned-atomicity-without-a-root-client-escape)
+  instead of deriving one runner per operation name.
 - Use meaningful verbs for operations: CreateCategory, ArchiveCategory,
   ConfirmImport; FindByID and List for persistence reads; Insert, Update and Delete
   for writes. Plain field accessors need no Get prefix. An established GetUser
@@ -49,35 +53,54 @@ remain scalar when their meaning is clear. Fewer parameters may still deserve a
 struct when same-typed positional arguments are ambiguous.
 
 For example, ReserveStock(ctx, actorID, sku, quantity, requestID) has five
-parameters and becomes this inbound contract, with context, domain and time
-imports supplied by the containing port file as needed:
+parameters. Its input lives in `internal/core/port/in/command/reservation.go`,
+with the domain import supplied by that file:
 
 ```go
+package command
+
 type ReserveStockCommand struct {
     ActorID   string
     SKU       string
     Quantity  domain.Quantity
     RequestID string
 }
+```
+
+The interface stays in `internal/core/port/in/reservation.go`, importing context,
+domain, and the child command package:
+
+```go
+package in
 
 type ReservationUseCase interface {
-    ReserveStock(context.Context, ReserveStockCommand) (*domain.Reservation, error)
+    ReserveStock(context.Context, command.ReserveStockCommand) (*domain.Reservation, error)
 }
 ```
 
-The struct lives in core/port/in for an application entrypoint; outbound-specific
-selection/write data lives with its core/port/out contract or an existing
-appropriate domain value. The same rule applies to handler-to-use-case and
-service-to-port calls. Context remains the first explicit function argument,
-never a command field, reusable service field or implicit dependency registry.
-Commands/queries contain no HTTP DTO, JSON tags, SQL/ORM objects or untrusted
-replacement for a verified actor.
+**Command package ownership:** inbound mutation inputs live in
+`internal/core/port/in/command`, grouped by capability, and retain descriptive
+`*Command` names. Keep inbound interfaces, Query and result types in
+`core/port/in`; this separation does not introduce a query/result package or CQRS
+infrastructure. Do not use a generic `parameter` package or treat commands as
+HTTP DTOs. The parent port, handlers/mappers, and services import `command`;
+`command` may import domain and standard-library types, never its parent `in`,
+service implementations, transport, or persistence packages.
+
+Outbound-specific selection/write data stays with its `core/port/out` contract
+or an appropriate domain value. The parameter-count rule applies to both
+handler-to-use-case and service-to-port calls. Context remains the first explicit
+function argument, never a command field, reusable service field or implicit
+dependency registry. Commands/queries contain no HTTP DTO, JSON tags, SQL/ORM
+objects or untrusted replacement for a verified actor.
 
 GetUser(ctx, id) needs no wrapper. A required third-party/framework callback
 signature is not ours to redesign; document any narrowly scoped lint exception.
 This rule is not a requirement to wrap every pure domain constructor or helper.
 Preserve omitted/null/false semantics, concurrency versions and every original
 input when migrating a boundary; do not hide missing fields in context.
+Move all command callers, implementations, mappers, and tests together; do not
+leave aliases or re-exports in the parent port package.
 
 ## 3. Entity pointers and named plural collections
 
