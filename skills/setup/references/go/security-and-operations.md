@@ -1,6 +1,6 @@
 # Security and operational boundaries
 
-A layered architecture protects dependency direction; it does not automatically authenticate callers, authorize objects, protect secrets, or survive a failed deployment. Use this reference with [layers](layers.md), [domain](domain.md), [data and transactions](data-and-transactions.md), and [reliability and events](reliability-and-events.md). The [adoption process](../adoption.md) determines which project-owned rules become authoritative.
+A layered architecture protects dependency direction; it does not automatically authenticate callers, authorize objects, protect secrets, or survive a failed deployment. Use this reference with [architecture](architecture.md), [coding conventions](coding-conventions.md), [layers](layers.md), [domain](domain.md), [data and transactions](data-and-transactions.md), and [reliability and events](reliability-and-events.md). The [adoption process](../adoption.md) determines which project-owned rules become authoritative.
 
 Authentication and tenancy require explicit project policy and implementation. Do not expose raw `err.Error()` over HTTP or combine error strings in `CustomError` without preserving causes. Do not invent ownership, roles, email visibility, or tenancy rules simply because a model has a User entity. The [runnable local example](../../examples/go) is a deliberate SQLite/stdlib HTTP adaptation, not proof of production security or operational readiness. The canonical production profile remains Chi, Ent, PostgreSQL, and Zerolog.
 
@@ -23,10 +23,11 @@ A missing identity policy is an unresolved prerequisite for a protected endpoint
 - `internal/adapter/in/http/router.go`: route registration, public/protected groups, and middleware ordering. Chi middleware does not own business invariants.
 - HTTP middleware: transport authentication, request ID/trace extraction, body/time limits where appropriate, safe recovery, and coarse admission controls. Trust proxy headers only from a configured trusted proxy chain.
 - Handler/DTO files: parse and validate transport shape, get verified principal, map explicit application input/result, and map typed errors to the public contract.
-- `internal/core/port/in` (`inport`) and `internal/core/service`: explicit actor/use-case inputs; action/object authorization at the use-case boundary so jobs and non-HTTP callers cannot bypass it.
+- `internal/core/port/in` (`inport`) and `internal/core/service/usecase/<domain>`: explicit actor/use-case inputs; action/object authorization at the operation boundary so jobs and non-HTTP callers cannot bypass it. Shared application capabilities and cross-domain orchestration use the dependency rules in [architecture](architecture.md); neither peer-service interfaces nor orchestration-to-usecase calls bypass those rules.
 - `internal/core/domain`: business invariants independent of a particular token, HTTP header, or Ent entity. Domain policy and access policy may collaborate but are not the same concept.
-- `internal/core/port/out` (`outport`): capabilities for repositories, authorization data/provider, and external operations when needed. Do not add a policy abstraction if the project's existing service/repository policy is sufficient.
-- `internal/adapter/out/persistence`: parameterized queries, trusted scope predicates, constraint translation, transaction implementation, and database least privilege.
+- `internal/core/port/out` (`outport`): capabilities for read providers, write repositories, authorization data/policy, and external operations when needed. Do not add a policy abstraction if the project's existing application policy is sufficient.
+- `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: parameterized read queries in `provider`; guarded writes, constraint translation, and domain-specific transaction scope assembly in `repository`; reusable pool/begin/rollback/commit mechanics in `db`; handwritten mapping alongside, not inside, generated `dao/ent`. Trusted scope predicates apply to both reads and writes. `db` must not import providers/repositories. Database least privilege remains an operational boundary.
+- External identity/payment/vendor adapters remain outside persistence; a persistence provider is a read adapter, not a vendor integration.
 - `internal/config`: typed configuration loading/validation; not runtime secret logging.
 - `internal/pkg/errors` and `internal/pkg/logger`: small shared error/logging helpers consistent with the project, not a new service locator or business-policy package.
 - `cmd/api/main.go`: construct verified dependencies, pools, clients, signal handling, health endpoints, and lifecycle. No business authorization in `main`.
@@ -88,14 +89,14 @@ For cookie sessions, specify `Secure`, `HttpOnly`, appropriate `SameSite`, expir
 
 A handler passes a verified application actor explicitly into an input-port call. The core must not depend on `*http.Request`, a middleware context key, JWT claim maps, or a client-supplied role. Background jobs need a defined service actor/capability policy; they do not become administrators because there is no HTTP request.
 
-This **section-scoped application example** shows the boundary without choosing a business permission policy. Imports: `context`, `errors`, `fmt`, and `example.com/project/internal/core/domain` (replace the example module path). The User fields are unchanged. `UserReadPolicy` must be implemented from approved project policy; “allow all authenticated users” is not an implicit implementation.
+This **section-scoped application example** belongs in `internal/core/service/usecase/user` and shows the authorization boundary without choosing a business permission policy or replacing the canonical `UserUseCase` contract. Imports: `context`, `errors`, `fmt`, and `example.com/project/internal/core/domain` (replace the example module path). The User fields are unchanged. `UserReadPolicy` must be implemented from approved project policy; “allow all authenticated users” is not an implicit implementation. The actor-aware signature is a project-specific extension when this authorization policy is adopted.
 
 ```go
 type Actor struct {
     Subject string
 }
 
-type UserLookup interface {
+type UserProvider interface {
     FindByID(context.Context, int) (*domain.User, error)
 }
 
@@ -103,18 +104,18 @@ type UserReadPolicy interface {
     AuthorizeRead(context.Context, Actor, *domain.User) error
 }
 
-type ReadUserService struct {
-    users  UserLookup
-    policy UserReadPolicy
+type UseCase struct {
+    userProvider UserProvider
+    policy       UserReadPolicy
 }
 
 var ErrMissingActor = errors.New("missing actor")
 
-func (s *ReadUserService) GetUser(ctx context.Context, actor Actor, id int) (*domain.User, error) {
+func (s *UseCase) GetUser(ctx context.Context, actor Actor, id int) (*domain.User, error) {
     if actor.Subject == "" {
         return nil, ErrMissingActor
     }
-    user, err := s.users.FindByID(ctx, id)
+    user, err := s.userProvider.FindByID(ctx, id)
     if err != nil {
         return nil, fmt.Errorf("find user: %w", err)
     }
@@ -125,7 +126,7 @@ func (s *ReadUserService) GetUser(ctx context.Context, actor Actor, id int) (*do
 }
 ```
 
-Place actual port definitions in `internal/core/port/out` and import them as `outport`, rather than defining duplicate interfaces in each consumer. They are local here to make the fragment's dependencies explicit. A preliminary action check can prevent unauthorized loading; object checks still need the relevant trusted object/policy data. Returning a domain value here does not authorize the handler to expose every field.
+Place actual port definitions in `internal/core/port/out` and import them as `outport`, rather than defining duplicate interfaces in each consumer. They are local here to make the fragment's dependencies explicit; reuse the project's existing `UserProvider` rather than creating a parallel read contract. A preliminary action check can prevent unauthorized loading; object checks still need the relevant trusted object/policy data. Returning a domain entity pointer here does not authorize the handler to expose every field.
 
 For a mutation, check the relevant object/action policy and execute the guarded write under a consistent transaction/version check when policy inputs can change concurrently. Otherwise a role, ownership, or membership change can race a stale authorization decision. Define what authorization consistency the project requires; do not claim that merely wrapping an arbitrary remote policy lookup in a database transaction makes it atomic.
 

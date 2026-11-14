@@ -14,8 +14,10 @@ import (
 	"time"
 
 	httpadapter "example.com/architecture-handbook/internal/adapter/in/http"
-	"example.com/architecture-handbook/internal/adapter/out/persistence"
-	"example.com/architecture-handbook/internal/core/service"
+	sqlitedb "example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/db"
+	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/provider"
+	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/repository"
+	"example.com/architecture-handbook/internal/core/service/usecase/user"
 )
 
 func main() {
@@ -29,11 +31,11 @@ func main() {
 	}
 }
 
-func run(address, databasePath string, logger *slog.Logger) error {
+func run(address, databasePath string, logger *slog.Logger) (err error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	startup, cancelStartup := context.WithTimeout(ctx, 10*time.Second)
-	db, err := persistence.Open(startup, databasePath)
+	db, err := sqlitedb.Open(startup, databasePath)
 	cancelStartup()
 	if err != nil {
 		return err
@@ -44,8 +46,9 @@ func run(address, databasePath string, logger *slog.Logger) error {
 		}
 	}()
 
-	repository := persistence.NewUserRepository(db)
-	users := service.NewUserService(repository, repository)
+	userProvider := provider.NewUserProvider(db)
+	userUoW := repository.NewUserUnitOfWork(db)
+	users := user.NewUseCase(userProvider, userUoW)
 	server := &http.Server{
 		Addr:              address,
 		Handler:           httpadapter.NewRouter(users, db.PingContext, logger),
@@ -55,7 +58,11 @@ func run(address, databasePath string, logger *slog.Logger) error {
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
-	defer server.Close()
+	defer func() {
+		if closeErr := server.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close HTTP server: %w", closeErr))
+		}
+	}()
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -80,8 +87,11 @@ func run(address, databasePath string, logger *slog.Logger) error {
 	defer cancelShutdown()
 	if err := server.Shutdown(shutdown); err != nil {
 		closeErr := server.Close()
-		<-serveErrors
-		return fmt.Errorf("shutdown HTTP: %w", errors.Join(err, closeErr))
+		serveErr := <-serveErrors
+		if errors.Is(serveErr, http.ErrServerClosed) {
+			serveErr = nil
+		}
+		return fmt.Errorf("shutdown HTTP: %w", errors.Join(err, closeErr, serveErr))
 	}
 	if err := <-serveErrors; !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve HTTP during shutdown: %w", err)

@@ -44,7 +44,7 @@ func DecodeCreateUser(body io.Reader) (inport.CreateUserCommand, error) {
 	return inport.CreateUserCommand{Name: request.Name, Email: request.Email}, nil
 }
 
-func UserToResponse(user domain.User) UserResponse {
+func UserToResponse(user *domain.User) UserResponse {
 	return UserResponse{
 		ID:        user.ID,
 		Name:      user.Name,

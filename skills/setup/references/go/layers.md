@@ -2,7 +2,7 @@
 
 Use this chapter with the [canonical tree and dependency contract](architecture.md). The examples show a complete create/get/list vertical slice at the important boundaries, with scoped fragments rather than a single compilable file. Replace `example.com/app` with the target module; retain that project's compatible dependency versions. Fragments sharing a file/package are meant to be combined; imports are described where useful rather than repeated around every method. The [runnable example](../../examples/go) is a separate standard-library HTTP/SQLite adaptation, not an Ent implementation of these fragments.
 
-**Default profile:** use Chi, Ent, PostgreSQL, Zerolog; inbound ports remain in `internal/core/port/in`, outbound ports in `internal/core/port/out`. Use import aliases `inport`, `outport`, and `httpadapter` where package names would be ambiguous. The example HTTP object is `UserController`; “handler” and “controller” below are one responsibility, not two layers.
+**Default profile:** use Chi, Ent, PostgreSQL, Zerolog; inbound ports remain in `internal/core/port/in`, outbound ports in `internal/core/port/out`. Persistence lives under `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: reads use providers, writes use repositories, and `db` owns only pool/client lifecycle and generic transaction mechanics. For an existing project, replace `postgres` with its real engine and adapt its actual driver/ORM; this profile is not authorization to migrate its database. Use aliases `inport`, `outport`, and `httpadapter` where package names would be ambiguous. The example HTTP object is `UserController`; “handler” and “controller” are one responsibility, not two layers.
 
 **Portable principles:** separate transport, application, domain, and persistence representations; carry the operation context through I/O; express contracts through application-owned types; enforce domain rules for every caller; and compose concrete dependencies only at the process boundary. The commands, errors, context signatures, and pagination below illustrate these contracts; adopting them requires migrating existing implementations and callers together.
 
@@ -12,11 +12,13 @@ of abstraction. Domain owns composed decisions and collection calculations;
 application inputs/results and adapter-local DTO/DAO mappers own their respective
 validation and conversion details. Keep I/O, errors, and transactions visible.
 
+Read [coding conventions](coding-conventions.md) for the required boundary input rule: count every argument including `ctx`, excluding the receiver; at five or more use a named Command/Query, keeping `ctx` first and outside the struct. Entity inputs/returns use pointers and defined plural `[]*Entity` collections; small value objects and pure projection collections may stay values. Follow Google Go naming and explicit dependency roles (`userProvider`, `userRepo`, `...UoW`), and adopt golangci-lint only—no gofumpt or new custom analyzers. Blank lines between all handwritten functions remain required even where built-in lint coverage is incomplete.
+
 ## 1. Start with the application contracts, not a JSON or database struct
 
 ### Inbound port and application data
 
-**Required baseline.** Put the following boundary in `internal/core/port/in/usecase.go`. Commands express intent; queries express selection; results express application outcomes. They are not DTOs just because they contain fields. The import set is standard `context`/`errors` and `internal/core/domain`.
+**Required baseline.** Put the following domain-based boundary in `internal/core/port/in/user.go`. Commands express intent; queries express selection; results express application outcomes. They are not DTOs just because they contain fields. The import set is standard `context`/`errors` and `internal/core/domain`. Use `UserUseCase`, not an application-wide `UseCase`/`Service` interface.
 
 ```go
 package in
@@ -60,7 +62,7 @@ func NewUserPage(users domain.Users, q ListUsersQuery) UserPage {
     }
 }
 
-type UserService interface {
+type UserUseCase interface {
     CreateUser(context.Context, CreateUserCommand) (*domain.User, error)
     GetUser(context.Context, int) (*domain.User, error)
     ListUsers(context.Context, ListUsersQuery) (UserPage, error)
@@ -76,11 +78,11 @@ application query/result behaviors, not JSON conversion or domain identity rules
 
 **Needs project decision.** Protected use cases need a trusted actor/tenant representation and authorization semantics; this public CRUD illustration does not implement an identity system. Do not let a `TenantID` in an untrusted JSON body stand in for authenticated scope. See [security and operations](security-and-operations.md).
 
-**Optional.** Split the inbound interface into `UserCreator`, `UserReader`, or other narrow capability interfaces when callers genuinely need different subsets. A controller that uses all three operations can depend on the small `UserService` above. Do not split mechanically into dozens of interfaces or introduce `ApplicationFacade`/`UserManager` that only forwards every method.
+**Optional.** Narrow domain capability interfaces such as `UserCreator` or `UserReader` are useful when callers genuinely need different subsets. A controller using all three operations can depend on `UserUseCase`. Do not split mechanically into an interface per method or introduce `ApplicationFacade`/`UserManager` forwarding every operation.
 
-### Outbound port: express what the service needs
+### Outbound ports: separate reads from writes
 
-Place this fragment in `internal/core/port/out/repository.go`, importing `context`, `errors`, and `domain`. If an existing repository has `Save`, `FindByID`, `FindByEmail`, and `List` without contexts, adopting the explicit insert behavior and context-aware methods below requires migrating its implementations, mocks, and callers together.
+Place this fragment in `internal/core/port/out/user.go`, importing `context`, `errors`, and `domain`. Adopting these context-aware contracts requires migrating existing implementations, mocks, and callers together; do not retain a mixed read/write repository as a compatibility shim.
 
 ```go
 package out
@@ -91,14 +93,17 @@ var (
     ErrStorage     = errors.New("storage operation failed")
 )
 
-type UserRepository interface {
-    Insert(context.Context, *domain.User) (*domain.User, error)
+type UserProvider interface {
     FindByID(context.Context, int) (*domain.User, error)
     List(ctx context.Context, offset, limit int) (domain.Users, error)
 }
+
+type UserRepository interface {
+    Insert(context.Context, *domain.User) (*domain.User, error)
+}
 ```
 
-The insert contract returns a persisted domain value, including the generated ID. It does not silently decide to update when an input happens to carry a nonzero ID. `FindByID` returns `ErrUserNotFound` when absent, not `(nil, nil)`. `List` returns an empty collection without error when there are no matches and applies a stable `(created_at, id)` ascending order. The service may request one extra row for `has_more`; the bounded public limit remains application-owned.
+The repository insert contract returns a persisted entity pointer, including the generated ID. It never silently updates because an input carries a nonzero ID. The read-only provider's `FindByID` returns `ErrUserNotFound` when absent, not `(nil, nil)`; `List` returns an empty collection without error when there are no matches and uses stable `(created_at, id)` ascending order. The use case may request one extra row for `has_more`; the bounded public limit remains application-owned. Neither adapter forwards through the other, and neither needs another forwarding DAO/service.
 
 For this example, keep error category and retained diagnostic cause separate. In the same outbound port package:
 
@@ -110,7 +115,9 @@ type RepositoryError struct {
 }
 
 func (e *RepositoryError) Error() string { return e.Op + ": " + e.Kind.Error() }
+
 func (e *RepositoryError) Unwrap() error { return e.Cause }
+
 func (e *RepositoryError) Is(target error) bool { return target == e.Kind }
 ```
 
@@ -122,7 +129,7 @@ The reason to preserve causes is not to make a PostgreSQL error part of the publ
 
 ```go
 // Wrong: both ports depend on adapter types and storage mechanics.
-type UserService interface {
+type UserUseCase interface {
     CreateUser(context.Context, dto.CreateUserRequest) (*ent.User, error)
 }
 type UserRepository interface {
@@ -191,23 +198,24 @@ The first combines three owners. The second bypasses the constructor and assumes
 
 ## 3. Application service: coordinate, do not translate protocols
 
-Place this fragment in `internal/core/service/user_service.go`, importing standard `context`, `fmt`, `time`, `domain`, and the aliased ports. It implements the inbound contract above. The example constructor returns an inbound interface; returning a concrete implementation is also valid Go when the project's existing convention prefers it. The architectural requirement is that the caller depends on the boundary it needs.
+Place this fragment in `internal/core/service/usecase/user/usecase.go`, importing standard `context`, `fmt`, `time`, `domain`, and the aliased ports. The package is `user`; its `NewUseCase` implements `UserUseCase`. Returning an inbound interface is this example's convention; a concrete constructor return is also valid when the caller still depends on the boundary it needs.
 
 ```go
-package service
+package user
 
-type userService struct {
-    repo outport.UserRepository
-    now  func() time.Time
+type useCase struct {
+    userProvider outport.UserProvider
+    userRepo     outport.UserRepository
+    now          func() time.Time
 }
 
-func NewUserService(repo outport.UserRepository, now func() time.Time) inport.UserService {
-    return &userService{repo: repo, now: now}
+func NewUseCase(userProvider outport.UserProvider, userRepo outport.UserRepository, now func() time.Time) inport.UserUseCase {
+    return &useCase{userProvider: userProvider, userRepo: userRepo, now: now}
 }
 
-var _ inport.UserService = (*userService)(nil)
+var _ inport.UserUseCase = (*useCase)(nil)
 
-func (s *userService) CreateUser(ctx context.Context, cmd inport.CreateUserCommand) (*domain.User, error) {
+func (s *useCase) CreateUser(ctx context.Context, cmd inport.CreateUserCommand) (*domain.User, error) {
     if err := ctx.Err(); err != nil {
         return nil, err
     }
@@ -215,30 +223,30 @@ func (s *userService) CreateUser(ctx context.Context, cmd inport.CreateUserComma
     if err != nil {
         return nil, fmt.Errorf("create user: %w", err)
     }
-    created, err := s.repo.Insert(ctx, u)
+    created, err := s.userRepo.Insert(ctx, u)
     if err != nil {
         return nil, fmt.Errorf("create user: %w", err)
     }
     return created, nil
 }
 
-func (s *userService) GetUser(ctx context.Context, id int) (*domain.User, error) {
+func (s *useCase) GetUser(ctx context.Context, id int) (*domain.User, error) {
     if id <= 0 {
         return nil, inport.ErrInvalidInput
     }
-    u, err := s.repo.FindByID(ctx, id)
+    u, err := s.userProvider.FindByID(ctx, id)
     if err != nil {
         return nil, fmt.Errorf("get user: %w", err)
     }
     return u, nil
 }
 
-func (s *userService) ListUsers(ctx context.Context, q inport.ListUsersQuery) (inport.UserPage, error) {
+func (s *useCase) ListUsers(ctx context.Context, q inport.ListUsersQuery) (inport.UserPage, error) {
     q, err := q.Normalize()
     if err != nil {
         return inport.UserPage{}, err
     }
-    users, err := s.repo.List(ctx, q.Offset, q.Limit+1)
+    users, err := s.userProvider.List(ctx, q.Offset, q.Limit+1)
     if err != nil {
         return inport.UserPage{}, fmt.Errorf("list users: %w", err)
     }
@@ -250,14 +258,16 @@ This is a single-write create use case. It needs the database's atomic insert/un
 
 `now` is a small injectable function, not a clock service framework. Composition supplies `time.Now`; a test can supply a fixed function. Constructors assume composition supplies valid non-nil dependencies; validate dependency wiring according to the project's startup convention, not by adding silent fallback repositories or clocks.
 
-The list policy chooses default 50, maximum 100, and maximum offset 100000. These numbers are **project decisions**, not universal limits. The service invokes the query's normalization so worker/CLI callers receive the same checks; the result owns page shaping. HTTP parsing alone is insufficient. The repository returns at most the requested bounded count, including one lookahead row.
+The service areas are ownership categories, not mandatory empty folders. `usecase/<domain>` owns domain inbound operations; add `shared/<capability>` only for real reusable application coordination/I/O, and `orchestration/<workflow>` only for an implemented multi-domain workflow. Pure shared calculations, matching, eligibility, and collection summaries stay in domain. Peer operation/service calls are forbidden, including another operation on the same implementation, usecase-to-usecase, shared-to-shared, and orchestration-to-orchestration calls—even through interfaces, inbound ports, callbacks, or facades. Use cases must not call orchestration; shared capabilities must not call use cases or orchestration; orchestration must never call use cases. A use case/orchestration may depend on a narrow shared capability, and all service areas reach I/O through outbound ports only. See the [exact architecture call rules](architecture.md#service-areas-and-exact-call-restrictions).
+
+The list policy chooses default 50, maximum 100, and maximum offset 100000. These numbers are **project decisions**, not universal limits. The service invokes the query's normalization so worker/CLI callers receive the same checks; the result owns page shaping. HTTP parsing alone is insufficient. The provider returns at most the requested bounded count, including one lookahead row.
 
 **Required when the use case is protected:** orchestrate authorization before exposing or mutating data, using an explicit policy and trusted scope. **Required when two writes share an invariant:** use the transaction contract from [data and transactions](data-and-transactions.md). **Required when publishing must survive crashes:** use the durable delivery contract from [reliability and events](reliability-and-events.md). Do not append `go publishEvent(...)` to this service and claim reliability.
 
 **Wrong:**
 
 ```go
-func (s *userService) CreateUser(_ context.Context, req dto.CreateUserRequest) (*ent.User, error) {
+func (s *useCase) CreateUser(_ context.Context, req dto.CreateUserRequest) (*ent.User, error) {
     // Wrong: drops cancellation, bypasses domain, and selects infrastructure.
     client := persistence.GlobalClient()
     return client.User.Create().SetName(req.Name).SetEmail(req.Email).
@@ -267,7 +277,7 @@ func (s *userService) CreateUser(_ context.Context, req dto.CreateUserRequest) (
 
 A subtler wrong version decodes correctly but checks `err.Error() == "duplicate email"`, sets an HTTP status inside the service, or logs every returned error before the handler logs it again. These are also boundary violations.
 
-**Review target:** test query normalization and result shaping directly for invalid bounds, defaults, empty/exact/overfull pages, and no loss of returned users. Service checks use a small repository double and fixed time for rejected writes, normalized stored state, retained error categories and orchestration failures. Do not retest every pure rule through service mocks. See [testing and evolution](testing-and-evolution.md) for transaction/cancellation and real-adapter evidence.
+**Review target:** test query normalization and result shaping directly for invalid bounds, defaults, empty/exact/overfull pages, and no loss of returned users. Service checks use small provider/repository doubles and fixed time for rejected writes, normalized stored state, retained error categories, and coordination failures. Do not retest every pure rule through service mocks. See [testing and evolution](testing-and-evolution.md) for transaction/cancellation and real-adapter evidence.
 
 ## 4. HTTP DTO and mapper: preserve the wire contract deliberately
 
@@ -326,7 +336,7 @@ func ToUserListResponse(page inport.UserPage) UserListResponse {
 }
 ```
 
-The application/repository contracts promise non-nil users on success and non-nil elements in a result list. If an implementation violates that, correct the implementation; do not turn an impossible nil row into a fake zero user. The list mapper allocates one response slice, pre-sized to the result. That boundary allocation is intentional; avoid reflection, repeated appends without a reason, and a JSON round-trip merely to copy fields. An empty list becomes `[]`, not `null`, under this chosen wire contract.
+The application/provider/repository contracts promise non-nil users on success and non-nil elements in a result list. If an implementation violates that, correct it; do not turn an impossible nil row into a fake zero user. Entity collections use `domain.Users`; the response's `[]UserResponse` is a pure value projection, not a collection of domain entities. The mapper allocates one response slice, pre-sized to the result. That boundary allocation is intentional; avoid reflection, repeated appends without a reason, and a JSON round-trip merely to copy fields. An empty list becomes `[]`, not `null`, under this chosen wire contract.
 
 A mapper is an allowlist. The request cannot set `ID`, `CreatedAt`, a role, or internal state because those fields are not mapped. The response will not accidentally expose a later-added domain field, an ORM edge, or a password hash. Changes to wire names and response visibility remain local to HTTP rather than changing every caller of the application command.
 
@@ -354,11 +364,11 @@ func ToCommand(req CreateUserRequest, repo outport.UserRepository) inport.Create
 
 ```go
 type UserController struct {
-    svc inport.UserService
+    userUseCase inport.UserUseCase
 }
 
-func NewUserController(svc inport.UserService) *UserController {
-    return &UserController{svc: svc}
+func NewUserController(userUseCase inport.UserUseCase) *UserController {
+    return &UserController{userUseCase: userUseCase}
 }
 
 func (c *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -367,7 +377,7 @@ func (c *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
         c.fail(w, r, err)
         return
     }
-    u, err := c.svc.CreateUser(r.Context(), req.ToCommand())
+    u, err := c.userUseCase.CreateUser(r.Context(), req.ToCommand())
     if err != nil {
         c.fail(w, r, err)
         return
@@ -382,7 +392,7 @@ func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
         c.fail(w, r, &requestError{http.StatusBadRequest, "invalid_id", "invalid user ID"})
         return
     }
-    u, err := c.svc.GetUser(r.Context(), id)
+    u, err := c.userUseCase.GetUser(r.Context(), id)
     if err != nil {
         c.fail(w, r, err)
         return
@@ -522,7 +532,7 @@ Place this fragment in `internal/adapter/in/http/router.go`, using `chi`, Chi mi
 ```go
 package http
 
-func NewRouter(users inport.UserService, log zerolog.Logger) *chi.Mux {
+func NewRouter(userUseCase inport.UserUseCase, log zerolog.Logger) *chi.Mux {
     r := chi.NewRouter()
     r.Use(chimw.RequestID)
     r.Use(httpmw.RequestLogger(log))
@@ -531,7 +541,7 @@ func NewRouter(users inport.UserService, log zerolog.Logger) *chi.Mux {
     healthController := handler.NewHealthController()
     r.Get("/healthz", healthController.Check)
 
-    userController := handler.NewUserController(users)
+    userController := handler.NewUserController(userUseCase)
     r.Route("/users", func(r chi.Router) {
         r.Post("/", userController.CreateUser)
         r.Get("/", userController.ListUsers)
@@ -613,7 +623,7 @@ Authentication extraction can be middleware; resource-level permission and domai
 
 ### Schema input and generated Ent output are different owners
 
-**Default profile.** Handwrite schema declarations in `internal/adapter/out/persistence/dao/schema/user.go`; generate the client/entities/builders/predicates under `dao/ent`. The example schema has integer ID, nonempty name/email, unique email, immutable creation time, and a creation-time index. Ent generates a storage representation, not the application's domain entity.
+**Default profile.** Handwrite schema declarations in `internal/adapter/out/persistence/postgres/dao/schema/user.go`; generate the client/entities/builders/predicates under `postgres/dao/ent`. The example schema has integer ID, nonempty name/email, unique email, immutable creation time, and a creation-time index. Ent generates a storage representation, not the application's domain entity.
 
 This schema fragment gives the example's unique constraint an explicit storage key and a composite list index. It uses `time`, `entgo.io/ent`, and Ent's `schema/field` and `schema/index` packages:
 
@@ -645,46 +655,40 @@ Declaring `StorageKey` is an intentional schema/migration decision. There is onl
 
 ### Domain/Ent mapper
 
-Keep this mapper in `internal/adapter/out/persistence/user_mapper.go`, not the HTTP DTO folder. It imports `time`, `domain`, and generated `ent`.
+The read provider and write repository share this handwritten mapper in `internal/adapter/out/persistence/postgres/dao/user_mapper.go`, outside generated `dao/ent`. It imports `time`, `domain`, and generated `ent`. Exported helper names permit use from both adapter packages; they are not application ports. A mapper used by only one adapter can instead stay local to that owner. Mapping never belongs in generic `db`.
 
 ```go
-type userWriteData struct {
-    name      string
-    email     string
-    createdAt time.Time
+package dao
+
+type UserWriteData struct {
+    Name      string
+    Email     string
+    CreatedAt time.Time
 }
 
-func toEntUserData(u *domain.User) userWriteData {
-    return userWriteData{name: u.Name, email: u.Email, createdAt: u.CreatedAt}
+func ToUserWriteData(u *domain.User) UserWriteData {
+    return UserWriteData{Name: u.Name, Email: u.Email, CreatedAt: u.CreatedAt}
 }
 
-func toDomainUser(row *ent.User) *domain.User {
+func ToDomainUser(row *ent.User) *domain.User {
     return &domain.User{
         ID: row.ID, Name: row.Name, Email: row.Email, CreatedAt: row.CreatedAt,
     }
 }
 ```
 
-The example's exported domain fields make rehydration a direct assignment. If domain becomes encapsulated, introduce its explicit rehydration API and handle its error contract; do not call a creation constructor that substitutes `time.Now`, generates new IDs, or rejects valid historical data under newly changed rules. Mapping should not lazily query associations or normalize stored values differently from creation. Load precisely the state needed by the operation in the repository, then map it.
+The example's exported domain fields make rehydration a direct assignment. If domain becomes encapsulated, introduce its explicit rehydration API and handle its error contract; do not call a creation constructor that substitutes `time.Now`, generates new IDs, or rejects valid historical data under newly changed rules. Mapping must not lazily query associations or normalize stored values differently from creation. Load precisely the state needed by the operation in the provider/repository, then map it.
 
 The named write-data struct is optional but useful when several same-typed fields would be easy to swap. For a tiny mapper a direct constructor chain is also acceptable. Neither calls for reflection or a universal entity converter. See [domain](domain.md) for reconstruction and historical invariant changes.
 
-### Context-aware repository and exact error mapping
+### Exact storage error mapping shared by the adapters
 
-The following fragments share `internal/adapter/out/persistence/user_repo.go`. Imports include standard `context`, `errors`, generated `ent`, generated `ent/user`, `domain`, `outport`, and PostgreSQL `github.com/jackc/pgx/v5/pgconn`. This classifier is **pgx-specific**, consistent with a pgx-backed PostgreSQL deployment; if the actual target uses another driver, adapt the error inspection instead of adding pgx only for this snippet.
+Keep this real shared classification helper in `internal/adapter/out/persistence/postgres/dao/user_error.go`. Imports are standard `errors`, generated `ent`, `outport`, and PostgreSQL `github.com/jackc/pgx/v5/pgconn`. This classifier is **pgx-specific**; adapt error inspection to the actual driver instead of adding pgx merely for the snippet. `RepositoryError` is the outbound storage error shape used for both read and write failures.
 
 ```go
-type userRepo struct {
-    client *ent.Client
-}
+package dao
 
-func NewUserRepository(client *ent.Client) outport.UserRepository {
-    return &userRepo{client: client}
-}
-
-var _ outport.UserRepository = (*userRepo)(nil)
-
-func userStoreError(op string, err error) error {
+func UserStoreError(op string, err error) error {
     kind := outport.ErrStorage
     var pg *pgconn.PgError
     switch {
@@ -696,37 +700,74 @@ func userStoreError(op string, err error) error {
     return &outport.RepositoryError{Op: op, Kind: kind, Cause: err}
 }
 
+```
+
+### Write-only repository
+
+Put this fragment in `internal/adapter/out/persistence/postgres/repository/user_repo.go`, importing standard `context`, generated `ent`, `dao`, `domain`, and `outport`:
+
+```go
+package repository
+
+type userRepo struct {
+    client *ent.Client
+}
+
+func NewUserRepository(client *ent.Client) outport.UserRepository {
+    return &userRepo{client: client}
+}
+
+var _ outport.UserRepository = (*userRepo)(nil)
+
 func (r *userRepo) Insert(ctx context.Context, u *domain.User) (*domain.User, error) {
-    data := toEntUserData(u)
+    data := dao.ToUserWriteData(u)
     row, err := r.client.User.Create().
-        SetName(data.name).
-        SetEmail(data.email).
-        SetCreatedAt(data.createdAt).
+        SetName(data.Name).
+        SetEmail(data.Email).
+        SetCreatedAt(data.CreatedAt).
         Save(ctx)
     if err != nil {
-        return nil, userStoreError("insert user", err)
+        return nil, dao.UserStoreError("insert user", err)
     }
-    return toDomainUser(row), nil
+    return dao.ToDomainUser(row), nil
+}
+```
+
+### Read-only provider
+
+Put this fragment in `internal/adapter/out/persistence/postgres/provider/user_provider.go`, importing standard `context`, generated `ent` and `ent/user`, `dao`, `domain`, and `outport`:
+
+```go
+package provider
+
+type userProvider struct {
+    client *ent.Client
 }
 
-func (r *userRepo) FindByID(ctx context.Context, id int) (*domain.User, error) {
-    row, err := r.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
+func NewUserProvider(client *ent.Client) outport.UserProvider {
+    return &userProvider{client: client}
+}
+
+var _ outport.UserProvider = (*userProvider)(nil)
+
+func (p *userProvider) FindByID(ctx context.Context, id int) (*domain.User, error) {
+    row, err := p.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
     if err != nil {
-        return nil, userStoreError("find user", err)
+        return nil, dao.UserStoreError("find user", err)
     }
-    return toDomainUser(row), nil
+    return dao.ToDomainUser(row), nil
 }
 
-func (r *userRepo) List(ctx context.Context, offset, limit int) (domain.Users, error) {
-    rows, err := r.client.User.Query().
+func (p *userProvider) List(ctx context.Context, offset, limit int) (domain.Users, error) {
+    rows, err := p.client.User.Query().
         Order(ent.Asc(user.FieldCreatedAt), ent.Asc(user.FieldID)).
         Offset(offset).Limit(limit).All(ctx)
     if err != nil {
-        return nil, userStoreError("list users", err)
+        return nil, dao.UserStoreError("list users", err)
     }
     users := make(domain.Users, len(rows))
     for i, row := range rows {
-        users[i] = toDomainUser(row)
+        users[i] = dao.ToDomainUser(row)
     }
     return users, nil
 }
@@ -736,16 +777,16 @@ The application supplies valid insert candidates from `domain.NewUser(0, ...)`; 
 
 A broad `ent.IsConstraintError(err)` does **not** prove duplicate email. The failure could be another unique key, a foreign key, a check constraint, or a nullability problem. In this example only SQLSTATE `23505` on the explicitly named email key maps to `ErrEmailTaken`. All other failures retain a generic storage category and the original cause. Driver wrapping behavior and actual constraint names must be exercised against the real PostgreSQL/Ent stack; unit-testing an invented error string is not sufficient evidence.
 
-Pass `ctx` to every Ent terminal operation. Do not store context on `userRepo`, replace it with `Background`, or use panic-on-error helpers such as `SaveX`/`AllX` for ordinary request failure handling. An in-process service deadline is useful only if the database call receives it.
+Pass `ctx` to every Ent terminal operation. Do not store context on `userRepo`/`userProvider`, replace it with `Background`, or use panic-on-error helpers such as `SaveX`/`AllX` for ordinary request failures. An in-process service deadline is useful only if the database call receives it. Providers never perform writes; repositories do not expose read methods. Both use generated Ent directly rather than forwarding through one another or a redundant handwritten DAO interface.
 
-**Required when a use case needs an atomic multi-repository write:** repository instances inside the callback must use `tx.Client()` or the equivalent transaction-bound driver, not this root client. Do not merely accept a transaction context while continuing to query `r.client`. See [data and transactions](data-and-transactions.md) for the full transaction implementation and failure handling.
+**Required when a use case needs an atomic multi-repository write:** transaction-scoped assembly belongs in `postgres/repository`; generic begin/commit/rollback mechanics belong in `postgres/db`, which must not import providers/repositories or contain business queries/mapping. Participating repositories and any narrow scoped providers must share `tx.Client()` or the equivalent transaction-bound handle. Do not accept a transaction context while continuing to query a root client. See [data and transactions](data-and-transactions.md) for the full transaction implementation and failure handling.
 
 **Wrong:**
 
 ```go
-func (r *userRepo) FindByID(id int) (*ent.User, error) {
+func (p *userProvider) FindByID(id int) (*ent.User, error) {
     // Wrong: hides cancellation and leaks the storage representation.
-    return r.client.User.Get(context.Background(), id)
+    return p.client.User.Get(context.Background(), id)
 }
 
 if ent.IsConstraintError(err) {
@@ -760,7 +801,7 @@ return dto.UserListResponse{Total: len(rows)}
 
 ## 8. List pagination is an end-to-end contract
 
-The service and repository above already implement default/max bounds, one-row lookahead, deterministic ordering, and truthful `has_more`. Complete the HTTP side in `handler/user.go`; imports are standard `net/http`/`strconv` and `dto`/`inport`.
+The use case and provider above already implement default/max bounds, one-row lookahead, deterministic ordering, and truthful `has_more`. Complete the HTTP side in `handler/user.go`; imports are standard `net/http`/`strconv` and `dto`/`inport`.
 
 ```go
 func pagination(r *http.Request) (inport.ListUsersQuery, error) {
@@ -796,7 +837,7 @@ func (c *UserController) ListUsers(w http.ResponseWriter, r *http.Request) {
         c.fail(w, r, err)
         return
     }
-    page, err := c.svc.ListUsers(r.Context(), q)
+    page, err := c.userUseCase.ListUsers(r.Context(), q)
     if err != nil {
         c.fail(w, r, err)
         return
@@ -807,7 +848,7 @@ func (c *UserController) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 This query parser rejects repeated pagination keys, empty values, non-integers, and integer overflow rather than quietly treating them as zero. Numerical range/default policy remains in the application, protecting non-HTTP callers. Zero `limit` deliberately means default in this example; if public `limit=0` should instead be invalid, distinguish omitted and supplied values in the HTTP mapping and record the chosen application semantics.
 
-A request with `limit=2` may fetch three rows. If it gets three, the application returns the first two with `has_more=true`; if it gets two, `has_more=false`. It does not call two rows a total of two. If the API needs `total`, add a repository count capability and define whether list/count must share a snapshot. A separate count on a live database may disagree under concurrency; this is a consistency decision, not a mapper bug.
+A request with `limit=2` may fetch three rows. If it gets three, the application returns the first two with `has_more=true`; if it gets two, `has_more=false`. It does not call two rows a total of two. If the API needs `total`, add a read-only provider count capability and define whether list/count must share a snapshot. A separate count on a live database may disagree under concurrency; this is a consistency decision, not a mapper bug.
 
 Offset pages can skip or repeat records when earlier rows change between requests. The tie-breaker makes ordering deterministic for a given dataset, not snapshot-consistent across requests. **Required when workload or semantics demand it:** adopt keyset pagination with an opaque validated cursor encoding the full ordering tuple, a matching predicate/index, and a compatibility policy. Do not silently switch a published API from offset to cursor. [Data and transactions](data-and-transactions.md) and [testing and evolution](testing-and-evolution.md) cover the relevant query and compatibility concerns.
 
@@ -862,7 +903,7 @@ The pool/time values are example project decisions, not universal capacity recom
 
 ### Database resources are adapter infrastructure
 
-Put client creation in `internal/adapter/out/persistence/db.go`. This fragment uses standard `context`, `database/sql`, `errors`, `fmt`, Ent's `dialect` and `dialect/sql` as `entsql`, generated `ent`, and `config`. Register pgx's SQL driver once through a side-effect import in `cmd/api/main.go` (or the project's existing driver-registration owner), not in domain or service.
+Put client creation in `internal/adapter/out/persistence/postgres/db/client.go` (`package db`). This fragment uses standard `context`, `database/sql`, `errors`, `fmt`, Ent's `dialect` and `dialect/sql` as `entsql`, generated `ent`, and `config`. Register pgx's SQL driver once through a side-effect import in `cmd/api/main.go` (or the project's existing driver-registration owner), not in domain or service. Keep pool/client lifecycle and generic transaction mechanics here, never business SQL, domain mapping, or imports of provider/repository.
 
 ```go
 func NewEntClient(ctx context.Context, cfg config.Database) (*ent.Client, error) {
@@ -909,10 +950,10 @@ For example, a small normalization helper is mechanically simple, but the **choi
 
 ### Composition selects all concrete adapters
 
-`cmd/api/main.go` is the only place that should need to know both the concrete repository and service constructors for ordinary wiring. This fragment is inside a startup function whose `startupCtx`, validated `cfg`, and root `log` are already in scope. Standard imports include `fmt`/`time`; `httpadapter` aliases the HTTP adapter.
+`cmd/api/main.go` knows concrete adapter and use-case constructors for ordinary wiring. This fragment is inside a startup function whose `startupCtx`, validated `cfg`, and root `log` are already in scope. Standard imports include `fmt`/`time`; `db`, `provider`, and `repository` import matching `internal/adapter/out/persistence/postgres/` packages; `user` imports `internal/core/service/usecase/user`; `httpadapter` aliases the HTTP adapter.
 
 ```go
-client, err := persistence.NewEntClient(startupCtx, cfg.Database)
+client, err := db.NewEntClient(startupCtx, cfg.Database)
 if err != nil {
     return fmt.Errorf("initialize persistence: %w", err)
 }
@@ -922,8 +963,10 @@ defer func() {
     }
 }()
 
-users := service.NewUserService(persistence.NewUserRepository(client), time.Now)
-router := httpadapter.NewRouter(users, log)
+userProvider := provider.NewUserProvider(client)
+userRepo := repository.NewUserRepository(client)
+userUseCase := user.NewUseCase(userProvider, userRepo, time.Now)
+router := httpadapter.NewRouter(userUseCase, log)
 ```
 
 Then compose the actual `http.Server`, startup failure propagation, readiness, and bounded graceful shutdown using the project's operational chapter. This fragment deliberately is not a fake complete `main`; it demonstrates the ownership of construction and cleanup without hiding lifecycle work in a handler. Do not call `log.Fatal` inside a child goroutine and assume deferred cleanup will run: process exit bypasses normal defers. [Security and operations](security-and-operations.md) owns the full lifecycle guidance.
@@ -965,13 +1008,13 @@ To add an HTTP operation in this architecture, identify the exact representation
 router.go: POST /users/
   handler/user.go: decodeCreateUser -> dto.CreateUserRequest
   dto/user_mapper.go: request.ToCommand -> inport.CreateUserCommand
-  core/port/in/usecase.go: UserService.CreateUser(ctx, command)
-  core/service/user_service.go: domain.NewUser -> repo.Insert(ctx, domain user)
-  core/port/out/repository.go: UserRepository.Insert contract
-  persistence/user_mapper.go: domain user -> write data
-  persistence/user_repo.go: Ent create builder -> Save(ctx)
-  dao/schema + migrated PostgreSQL constraint: authoritative unique email rule
-  dao/ent: generated row -> persistence mapper -> domain user
+  core/port/in/user.go: UserUseCase.CreateUser(ctx, command)
+  core/service/usecase/user/usecase.go: domain.NewUser -> userRepo.Insert(ctx, entity)
+  core/port/out/user.go: UserRepository.Insert contract
+  persistence/postgres/dao/user_mapper.go: entity -> write data
+  persistence/postgres/repository/user_repo.go: Ent create builder -> Save(ctx)
+  persistence/postgres/dao/schema + migrated constraint: authoritative unique email rule
+  persistence/postgres/dao/ent: generated row -> dao mapper -> domain entity pointer
   dto/user_mapper.go: domain user -> UserResponse
   handler/user.go: Location + status + JSON
 ```
@@ -987,12 +1030,12 @@ For a reviewer, concrete rejection examples are:
 | Handler fields include `*ent.Client` | Handler bypasses application orchestration; inject the inbound port. |
 | `router.go` checks email availability | A route declaration now owns business/storage behavior; move it into the use case if needed and still enforce uniqueness in storage. |
 | Repository returns HTTP `404` or JSON | Outbound adapter leaked delivery protocol; return core error category/domain value and let the handler map it. |
-| `user_mapper.go` appears in `core/service` and imports both DTO and Ent | Two separate adapter boundaries were collapsed; place HTTP mapping in `dto/user_mapper.go` and storage mapping in persistence's `user_mapper.go`. |
+| `user_mapper.go` appears in `core/service` and imports both DTO and Ent | Two adapter boundaries collapsed; put HTTP mapping in `dto/user_mapper.go` and shared storage mapping in `persistence/postgres/dao/user_mapper.go`. |
 | New repository method accepts no context or calls `Background` | Cancellation/deadline is severed; accept and pass the use-case context to the terminal Ent operation. |
 | `Total` is `len(users)` | Metadata misrepresents a page as the full result; remove/rename it or implement a real count contract. |
 | All Ent constraint errors become duplicate email | Unknown failures are misclassified; inspect the actual named unique violation and retain the cause. |
 | `TrID` is passed as evidence of a transaction | Correlation is being confused with atomicity; bind all writes to the actual transaction client. |
 | Every layer logs and returns the same error | One failure produces duplicate noisy records; choose access/error/audit ownership deliberately. |
-| New `UserManager` forwards every `UserService` method | Extra abstraction has no independent responsibility; wire the controller to the existing inbound port. |
+| New `UserManager` forwards every `UserUseCase` method | Extra abstraction has no independent responsibility; wire the controller to the domain inbound port. |
 
 Use [testing and evolution](testing-and-evolution.md) for executable verification, [domain](domain.md) for invariants/identity, [data and transactions](data-and-transactions.md) for atomicity/concurrency, [reliability and events](reliability-and-events.md) for delivery/retries, and [security and operations](security-and-operations.md) for trust, resource limits, logging, and lifecycle. No protected-data, transaction, reliable-event, or idempotency guarantee should be inferred from a CRUD sample or these single-operation fragments.

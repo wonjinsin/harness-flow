@@ -15,9 +15,10 @@ parts are actually retrieved and translated into accepted project rules.
 
 1. Read [adoption](adoption.md) and resolve the user's storage/loading mode and
    intended readers before writing guidance. There is no automatic directory choice.
-2. Read [architecture](go/architecture.md), [layers](go/layers.md), and
+2. Read [architecture](go/architecture.md), [layers](go/layers.md),
+   [coding conventions](go/coding-conventions.md), and
    [behavior ownership](go/behavior-ownership.md) for structure, responsibilities,
-   and code that reads naturally from top to bottom.
+   concrete Go contracts, and code that reads naturally from top to bottom.
 3. Select the additional chapters below by the behavior being introduced.
 4. Produce guidance in the chosen mode with actual paths, stack-specific examples,
    explicit adoption decisions, and verified claims. Keep its entrypoint small.
@@ -26,9 +27,9 @@ parts are actually retrieved and translated into accepted project rules.
 
 | Work or decision | Required reference material |
 | --- | --- |
-| Initial setup or refreshing generated guidance | Adoption and delivery/reader selection, architecture, layers, behavior ownership, then assess every chapter for applicability |
-| New route, handler, DTO, inbound port, or vertical slice | Architecture, layers, behavior ownership, security/error mapping, testing |
-| Business rule, entity, value object, read model, or collection calculation | Domain, behavior ownership, relevant layers, testing |
+| Initial setup or refreshing generated guidance | Adoption and delivery/reader selection, architecture, layers, coding conventions, behavior ownership, then assess every chapter for applicability |
+| New route, handler, DTO, inbound port, or vertical slice | Architecture, layers, coding conventions, behavior ownership, security/error mapping, testing |
+| Business rule, entity, value object, read model, or collection calculation | Domain, coding conventions, behavior ownership, relevant layers, testing |
 | Database write, transaction, uniqueness, concurrent update, pagination, cache, or migration | Data and transactions, behavior/domain ownership, testing |
 | External HTTP call, job, webhook, retry, idempotency, broker, or event | Reliability and events, data atomicity, security/operations, testing |
 | Authentication, authorization, tenancy, logging, configuration, or deployment | Security and operations, relevant data/reliability sections, testing |
@@ -54,6 +55,15 @@ Router and middleware; handlers/controllers; request/response DTOs and mappers;
 inbound application contracts; services; domain; outbound contracts; repositories,
 DAO/schema/generated ORM code; configuration, shared packages, logging, and
 composition. Includes correct examples and plausible violations.
+
+### [Go coding conventions and quality tooling](go/coding-conventions.md)
+
+Google-based naming and explicit Provider/Repo/UoW dependency roles; entity
+pointers and defined plural pointer collections with small value-type exceptions;
+named boundary inputs at five total parameters including context; blank lines
+between function declarations; project-local pinned golangci-lint and local/CI
+verification. The profile adds no gofumpt or custom analyzer and states where
+built-in checks do not enforce a rule.
 
 ### [Behavior ownership and readable orchestration](go/behavior-ownership.md)
 
@@ -105,13 +115,20 @@ implementation.
 These paths define the default Go profile, not a universal naming convention:
 
 - Inbound use-case interfaces: `internal/core/port/in/`.
-- Outbound repository interfaces: `internal/core/port/out/`.
+- Outbound read-provider, write-repository and transaction interfaces:
+  `internal/core/port/out/`.
 - HTTP request/response mapping: `internal/adapter/in/http/dto/user_mapper.go`.
-- Persistence/domain mapping: `internal/adapter/out/persistence/user_mapper.go`.
-- Ent schemas and generated ORM code remain under the persistence adapter's
-  `dao/schema/` and `dao/ent/`, respectively.
-- `cmd/api/main.go` composes concrete implementations; `internal/core/service/`
-  implements inbound interfaces and depends on outbound interfaces.
+- Default PostgreSQL storage:
+  `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}/`.
+  Use the actual engine name for an adapted stack, not unused engine folders.
+- Handwritten persistence mapping stays adapter-local; shared Ent mapping uses
+  `postgres/dao/user_mapper.go`, separately from `dao/schema/` and generated
+  `dao/ent/`.
+- `cmd/api/main.go` composes concrete implementations. Domain-specific inbound
+  implementations live in `internal/core/service/usecase/<domain>/`; real reused
+  application stages use `service/shared/<capability>/`, composite workflows
+  `service/orchestration/<workflow>/`. No peer-use-case/service calls or empty
+  placeholder packages; pure business calculations stay in domain.
 
 ## Common PoC pitfalls
 

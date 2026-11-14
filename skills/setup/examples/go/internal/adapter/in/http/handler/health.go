@@ -15,9 +15,9 @@ func NewHealthHandler(check func(context.Context) error, logger *slog.Logger) ht
 		defer cancel()
 		if err := check(ctx); err != nil {
 			logger.ErrorContext(ctx, "database readiness failed", "error", err)
-			respond(w, r, logger, http.StatusServiceUnavailable, dto.ErrorResponse{Error: "service unavailable"})
+			respond(w, r, logger, response{status: http.StatusServiceUnavailable, value: dto.ErrorResponse{Error: "service unavailable"}})
 			return
 		}
-		respond(w, r, logger, http.StatusOK, dto.HealthResponse{Status: "ok"})
+		respond(w, r, logger, response{status: http.StatusOK, value: dto.HealthResponse{Status: "ok"}})
 	}
 }

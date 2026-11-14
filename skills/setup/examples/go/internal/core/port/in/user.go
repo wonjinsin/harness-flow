@@ -11,7 +11,7 @@ type CreateUserCommand struct {
 	Email string
 }
 
-type UserService interface {
-	CreateUser(context.Context, CreateUserCommand) (domain.User, error)
-	GetUser(context.Context, int) (domain.User, error)
+type UserUseCase interface {
+	CreateUser(context.Context, CreateUserCommand) (*domain.User, error)
+	GetUser(context.Context, int) (*domain.User, error)
 }

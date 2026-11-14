@@ -1,6 +1,6 @@
 # Reliability, idempotency, and events
 
-Use this reference to put a precise guarantee around a side effect, not to turn every CRUD application into a distributed system. Start with [architecture](architecture.md), [layers](layers.md), and [data and transactions](data-and-transactions.md). Adopt only mechanisms justified by the actual failure model; record unresolved product decisions using [adoption](../adoption.md).
+Use this reference to put a precise guarantee around a side effect, not to turn every CRUD application into a distributed system. Start with [architecture](architecture.md), [coding conventions](coding-conventions.md), [layers](layers.md), and [data and transactions](data-and-transactions.md). Adopt only mechanisms justified by the actual failure model; record unresolved product decisions using [adoption](../adoption.md).
 
 Application transactions, reliable event delivery, idempotency storage, and provider reconciliation require explicit implementation when applicable; do not infer them from the layer layout. Do not discard service context or replace it with repository `context.Background()`. `TrID` correlates requests; it cannot make any operation atomic.
 
@@ -22,11 +22,11 @@ A database constraint and a request deadline are often the entire solution for l
 
 - `internal/core/domain`: invariants and domain facts; no HTTP client, broker, Ent, or retry loop.
 - `internal/core/port/in` (`inport`): context-aware use cases and application results.
-- `internal/core/service`: use-case order, transaction scope, and decisions about recoverable business states.
-- `internal/core/port/out` (`outport`): context-aware repositories, transaction-scoped capabilities, provider operations, and durable event recording as required.
+- `internal/core/service/usecase/<domain>`: domain operation order and recoverable application states; `service/shared/<capability>`: reusable application capabilities; `service/orchestration/<workflow>`: a real cross-domain workflow and its transaction scope. Follow the dependency rules in [architecture](architecture.md), not peer-service calls or orchestration-to-usecase calls. Pure shared business calculations remain domain behavior.
+- `internal/core/port/out` (`outport`): context-aware read providers, write repositories, transaction-scoped capabilities, external vendor operations, and durable event recording as required.
 - `internal/adapter/in/http`: parse the key, authenticate, validate input, invoke the input port, and map typed outcomes to HTTP. Do not implement a second business workflow in middleware.
-- `internal/adapter/out/persistence`: database transactions, idempotency/inbox/outbox storage, serialization, and constraint translation. Bind every participating repository to the same transaction.
-- Outbound provider adapters: HTTP protocol, credentials, provider error translation, and provider-documented retry rules. Add an adapter directory only if the integration exists.
+- `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: read queries in `provider`; writes, durable idempotency/inbox/outbox mutations, and domain-specific transaction scopes in `repository`; reusable pool/transaction lifecycle mechanics in `db`; generated Ent code and handwritten mapping in separate `dao/ent` and `dao/*_mapper.go` files (or adapter-owner local mappers). Bind participating repositories and any scoped read providers to the same transaction. `db` must not import `provider` or `repository`.
+- External vendor adapters remain outside persistence: HTTP protocol, credentials, vendor error translation, and provider-documented retry rules belong to the corresponding outbound integration adapter. “Provider” under persistence means database reads, not an external vendor. Add an adapter directory only if the integration exists.
 - `cmd/api/main.go`: own reusable clients, database pools, workers, startup, and shutdown. A separate publisher executable is optional, not a requirement.
 
 ## 2. Deadlines and cancellation are resource ownership

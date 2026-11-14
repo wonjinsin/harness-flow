@@ -80,11 +80,24 @@ For a new Go project, preserve the selected layer-first baseline:
 
 - Composition in `cmd/api`; domain in `internal/core/domain`.
 - Input contracts in `internal/core/port/in`; output contracts in
-  `internal/core/port/out`; orchestration in `internal/core/service`.
+  `internal/core/port/out`; domain-specific use cases in
+  `internal/core/service/usecase/<domain>`.
+- Actual reused application stages in `service/shared/<capability>`; real
+  composite workflows in `service/orchestration/<workflow>`. No sibling
+  use-case/service calls, orchestration-to-use-case calls, or empty packages.
 - HTTP routes, handlers, middleware, and DTO mapping under
   `internal/adapter/in/http`.
-- ORM schema/generated code, repository implementation, and persistence mapping
-  under `internal/adapter/out/persistence`.
+- Storage under `internal/adapter/out/persistence/<actual-engine>/`, with
+  read-only `provider`, write `repository`, reusable `db` mechanics and
+  adapter-owned `dao` schema/generated/mapping code. The default engine is
+  PostgreSQL; an existing MySQL/SQLite choice is an explicit adaptation.
+
+Adopt [coding conventions](go/coding-conventions.md) alongside structure: entity
+pointer/plural-collection contracts, small value-type exceptions, named inputs
+at five total boundary parameters including context (receiver excluded), explicit
+dependency roles, naming, declaration spacing and golangci-lint-only tooling.
+Do not interpret missing enforcement as permission to omit the rule or claim a
+passing linter enforces it.
 
 For an existing project, a mismatch is not permission for an automatic source-code
 migration. Classify it:
@@ -152,6 +165,24 @@ Do not turn every optional section into a library dependency or future-proofing
 layer. The handbook should make a mechanism available when needed, not force
 its premature implementation.
 
+### Go tooling output and execution scope
+
+For Go adoption/refresh, include a concrete project-owned golangci-lint plan:
+compatible fixed official binary version, ignored local binary location, actual
+module-root `.golangci.yml`, existing Makefile/task-runner commands and existing
+CI job. Merge current quality configuration instead of installing a competing
+one. Follow the [coding chapter](go/coding-conventions.md) for configuration,
+checksum/version verification and limitations; do not add gofumpt, standalone
+duplicate linters or an unrequested custom analyzer.
+
+Show these non-handbook files and installation actions with the proposed output
+paths before executing them. An approved setup scope can include local tooling;
+handbook-only, no-install and no-CI-edit constraints must remain effective.
+Document the exact deferred step when execution is outside scope; do not ask
+again when the user's explicit scope already resolves it. A handbook approval
+does not itself authorize application source moves, global installation,
+application `go.mod` changes, broad formatting or `--fix`.
+
 ## 4. Output contract
 
 Write the selected delivery plan, not a fixed directory template. Use existing
@@ -198,10 +229,11 @@ The selected entrypoint, whether a native common rule or a handbook index, must 
 - Verification actually exercised and precise limits. Keep historical command
   output out of normative rules when it would become stale.
 
-A complete handbook normally has architecture/layers, domain, data/transactions,
-reliability/events, security/operations, and testing/evolution pages. It may merge
-or split files to match the project. The organization is not a hardcoded file
-count. It must not silently omit relevant behavior because one page is long.
+A complete handbook normally has architecture/layers, coding conventions and
+quality tooling, domain, data/transactions, reliability/events, security/operations,
+and testing/evolution pages. It may merge or split files to match the project.
+The organization is not a hardcoded file count. It must not silently omit
+relevant behavior because one page is long.
 
 ### Required depth of an adopted section
 
@@ -331,6 +363,13 @@ Use the target's actual commands. At minimum, exercise a representative adopted
 slice and a negative path, inspect boundary mapping and imports, and verify
 all referenced files/links. For unfamiliar target-framework behavior, run a
 small real example instead of trusting translated syntax.
+
+For authorized Go tooling, verify the actual pinned binary and configuration,
+exercise accepted four-total and rejected five-total parameter declarations and
+the Command-based correction, and check local/CI version consistency. Inspect
+entity/value and collection shapes, role names, peer-call direction and function
+spacing separately when the runner does not cover them. Report a planned tool,
+installed binary, executed check and active reader as distinct states.
 
 Claims require matching evidence:
 

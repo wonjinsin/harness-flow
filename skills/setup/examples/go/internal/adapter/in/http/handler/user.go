@@ -13,12 +13,12 @@ import (
 )
 
 type UserHandler struct {
-	users  inport.UserService
-	logger *slog.Logger
+	userUseCase inport.UserUseCase
+	logger      *slog.Logger
 }
 
-func NewUserHandler(users inport.UserService, logger *slog.Logger) *UserHandler {
-	return &UserHandler{users: users, logger: logger}
+func NewUserHandler(userUseCase inport.UserUseCase, logger *slog.Logger) *UserHandler {
+	return &UserHandler{userUseCase: userUseCase, logger: logger}
 }
 
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -27,13 +27,13 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	user, err := h.users.CreateUser(r.Context(), command)
+	user, err := h.userUseCase.CreateUser(r.Context(), command)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
 	}
 	w.Header().Set("Location", "/users/"+strconv.Itoa(user.ID))
-	respond(w, r, h.logger, http.StatusCreated, dto.UserToResponse(user))
+	respond(w, r, h.logger, response{status: http.StatusCreated, value: dto.UserToResponse(user)})
 }
 
 func (h *UserHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -42,12 +42,12 @@ func (h *UserHandler) Get(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, domain.ErrInvalidInput)
 		return
 	}
-	user, err := h.users.GetUser(r.Context(), id)
+	user, err := h.userUseCase.GetUser(r.Context(), id)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
 	}
-	respond(w, r, h.logger, http.StatusOK, dto.UserToResponse(user))
+	respond(w, r, h.logger, response{status: http.StatusOK, value: dto.UserToResponse(user)})
 }
 
 func (h *UserHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
@@ -62,14 +62,19 @@ func (h *UserHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 	default:
 		h.logger.ErrorContext(r.Context(), "user request failed", "error", err)
 	}
-	respond(w, r, h.logger, status, dto.ErrorResponse{Error: message})
+	respond(w, r, h.logger, response{status: status, value: dto.ErrorResponse{Error: message}})
 }
 
-func respond(w http.ResponseWriter, r *http.Request, logger *slog.Logger, status int, value any) {
+type response struct {
+	status int
+	value  any
+}
+
+func respond(w http.ResponseWriter, r *http.Request, logger *slog.Logger, result response) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(value); err != nil {
+	w.WriteHeader(result.status)
+	if err := json.NewEncoder(w).Encode(result.value); err != nil {
 		logger.ErrorContext(r.Context(), "write HTTP response failed", "error", err)
 	}
 }

@@ -97,32 +97,38 @@ The request body limit is 1 MiB. An array instead of an object is rejected; `nul
 ## Code map and ownership
 
 ```text
-cmd/api/main.go                                Composition, flags, lifecycle
-internal/core/domain/user.go                   User invariants and semantic errors
-internal/core/port/in/user.go                  Commands and use-case interface
-internal/core/port/out/user.go                 Context-aware reader and transaction ports
-internal/core/service/user.go                  Create/get orchestration
-internal/adapter/in/http/router.go             Method/path registration only
-internal/adapter/in/http/handler/user.go        Transport, safe status mapping
-internal/adapter/in/http/handler/health.go      Bounded database readiness check
-internal/adapter/in/http/dto/user_mapper.go     Request/response shapes and mapping
-internal/adapter/out/persistence/db.go          Driver, connection policy, initial schema
-internal/adapter/out/persistence/user_repo.go   SQL access and real transaction writers
-internal/adapter/out/persistence/user_mapper.go Explicit persisted-row mapping
+cmd/api/main.go                                                     Composition, flags, lifecycle
+internal/core/domain/user.go                                        User invariants and semantic errors
+internal/core/port/in/user.go                                       Commands and UserUseCase interface
+internal/core/port/out/user.go                                      Provider, write repositories and user UnitOfWork
+internal/core/service/usecase/user/user.go                           User create/get application implementation
+internal/adapter/in/http/router.go                                  Method/path registration only
+internal/adapter/in/http/handler/user.go                             Transport, safe status mapping
+internal/adapter/in/http/handler/health.go                           Bounded database readiness check
+internal/adapter/in/http/dto/user_mapper.go                          Request/response shapes and mapping
+internal/adapter/out/persistence/sqlite/db/database.go               Pool, driver, connection policy and schema
+internal/adapter/out/persistence/sqlite/db/transaction.go            Begin, rollback, cancellation and commit mechanics
+internal/adapter/out/persistence/sqlite/provider/user.go             Read-only user lookup
+internal/adapter/out/persistence/sqlite/provider/user_mapper.go      Provider-owned persisted-row mapping
+internal/adapter/out/persistence/sqlite/repository/user.go           User insert using the scoped transaction
+internal/adapter/out/persistence/sqlite/repository/audit.go          Audit insert using the scoped transaction
+internal/adapter/out/persistence/sqlite/repository/user_unit_of_work.go User+audit transaction bundle assembly
 ```
 
-Dependencies flow inward: HTTP handler → `inport.UserService` → service → `outport` interfaces → concrete persistence adapter selected by `main`. The domain and service import neither HTTP nor SQL. HTTP and persisted-row mapping are separate; neither database rows nor HTTP request types cross a core port.
+Dependencies flow inward: HTTP handlers depend on `inport.UserUseCase`; its `user.UseCase` implementation depends on domain and outbound ports. `main` selects the concrete SQLite provider and user UnitOfWork. The domain and application import neither HTTP nor SQL. The provider owns reads; repositories own writes and the cohesive user+audit UnitOfWork; `db` owns pool/schema/transaction mechanics and imports neither provider nor repository. HTTP and persisted-row mapping are separate; neither database rows nor HTTP request types cross a core port.
+
+This example has only the user application capability. The local audit write is part of user creation, not a separate multi-domain workflow, so there are no empty shared or orchestration packages. Entity inputs and results use `*domain.User`; `domain.Users` is `[]*User`, while small scalar values and timestamps remain values. `FindByID` returns `ErrNotFound`, never a successful nil result. Application boundaries with five or more total arguments, counting context but excluding the receiver, use a named command/query; contexts stay separate from those data types.
 
 ### Creation boundary
 
 1. The DTO decoder accepts one JSON value with known fields and constructs a `CreateUserCommand`.
-2. `domain.NewUser` trims the name, requires 1–100 valid UTF-8 characters, and validates a plain email address of at most 254 bytes. This example **chooses** to trim and lowercase the entire email, including its local part; a real product must decide its own identity normalization policy. Syntax validation does not establish address ownership or deliverability.
-3. The service calls `WithinTransaction` once. It does not perform a racy "email exists" precheck.
-4. The adapter opens a real `sql.Tx` and supplies an unexported writer object whose user and audit methods both call that same `sql.Tx`. The callback has no base-database writer to accidentally use.
-5. The service inserts the user, obtains its database ID, and writes `user.created` with that ID. The schema enforces unique email and an audit foreign key. Only the users table's unique constraint is translated into `ErrEmailConflict`; a failing audit is not mislabeled as a duplicate email.
-6. A callback error, panic, or cancellation triggers rollback. The adapter checks the transaction context before commit. The service returns a created user only after commit succeeds.
+2. `domain.NewUser` trims the name, requires 1–100 valid UTF-8 characters without NUL, and validates a plain email address of at most 254 bytes. NUL is rejected before persistence because SQLite's `length()` stops at that character. This example **chooses** to trim and lowercase the entire email, including its local part; a real product must decide its own identity normalization policy. Syntax validation does not establish address ownership or deliverability.
+3. The application calls `UserUnitOfWork.WithinTransaction` once. It does not perform a racy "email exists" precheck.
+4. The repository package asks `db` to open a real `sql.Tx`, then assembles a narrow `UserTransaction` with explicit `UserRepository()` and `AuditRepository()` accessors. Both repositories use that same `*sql.Tx`; neither exposes a base-database writer.
+5. The application inserts the user, obtains its database ID, and writes `user.created` with that ID. The schema enforces unique email and an audit foreign key. Only the users table's unique constraint is translated into `ErrEmailConflict`; a failing audit is not mislabeled as a duplicate email.
+6. A callback error, panic, or cancellation triggers rollback. The database transaction helper checks the transaction context before commit. The application returns a created user only after commit succeeds.
 
-Transaction writers must not escape the callback, start nested transactions, or be used concurrently. Reading through the base repository from inside this callback would also wait for the one occupied connection; the port intentionally supplies only the writers needed by this use case. Extend a transaction-specific port if a future operation genuinely requires transaction-bound reads.
+Transaction repositories must not escape the callback, start nested transactions, or be used concurrently. Reading through the base provider from inside this callback would also wait for the one occupied connection; the port intentionally supplies only the write roles needed by this use case. Extend a transaction-specific port if a future operation genuinely requires transaction-bound reads. The example needs only insert operations; add update/delete behavior to the owning repository when a real use case requires it, not to the read-only provider.
 
 `r.Context()` reaches the service, transaction callback, and every SQL operation. The readiness probe derives a one-second deadline from its request context. A disconnect after a successful commit does not undo that commit; cancellation is not a guarantee that a previously submitted operation never happened. There is no idempotency key protocol to resolve an ambiguous client outcome here.
 
@@ -134,19 +140,19 @@ Tests use distinct on-disk databases in `t.TempDir()`, not the shared-name or pe
 
 `CREATE TABLE IF NOT EXISTS` initializes a new teaching database in a transaction. **It is not a versioned migration system** and does not upgrade incompatible tables from another application or a future schema. Deliberately use a new file for a different schema; production migration ownership and rollout compatibility remain project decisions.
 
-## What the tests establish
+## Behavior checked by the suite
 
 Run the whole suite from this module with `CGO_ENABLED=1 go test ./...`. Focused boundary checks are:
 
 ```sh
 CGO_ENABLED=1 go test ./internal/core/domain -run TestNewUser -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence -run TestAuditConstraintFailureRollsBackFirstWrite -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence -run TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence -run TestCancellationBetweenTransactionWritesRollsBackPersistedUser -v
+CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestAuditConstraintFailureRollsBackFirstWrite -v
+CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint -v
+CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestCancellationBetweenTransactionWritesRollsBackPersistedUser -v
 CGO_ENABLED=1 go test ./internal/adapter/in/http -v
 ```
 
-- **Domain:** external consumers observe rejection of empty/long names, malformed emails and display-name/multiple-address input, plus the declared normalization policy.
+- **Domain:** external consumers check rejection of empty/long names, leading/embedded NUL, malformed emails and display-name/multiple-address input, plus the declared normalization policy.
 - **Real commit/read:** service creation persists one user and one audit with the correct relationship and timestamp; retrieval reconstructs the same domain values.
 - **Actual rollback of the first write:** a real SQLite trigger rejects the audit insert after the user insert. Calling the real service produces a trigger constraint error, and direct queries find zero users and zero audits. Removing the trigger permits creation with the same email, demonstrating that the failed attempt did not reserve it.
 - **Concurrent uniqueness:** eight goroutines start from a channel barrier and invoke the real service against the same database. Exactly one succeeds and seven observe `ErrEmailConflict`; only one user and one audit remain. A direct SQL duplicate insert also fails with SQLite's unique-constraint error, proving the invariant is not only an application precheck. The one-connection policy means this is concurrent application-call coverage, **not a multi-connection or multi-process writer stress test**.

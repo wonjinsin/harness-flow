@@ -17,6 +17,8 @@ func TestNewUserRejectsInvalidInput(t *testing.T) {
 	}{
 		{name: "empty name", userName: " \t ", email: "alice@example.com"},
 		{name: "long name", userName: strings.Repeat("a", 101), email: "alice@example.com"},
+		{name: "leading NUL in name", userName: "\x00Alice", email: "alice@example.com"},
+		{name: "embedded NUL in name", userName: "Al\x00ice", email: "alice@example.com"},
 		{name: "missing email", userName: "Alice", email: ""},
 		{name: "malformed email", userName: "Alice", email: "not-an-address"},
 		{name: "display name is not an email", userName: "Alice", email: "Alice <alice@example.com>"},

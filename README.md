@@ -131,6 +131,23 @@ and Zerolog. Dependency versions are not architectural requirements. The handboo
 addresses context propagation, multi-repository transactions, and safe public
 errors alongside the chosen structure.
 
+Storage is organized by the actual engine, then read-only `provider`, write
+`repository`, reusable `db` mechanics and adapter-owned DAO code. Application
+implementations use domain-specific `service/usecase`, real reused
+`service/shared` capabilities and composite `service/orchestration` workflows.
+Peer use cases/services do not call one another; orchestration does not call
+use cases, and pure business rules remain in domain.
+
+The [Go coding conventions](skills/setup/references/go/coding-conventions.md)
+define entity pointers and named plural pointer collections, value semantics for
+small values, Command/Query inputs at five total boundary parameters including
+context, explicit Provider/Repo/UoW dependency names, Google-based Go naming and
+blank lines between functions. Go setup plans pinned project-local
+`golangci-lint` configuration and local/CI checks, without gofumpt or another
+quality runner. Tool installation and config/CI changes require the approved
+scope; handbook-only requests do not install anything. Built-in lint does not
+automatically enforce every architectural, type or spacing rule.
+
 The handbook includes detailed layer examples, domain/aggregate modeling,
 transactions and concurrency, idempotency and events, security and operations,
 and behavioral verification. Each topic distinguishes baseline rules from

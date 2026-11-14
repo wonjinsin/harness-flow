@@ -1,8 +1,9 @@
-package persistence
+package db
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -43,23 +44,19 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	if err := initialize(ctx, db); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close database after initialization failure: %w", closeErr))
+		}
 		return nil, err
 	}
 	return db, nil
 }
 
 func initialize(ctx context.Context, db *sql.DB) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin schema initialization: %w", err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, schema); err != nil {
-		return fmt.Errorf("initialize schema: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit schema initialization: %w", err)
-	}
-	return nil
+	return WithinTransaction(ctx, db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, schema); err != nil {
+			return fmt.Errorf("initialize schema: %w", err)
+		}
+		return nil
+	})
 }

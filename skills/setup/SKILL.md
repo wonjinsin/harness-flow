@@ -5,10 +5,12 @@ description: Use when a project needs detailed architecture and coding guideline
 
 # Setup
 
-Install a detailed, project-owned architecture handbook. This is an explicitly
-invoked setup/adoption skill, not a prerequisite added to every coding request.
-It creates or updates guidance, not application features or a generic scaffolding
-engine. Do not commit or push as part of setup.
+Install a detailed, project-owned architecture handbook and, for Go adoption,
+plan project-local golangci-lint tooling. This is an explicitly invoked
+setup/adoption skill, not a prerequisite added to every coding request. It does
+not implement application features or authorize source migrations. Tool/config/CI
+changes require the approved output scope; handbook-only requests stay
+documentation-only. Do not commit or push as part of setup.
 
 The default Go profile uses clean/hexagonal layer boundaries and the prescribed
 folder structure. Dependency versions are not architectural requirements. Treat
@@ -70,7 +72,8 @@ policy. Keep delivery choices separate from the agreed application architecture.
 
 ## 3. Map the reference to the project
 
-Read `references/go/architecture.md`, `references/go/layers.md`, and
+Read `references/go/architecture.md`, `references/go/layers.md`,
+[coding conventions](references/go/coding-conventions.md), and
 [behavior ownership](references/go/behavior-ownership.md). Use Go as the canonical
 teaching language, not as a requirement to replace another stack.
 
@@ -78,6 +81,22 @@ Produce a concrete architecture map: source responsibility → actual target pat
 and owning type/API → target language/framework mechanism → applicable rule →
 verification. Keep the canonical Go layout when starting a Go project without
 contrary adopted constraints.
+
+The Go baseline separates persistence by actual database engine, then read-only
+`provider`, mutation `repository`, reusable `db` mechanics, and adapter-owned DAO
+code. Domain-specific use cases live under `service/usecase`, reusable application
+stages under `service/shared`, and real composite workflows under
+`service/orchestration`. Enforce the architecture chapter's peer-call bans; do not
+create empty areas or move pure domain rules into shared services.
+
+Carry the coding chapter's concrete contracts into adopted examples: entity
+pointers and defined plural pointer collections, value semantics for small value
+objects, named inputs at five total boundary parameters including `ctx` (receiver
+excluded), explicit Provider/Repo/UoW dependency roles, Google-based Go naming,
+and blank lines between function declarations. Use golangci-lint only as the
+added Go quality runner, not gofumpt or a silently added custom analyzer. State
+what the selected checks do not enforce; Markdown and passing lint are not proof
+of every contract.
 
 For an existing layout or another language, distinguish a harmless naming
 adaptation from an architectural departure. Do not silently rename modules,
@@ -102,6 +121,9 @@ project-specific, detailed pages with:
 - Explicit applicability: required baseline, required under a named condition,
   optional, or a project decision. Distinguish a required rule from a mechanism
   that is not yet implemented in the application.
+- Concrete project-local golangci-lint version/install, config and local/CI paths
+  for Go, with the authorized execution scope and any explicit no-install
+  constraint. Preserve existing quality configuration instead of replacing it.
 
 Keep the entry index short; do not shorten the substantive handbook into slogans.
 Include at least one complete vertical slice across the project's actual layers.
@@ -166,6 +188,13 @@ and a negative/boundary case, without booting its orchestrator or infrastructure
 Then read the resulting orchestration top to bottom to verify its operation
 sequence is clear without reconstructing helper internals.
 
+For authorized Go tooling, verify the installed binary/config and exercise the
+four/five-total-parameter boundary and Command-based correction. Check entity
+pointer/collection contracts, role names, peer-call direction and function
+spacing separately where built-in lint is silent. Do not claim complete spacing
+enforcement, install tools into a documentation-only target, or run broad fixes
+as part of a guidance refresh.
+
 Verify loading for each selected reader as well as the example behavior. Check
 actual loaded instructions or read traces, including matching/nonmatching paths
 for scoped rules. Merely naming a file in a proposal is not loading evidence.
@@ -179,5 +208,6 @@ placeholder implementations, or claims that a mock proves database atomicity.
 
 Report the handbook entrypoint, adopted profile and exceptions, verification
 actually exercised, remaining decisions if any, and whether its reading contract
-is active. Keep any reading requirements in the target project's approved
-instructions; do not modify other workflow skills to install the handbook.
+is active. Report tooling as planned, installed or verified separately. Keep any
+reading requirements in the target project's approved instructions; do not modify
+other workflow skills to install the handbook.

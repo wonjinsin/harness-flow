@@ -2,7 +2,7 @@
 
 Use this guide to choose evidence for a change, not to maximize mock counts. The invariant belongs to the consumer: a caller receives the documented result, forbidden work does not become durable, concurrent callers cannot violate the rule, and operators can recover the system within an agreed boundary.
 
-Read [architecture](architecture.md) and [layers](layers.md) for placement, [domain](domain.md) for model rules, [data and transactions](data-and-transactions.md) for persistence contracts, [reliability and events](reliability-and-events.md) for delivery semantics, and [security and operations](security-and-operations.md) for operational controls. This chapter owns how to challenge those decisions and evolve them without silently changing their guarantees.
+Read [architecture](architecture.md) and [layers](layers.md) for placement, [coding conventions](coding-conventions.md) for concrete Go boundary and tooling rules, [domain](domain.md) for model rules, [data and transactions](data-and-transactions.md) for persistence contracts, [reliability and events](reliability-and-events.md) for delivery semantics, and [security and operations](security-and-operations.md) for operational controls. This chapter owns how to challenge those decisions and evolve them without silently changing their guarantees.
 
 ## 1. Applicability and the evidence boundary
 
@@ -37,7 +37,7 @@ Maintain a short requirement-to-test map in the project-owned guidelines or chan
 
 ## 2. Test placement and deterministic seams
 
-Keep fast tests beside the implementation: `internal/core/domain/*_test.go`, `internal/core/service/*_test.go`, and the HTTP adapter's tests. Put real cross-adapter/database checks under `test/integration` when they need dedicated infrastructure. Keep protocol fixtures in the owning package's `testdata` directory. `internal/mock` or `test/mocks` may hold useful shared doubles; their existence does not require using generated mocks everywhere.
+Keep fast tests beside the implementation: `internal/core/domain/*_test.go`, `internal/core/service/usecase/<domain>/*_test.go`, real shared/orchestration packages, and the HTTP adapter's tests. Put real cross-adapter/database checks under `test/integration` when they need dedicated infrastructure. Keep protocol fixtures in the owning package's `testdata` directory. `internal/mock` or `test/mocks` may hold useful shared doubles; their existence does not require using generated mocks everywhere.
 
 Prefer external test packages for public behavior. Use an internal package test only when a public assertion cannot localize a significant algorithmic defect; do not export production internals solely for tests. Compile-time interface satisfaction is useful, but `var _ outport.UserRepository = (*UserRepository)(nil)` says nothing about repository semantics.
 
@@ -631,9 +631,9 @@ Representative upgrade fixtures include old nullable values, duplicates that wou
 ### A. Add a use case: change a user's email
 
 1. **Write the consumer contract.** Decide who may change the email, normalization/uniqueness rules, whether verification is required, and what the client sees on missing user, duplicate email, and stale version. Reuse existing auth/domain rules. Do not invent verification or event delivery if the requirement is just a local change.
-2. **Identify the boundary.** Add the command/result and method to `internal/core/port/in`, implemented by `internal/core/service`. Put email/transition invariants in `internal/core/domain`. Extend `internal/core/port/out` only for a needed operation such as conditional email change. Keep `http`, Chi, Ent types, and SQL errors out of these ports.
+2. **Identify the boundary.** Add the command/result and method to the domain's `internal/core/port/in` contract, implemented by `internal/core/service/usecase/user`. Apply the ctx-inclusive five-parameter rule and entity pointer/named-collection contracts. Put email/transition invariants in `internal/core/domain`. Extend `internal/core/port/out` only for a needed provider query or repository mutation such as conditional email change. Keep HTTP, Chi, Ent types, and SQL errors out of these ports.
 3. **Start with the failing behavior.** Domain boundaries; service success; rejected actor; duplicate; stale version; canceled request. Assert result/state and absence of forbidden mutations, not a preferred internal helper sequence.
-4. **Implement persistence.** Add reviewed schema/migration changes only if the invariant needs them. Keep DB/domain conversion in `internal/adapter/out/persistence/user_mapper.go`; map the exact relevant constraint to a semantic conflict and preserve unexpected causes. Pass `ctx` and use the correct transaction-bound client if multiple writes must commit together.
+4. **Implement persistence.** Add reviewed schema/migration changes only if the invariant needs them. Use `internal/adapter/out/persistence/postgres/provider` for reads, `repository` for writes and scope assembly, `db` for reusable connection/transaction mechanics, and adapter-local mapping such as `postgres/dao/user_mapper.go`. Map the exact relevant constraint to a semantic conflict and preserve unexpected causes. Pass `ctx` and use the same transaction-bound provider/repository handles if several operations must be consistent.
 5. **Expose the transport.** Add request/response mapping in `internal/adapter/in/http/dto/user_mapper.go`, handler delegation through the inbound port, and route/middleware registration in the router. Use composition in `cmd/api/main.go` for concrete dependencies, not a handler-created repository.
 6. **Challenge the actual guarantee.** Two callers target the same email; two edits carry the same version; a later write fails; the database is unavailable. Check HTTP error mapping separately from durable state. Add compatibility cases for consumers if the public contract changed.
 7. **Finish the release.** Update project-owned guidance/API documentation and the operation matrix if the behavior changes operations. Remove obsolete callers/paths. Review the diff against the invariant and report checks actually executed plus remaining environmental gaps.
@@ -685,9 +685,33 @@ Documentation explains intent; it cannot reject a forbidden import. Choose enfor
 | Review checklist | Detect orchestration in handlers, leaked ORM entities, duplicated rules, overbroad ports | Human review is not an automatic gate |
 | Source-text assertion | Detect a specific file/string convention | Comments, aliases, generated code, or dead code can satisfy it without behavior |
 
-A useful import policy forbids `internal/core/...` from importing `internal/adapter/...`, `net/http`, the selected router package, and Ent-generated packages. Allow core-to-core imports consistent with domain → ports/service dependency decisions; do not use an undifferentiated “all internal imports forbidden” pattern. Check runtime source and test source separately so integration tests may compose real adapters without weakening production rules. Explicitly cover generated DAO directories without allowing those generated types to leak into ports.
+A useful import policy forbids `internal/core/...` from importing `internal/adapter/...`, `net/http`, the selected router package, and Ent-generated packages. Allow service imports of ports and domain, and port imports of domain; domain must not import either port package or service. Do not use an undifferentiated “all internal imports forbidden” pattern. Check runtime source and test source separately so integration tests may compose real adapters without weakening production rules. Explicitly cover generated DAO directories without allowing those generated types to leak into ports.
+
+Also check usecase/shared/orchestration peer-call bans, including calls through
+inbound interfaces and same-package methods that an import linter cannot see.
+Keep `persistence/<engine>/db` independent of provider/repository assembly, and
+exercise a transaction with scoped reads as well as writes when the invariant
+requires them. Read-provider naming is not permission to query a replica or root
+pool during an atomic workflow.
 
 Prefer structured package data to substring searches: collect package/import edges, classify by canonical-to-actual mapping, and fail on exact forbidden edges with file/package context. Include a tiny forbidden-import fixture when maintaining an architecture checker, so a broken checker cannot turn every CI run green. If a selected build tag can introduce an adapter dependency into core, the CI matrix must exercise that tag. These are architectural checks, not evidence of rollback or safe HTTP behavior.
+
+### Go quality checks without overstating enforcement
+
+Follow [coding conventions](coding-conventions.md) for the sole added Go quality
+runner, golangci-lint. Validate the project-owned config against the selected
+compatible binary and use the same fixed release/config locally and in CI.
+Exercise a temporary four-total/five-total parameter declaration and its
+Command-based correction; `ctx` counts and the receiver does not.
+
+The configured built-ins are not a complete architecture or formatting policy:
+inspect entity versus value semantics, named pointer collections, dependency
+roles, peer calls and blank lines between all handwritten function declarations.
+Do not add gofumpt, standalone duplicate linters or an unrequested custom
+analyzer to fill a coverage gap. Generated-code exclusions must leave handwritten
+adapter mappers and production import rules in scope. Tooling/config approval
+does not authorize global installs, application refactors, broad formatting or
+automatic `--fix`.
 
 ### Detect and resolve guidance/framework drift
 
@@ -720,6 +744,10 @@ go test -tags=integration -run 'Test(DuplicateRace|OptimisticUpdate)' -count=20 
 
 # Static diagnostics complement tests; they do not execute use cases.
 go vet ./...
+
+# Use the approved project-local pinned runner and owned config.
+./bin/golangci-lint config verify --config .golangci.yml
+./bin/golangci-lint run --config .golangci.yml ./...
 ```
 
 Choose package and test names from the actual project. Pin the CI environment and keep provisioning explicit. `-count=1` disables cached successes for a fresh integration run; repeated tests increase exposure to scheduling variability but are not a substitute for a barrier. A race-enabled job requires a supported Go toolchain/platform and may need its own resource budget.

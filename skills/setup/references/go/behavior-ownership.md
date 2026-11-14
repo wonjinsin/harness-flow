@@ -4,7 +4,7 @@
 An orchestration method tells the operation's story at one level of abstraction;
 its reader should not have to reconstruct a predicate, collection algorithm, or
 representation conversion to understand the next step. This is a responsibility
-rule, not a function-length limit. Use this chapter with [layers](layers.md).
+rule, not a function-length limit. Use this chapter with [layers](layers.md), [architecture](architecture.md), and [coding conventions](coding-conventions.md).
 
 Give each decision or transformation one owner beside the values whose meaning
 it defines. This applies to read models and collections, not only constructors
@@ -61,8 +61,13 @@ This Go fragment belongs in `internal/core/domain/review.go`. It extends a
 project whose domain already supplies `Candidate`, `Category` (including
 `ParentID`), `ReviewSummary` (three integer counters), `Review` (Import, Drafts,
 Summary), and the pure `ValidateCandidate`, `CheckActiveCategory`, `MerchantKey`
-policies. `Draft` supplies Merchant and DuplicateIDs. Adapt to the real project's
-vocabulary; these are declared example policies, not universal requirements.
+policies. `Candidate` is a validation input value here, not an entity; `IncludedReview`
+and `DuplicateMatch` are pure read projections and retain value semantics.
+`Category` and `Draft` are entities: category references use `*Category`, and
+`Review.Drafts` uses the defined plural `Drafts` (`type Drafts []*Draft`), with
+nonnil drafts guaranteed by the loaded-snapshot contract. `CheckActiveCategory`
+accepts category pointers. Adapt to the real project's vocabulary; these are
+declared example policies, not universal requirements.
 
 The snapshot supplies all included rows across the import, not only a visible
 page. Duplicate candidate groups correspond positionally, one group per visible
@@ -72,6 +77,12 @@ Classification and invalidity counters are independent, with invalidity counted
 once per row. IDs are warnings appended in candidate order, preserving repeats
 and prior IDs. Canonical equality is not fuzzy matching or automatic exclusion.
 
+When `CategoryID` is nonempty, the snapshot must supply nonnil Category and
+Parent references, including a loaded root parent with an empty `ParentID`.
+Omitted required references are invalid rather than dereferenced. When
+`CategoryID` is empty, those references are not required and are not consulted;
+candidate validity and the independent classification counter still apply.
+
 ```go
 package domain
 
@@ -79,8 +90,8 @@ type IncludedReview struct {
     Candidate            Candidate
     CategoryID           string
     UnclassifiedAccepted bool
-    Category             Category
-    Parent               Category
+    Category             *Category
+    Parent               *Category
 }
 
 func (row IncludedReview) NeedsClassification() bool {
@@ -93,6 +104,9 @@ func (row IncludedReview) Invalid(owner string) bool {
     }
     if row.CategoryID == "" {
         return false
+    }
+    if row.Category == nil || row.Parent == nil {
+        return true
     }
     return CheckActiveCategory(owner, row.Category, row.Parent) != nil || row.Parent.ParentID != ""
 }
@@ -131,7 +145,7 @@ func (review *Review) ApplyAssessment(owner string, included IncludedReviews, du
     }
     review.Summary = included.AccumulateSummary(owner, review.Summary)
     for i := range review.Drafts {
-        draft := &review.Drafts[i]
+        draft := review.Drafts[i]
         draft.DuplicateIDs = duplicates[i].AppendMatchingIDs(draft.DuplicateIDs, draft.Merchant)
     }
 }
@@ -158,7 +172,7 @@ return result, nil
 ```
 
 If supporting values currently live in `core/port/out`, move the pure input types
-into domain and migrate the port, repository mappings, service, and tests together.
+into domain and migrate the port, provider/repository mappings, service, and tests together.
 The port's snapshot container may remain there, referring to domain inputs.
 Domain must not import that port to borrow its types; do not leave obsolete aliases.
 

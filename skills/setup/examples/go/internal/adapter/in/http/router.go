@@ -9,9 +9,9 @@ import (
 	inport "example.com/architecture-handbook/internal/core/port/in"
 )
 
-func NewRouter(users inport.UserService, checkDatabase func(context.Context) error, logger *slog.Logger) http.Handler {
+func NewRouter(userUseCase inport.UserUseCase, checkDatabase func(context.Context) error, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
-	userHandler := handler.NewUserHandler(users, logger)
+	userHandler := handler.NewUserHandler(userUseCase, logger)
 	mux.HandleFunc("POST /users", userHandler.Create)
 	mux.HandleFunc("GET /users/{id}", userHandler.Get)
 	mux.HandleFunc("GET /health", handler.NewHealthHandler(checkDatabase, logger))
