@@ -391,3 +391,193 @@ the callback.
 No Ledger source/rules, installed plugin cache, native reader activation,
 commit, push or publication was changed. SQLite Ent execution does not establish
 PostgreSQL constraint, locking, isolation or network-failure behavior.
+
+## Entry/router diet, first pass — 2026-11-15
+
+Frozen baseline: `44f37d791c06470183619bb0c3fb15bde136c96b`. The authorized goal
+was smaller setup guidance with preserved outcomes, not new architecture rules.
+Two parallel Standards/Spec reviews identified repeated entry/adoption/index
+summaries as consolidation candidates. Technical chapters and the executable
+example remained byte-identical to baseline; installation and commits were excluded.
+
+### Comparison
+
+Fresh independent consumers started from each version's `SKILL.md`, retrieving
+references on demand without rubrics, history or earlier outputs. Inputs and
+acceptance stayed fixed:
+
+- Profile A/B above: new catalog adoption and protected inventory refresh.
+- Ownership A/B in `setup-behavior-ownership.eval.md`: composed review assessment
+  and representation/query ownership.
+- The context-carried transaction prompt and acceptance above.
+- Delivery boundary: an existing Go/Chi/Ent/PostgreSQL project has Claude/Codex
+  entrypoints but no delivery approval. Produce the next response and proposed
+  outputs. Require mode/loading tradeoffs and unresolved reader selection before
+  writing; existing files must not imply consent.
+- Semantic adaptation: approved handbook-only `docs/architecture` refresh for
+  FastAPI/SQLAlchemy async, accepted feature layout/error-envelope exceptions,
+  human edits without a previous snapshot, long-lived repositories, atomic
+  Stock/Reservation writes followed by payment, no tenant/idempotency policy and
+  no available project/reader runtime. Require preserved authority/scope, same
+  transaction session without singleton mutation, cancellation and mapping/error
+  ownership, external-effect uncertainty and precise unverified claims.
+
+The seven baseline cases passed their artifact criteria. The first reduced
+candidate failed one additional contract: its representation passage declared
+`List(context.Context, string, int, int)`, called those four parameters five,
+and incorrectly required an input struct. The failure was retained, not scored
+away. Restoring the entry's short four/five-total cue produced two independent
+correction samples without that miscount. One kept the four-argument scalar
+signature; the other chose a permitted selection object without claiming the
+threshold required it. Lower-count named inputs remain allowed for ambiguity.
+
+After removing the index's repeated authoring instruction, all seven cases ran
+again with fresh consumers. The final independent Spec review judged all seven
+baseline/final pairs passing. The ownership output proposed a coordinated
+entity-pointer cutover rather than retaining baseline's internal value shapes;
+it preserved supplied assessment semantics and required complete caller migration.
+This is artifact-level behavior preservation, not proof of an implemented migration.
+
+A reserved SQLite-worker variation also passed: four-total `EnableRule` stayed
+scalar; five-total `ChangeRule` used a Command preserving `Enabled *bool` and
+expected version. It retained nil-versus-false, owner-before-rule/audit sequencing,
+shared execution without an owner lock for creation, the independent-statement
+exception, separate databases, scope rejection and honest durability limits.
+
+Each baseline/candidate/final case used one fresh sample; the correction used
+two. These are observed outcomes, not a reliability estimate or a guarantee of
+identical wording. Final Standards and Spec reviews separately reported zero
+patch-introduced findings.
+
+### Execution and structural evidence
+
+- Exact final-consumer fragments executed in standalone Go: `EnabledAfter`
+  passed four nil/true/false transitions; `OptionalLabel` decoding/application
+  conversion passed seven omitted/empty/nonempty/null/type-error cases.
+- The unchanged teaching example passed `go test -race ./...` in three tested
+  packages. Its built process returned health/create/get 200/201/200. A real
+  SQLite trigger rejected audit insertion: HTTP returned safe 500 and independent
+  queries retained one user/one audit. Removing the trigger allowed the same
+  create (201); duplicate/invalid/missing requests returned 409/400/404. Final
+  counts were two users/two audits; SIGTERM exited 0.
+- `node --test`: 216 passed, zero failures/skips. All 168 setup-local Markdown
+  links, including anchors, resolved; frontmatter remained valid.
+- Runtime-guidance reduction: entry 225→109 lines, index 162→70, adoption 404→383;
+  791→562 lines across those three files. The reduction removed 12,093 bytes;
+  detailed technical chapters and executable examples were not shortened.
+
+Temporary binaries, databases and fragment smoke programs were removed. No
+installed-plugin update, global tooling, application migration, commit, push,
+native Claude/Codex/OMP loading, or Ent/PostgreSQL deployment validation occurred.
+
+## Whole-library diet — 2026-11-15
+
+The follow-on scope includes every setup reference and the runnable example's
+documentation, source and tests, not just entry/navigation. Freeze the first-pass
+library as the whole-scope baseline; reuse its seven observed final artifacts.
+Four additional baseline/candidate tasks exercise the remaining chapters:
+
+- **Domain:** existing Go feature layout; active/released Reservation with one-time
+  release no earlier than creation; Basket-owned mutable entries; signed-int64
+  Money overflow; historical hydration without new identity/time/admission;
+  undecided email policy and a separate Allocation bounded context.
+- **Data:** Go/Ent/PostgreSQL stock decrement, reservation insert, expected-version
+  aggregate update and remaining-stock read in one transaction; tenant-qualified
+  SKU/foreign keys; duplicate rollback; SQL/Ent scope ownership/expiry; bounded
+  pagination, stale-fill cache races and a rolling required-column migration.
+- **Reliability:** command idempotency, outbox/inbox, key/fingerprint contention
+  and replay; stale leases, publication crash windows, poison/order/schema/retention;
+  ambiguous payments and bounded safe retries without invented compensation.
+- **Security/operations:** trusted JWT versus untrusted tenant header, raw database
+  errors and duplicate logging, webhook/URL input, SSRF, health/worker/migration
+  lifecycles, scoped authorization, secrets and isolated recovery.
+
+Each task requests concrete handbook fragments, not a self-assessment; no source
+changes, commands, installs or native activation are authorized. Compare exact
+paired prompts with fresh consumers starting from each frozen `SKILL.md` and
+retrieving chapters on demand. Preserve substantive decisions, not identical prose.
+Baseline reliability's proposed numerical settings are not approved requirements.
+
+### Observed refinement
+
+Independent paired grading accepted nine of eleven initial whole-diet artifacts.
+Two failures were retained:
+
+1. Delivery offered Claude/Codex but omitted OMP. Clarifying the existing instruction
+   to offer all three readers, regardless of files present, produced a fresh
+   corrected response with all choices, no-wiring and shared-surface effects.
+2. Inventory showed writes but omitted authorization/load/eligibility calls from
+   its concrete callback. A first clarification recovered the sequence in prose,
+   not code. The final instruction requires target-language orchestration code
+   and preserves protected steps under word limits. A fresh result shows shared
+   authorization, scoped Stock load, domain eligibility and both writes inside
+   the same callback, with failure guards and success only after commit.
+
+Ownership and representation were repeated during refinement. Ownership retained
+independent counters, prior values, ordered/repeated duplicate IDs, response-only
+status and fresh locked confirmation. One representation repeat mislabeled a
+three-parameter read as four in prose, while retaining the correct five-parameter
+threshold and four-parameter List decision. A final fresh repeat counted List's
+four parameters explicitly and preserved the original update/null/pagination
+contracts. These intermediate defects were not erased or used to claim perfect
+model reliability.
+
+The reserved Go/MySQL shipping-worker task specified a 45-second lease, 14-day
+replay horizon and persistent 30-minute automatic-retry ceiling, unknown carrier
+idempotency/cancellation guarantees, mutable Order items, historical hydration,
+and shared Codex/OMP instructions also imported by Claude. Its artifact retained
+those distinct limits, unknown-effect reconciliation, stale-worker fencing limits,
+scope/lifecycle ownership and honest runtime boundaries. It counted four/five
+parameters correctly and named the child command target, but preserved the
+prompt's established-public-contract restriction rather than claiming an approved
+signature migration. This checks compatibility handling, not an executed cutover.
+
+Final accepted artifacts cover all eleven paired scenarios; the worker is an
+additional confirmation. Each stage uses fresh single samples, not a statistical
+guarantee, native-runtime proof or assurance of identical generated wording.
+
+Final review also caught an error-path regression in the simplified concurrent
+test: `Fatalf` could stop result collection before all workers finished. Use
+`Errorf` while draining all eight outcomes, then retain the post-drain fatal
+winner/count checks. A controlled failure-path harness observed one/eight workers
+complete at cleanup before correction and eight/eight afterward. Both deliberately
+injected-error runs still failed their Go test, as required; the corrected real
+example's full race suite passed again. No permanent meta-test or harness was added.
+Separate final Standards and Spec reviews cleared that finding and reported no
+remaining actionable findings.
+
+### Executed checks and reduction
+
+- `node --test`: 216 passed, zero failures/skips.
+- Example `go test -race -count=1 ./...`: three tested packages passed; nine had
+  no tests. macOS linking emitted `LC_DYSYMTAB` warnings without failing the suite.
+  `gofmt -d` for the changed test was empty.
+- The built HTTP/SQLite process again produced 200/201/200 for health/create/read;
+  real audit-trigger failure produced safe 500 and retained one user/one audit.
+  Removing the trigger allowed the same request; duplicate/invalid/missing gave
+  409/400/404; durable counts ended at two/two and SIGTERM exited zero.
+- Exact candidate domain fragments executed: release/history, timestamp and Basket
+  ownership, signed money overflow/currency boundaries. Candidate label mapping
+  passed eight cases; the final decoder passed the same eight and its nullable-time
+  helpers passed five absence/presence/round-trip/ownership cases.
+- All 186 setup-relative links/anchors resolved. Technical chapter headings remain;
+  domain/data/reliability/security fenced code stayed byte-identical to the
+  whole-scope baseline. Testing references existing executable cases rather than
+  duplicating their fixtures. Production example Go source is unchanged; existing
+  test names/assertions remain, with shared fixed-time fixtures and no redundant
+  WaitGroup/channel closure when receiving the known eight outcomes.
+
+| Shipped area | Original fixed-point bytes | Final bytes |
+| --- | ---: | ---: |
+| Entry, index, adoption | 46,451 | 26,519 |
+| Nine technical reference chapters | 379,577 | 265,481 |
+| Example documentation, source and tests | 64,770 | 55,008 |
+| Total setup library | 490,798 | 347,008 |
+
+The whole-library pass itself reduced 478,705 to 347,008 bytes (27.5%); including
+the first pass, reduction is 29.3%. Example README fell 20,780→11,455 bytes;
+fixture simplification saved 437 bytes without removing cases. No content was
+hidden in new shipped files. Temporary execution harnesses/binaries/databases were
+removed. No commit, push, plugin installation, application migration or global
+change occurred. Native reader loading, real Ent/PostgreSQL/MySQL, broker/provider
+failure guarantees and full generated applications remain outside executed evidence.

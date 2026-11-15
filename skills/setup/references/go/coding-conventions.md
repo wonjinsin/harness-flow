@@ -1,61 +1,46 @@
 # Go coding conventions and quality tooling
 
-This chapter is required when adopting or refreshing the Go profile. Use it with
-[architecture](architecture.md), [layers](layers.md), and
-[behavior ownership](behavior-ownership.md). These are the profile's defaults,
-not permission to overwrite an existing project's accepted exceptions or migrate
-its application while installing a handbook.
+Read this chapter when adopting/refreshing the Go profile or designing boundary
+types/tooling. It complements [architecture](architecture.md), [layers](layers.md),
+and [behavior ownership](behavior-ownership.md); accepted local/API exceptions
+survive handbook installation.
 
 ## 1. Names communicate the operation and dependency role
 
-Use [Google's Go naming guidance](https://google.github.io/styleguide/go/decisions.html#naming)
-as the language-style baseline: MixedCaps, established initialisms such as ID,
-URL, HTTP and SQL, short consistent receiver names, and concise lowercase package
-names. Avoid vague common/util/helper packages and methods named only Process or
-Handle when the operation can be named. Retain an accepted local convention when
-refreshing; report a conflict rather than silently renaming public contracts.
+Follow [Google Go naming](https://google.github.io/styleguide/go/decisions.html#naming):
+MixedCaps, ID/URL/HTTP/SQL initialisms, short consistent receivers, concise lowercase
+packages, and meaningful operations instead of vague common/util/helper or
+Process/Handle names. Preserve accepted local/public names; report conflicts.
 
-Add these explicit profile conventions; they are not claims about a universal
-Google architecture standard:
+These additional conventions belong to this profile, not a universal Google architecture:
 
-- Input interfaces name their domain capability, such as UserUseCase or
-  ReservationUseCase, not one application-wide UseCase or Service.
-- Persistence reads use UserProvider; mutations use UserRepository. External
-  clients can use AIProvider or PaymentProvider, but their implementations stay
-  under their own outbound adapter, not persistence.
-- Dependency fields, parameters and composition variables retain the role:
-  userProvider, userRepo, transactor, aiProvider. Do not name every outbound
-  dependency repo, and do not append Repository to every operation name.
-- Use the common WithinTransaction callback with txCtx and existing injected
-  repositories/providers, not a repository bundle. Transactor names its role,
-  not a mandatory UoW layer. Apply the
-  [transaction binding contract](data-and-transactions.md#2-application-owned-atomicity-without-a-root-client-escape);
-  do not derive a runner from each operation or owner-lock policy.
-- Use meaningful verbs for operations: CreateCategory, ArchiveCategory,
-  ConfirmImport; FindByID and List for persistence reads; Insert, Update and Delete
-  for writes. Plain field accessors need no Get prefix. An established GetUser
-  application operation is not the same as a field getter and need not be renamed
-  during a guidance refresh.
-- Use CreateCategoryCommand for mutation input, ListCategoriesQuery for selection,
-  and a descriptive result name. Sentinel errors start Err; error types end Error.
-  Preserve the existing error taxonomy and safe transport mapper, not a second
-  example-specific error system.
+- Domain-named inbound contracts: UserUseCase/ReservationUseCase, not universal
+  UseCase/Service. Read persistence through UserProvider; mutate through
+  UserRepository. AIProvider/PaymentProvider stay in their own external adapters.
+- Retain dependency roles in fields/parameters/composition: userProvider, userRepo,
+  transactor, aiProvider—not repo for everything or Repository on every operation.
+- WithinTransaction receives txCtx and uses existing injected adapters, not
+  repository bundles or operation/owner-lock-specific runners. Transactor names
+  a role, not mandatory UoW; before implementing it read [transaction binding](data-and-transactions.md#2-application-owned-atomicity-without-a-root-client-escape).
+- Name verbs: CreateCategory, ArchiveCategory, ConfirmImport; persistence
+  FindByID/List and Insert/Update/Delete. Field accessors need no Get, but an
+  established GetUser application operation is not a field getter to rename.
+- Mutation input: CreateCategoryCommand; selection: ListCategoriesQuery;
+  descriptive results; Err-prefixed sentinels, Error-suffixed types. Retain the
+  accepted cause-retaining taxonomy/safe mapper, not a second error system.
 
-Composition can import the user use-case package as user and call user.NewUseCase.
-Do not add a UserManager/Facade or alias solely to repeat these names.
+Composition may import user and call user.NewUseCase; no naming-only Manager/Facade/alias.
 
 ## 2. Five total boundary parameters require an input struct
 
-**Required baseline:** handwritten application and outbound I/O boundaries with
-five or more parameters use a named input struct. Count context.Context as one
-parameter, count each named parameter even when declarations share a type, and
-exclude the method receiver and result parameters. Four total parameters can
-remain scalar when their meaning is clear. Fewer parameters may still deserve a
-struct when same-typed positional arguments are ambiguous.
+**Required baseline:** at handwritten application/outbound I/O boundaries, five
+or more parameters require a named input struct. Count each parameter (including
+shared-type declarations and context.Context), excluding receiver/results.
+Four total may remain scalar when clear; ambiguous same-typed arguments can
+justify an input earlier.
 
-For example, ReserveStock(ctx, actorID, sku, quantity, requestID) has five
-parameters. Its input lives in `internal/core/port/in/command/reservation.go`,
-with the domain import supplied by that file:
+ReserveStock(ctx, actorID, sku, quantity, requestID) has five. Put its input in
+`internal/core/port/in/command/reservation.go`; this fragment uses the file's domain import:
 
 ```go
 package command
@@ -79,36 +64,24 @@ type ReservationUseCase interface {
 }
 ```
 
-**Command package ownership:** inbound mutation inputs live in
-`internal/core/port/in/command`, grouped by capability, and retain descriptive
-`*Command` names. Keep inbound interfaces, Query and result types in
-`core/port/in`; this separation does not introduce a query/result package or CQRS
-infrastructure. Do not use a generic `parameter` package or treat commands as
-HTTP DTOs. The parent port, handlers/mappers, and services import `command`;
-`command` may import domain and standard-library types, never its parent `in`,
-service implementations, transport, or persistence packages.
+For command placement/imports/cutover, read [architecture](architecture.md#3-dependency-direction-is-about-imports-not-execution-order).
+Inbound mutations retain `*Command` in child `command`; queries/results/interfaces
+stay parent `in`. No generic parameter package, CQRS requirement, HTTP DTO/JSON,
+ORM objects, or unchecked actor substitute. Migrate all inputs/callers/mappers/tests
+without aliases/re-exports; preserve omitted/null/false, versions, and every input.
 
-Outbound-specific selection/write data stays with its `core/port/out` contract
-or an appropriate domain value. The parameter-count rule applies to both
-handler-to-use-case and service-to-port calls. Context remains the first explicit
-function argument, never a command field, reusable service field or implicit
-dependency registry. Commands/queries contain no HTTP DTO, JSON tags, SQL/ORM
-objects or untrusted replacement for a verified actor.
-
-GetUser(ctx, id) needs no wrapper. A required third-party/framework callback
-signature is not ours to redesign; document any narrowly scoped lint exception.
-This rule is not a requirement to wrap every pure domain constructor or helper.
-Preserve omitted/null/false semantics, concurrency versions and every original
-input when migrating a boundary; do not hide missing fields in context.
-Move all command callers, implementations, mappers, and tests together; do not
-leave aliases or re-exports in the parent port package.
+Outbound-specific selection/write data belongs with its `core/port/out` contract
+or a domain value. Apply the threshold to handler→usecase and service→port.
+Context is first and explicit, never inside inputs, reusable service fields, or
+an implicit dependency registry. `GetUser(ctx, id)` needs no wrapper. Pure domain
+constructors/helpers are outside this requirement; required framework callback
+signatures get documented narrow lint exceptions, not redesign.
 
 ## 3. Entity pointers and named plural collections
 
-**Required baseline:** entity inputs, outputs and entity-valued fields use
-pointers consistently across domain constructors, application/port contracts,
-handwritten adapter mappers and implementations. Collection types are defined
-plural slice types containing entity pointers:
+**Required baseline:** entity inputs, outputs, and entity-valued fields use
+pointers across domain constructors, ports/application, and handwritten adapters.
+Define plural pointer-slice collections:
 
 ```go
 type Category struct {
@@ -119,40 +92,31 @@ type Category struct {
 type Categories []*Category
 ```
 
-Use domain.Categories at those boundaries rather than raw []domain.Category or
-[]*domain.Category. This is a defined type, not an alias with =. Do not use
-*domain.Categories or pointer-to-interface types. When an existing generic page
-owns a raw slice, adapt its application result shape to retain the named
-collection instead of hiding a second raw entity slice behind generics. Migrate
-all affected fields, constructors, mappers, ports, callers and tests together in
-an authorized code change; do not leave obsolete aliases or forwarding shims.
+Use domain.Categories, not raw []domain.Category/[]*domain.Category,
+*domain.Categories, pointer-to-interface, or an alias with =. Adapt generic page
+results to retain the named collection, not a hidden second raw slice. An
+authorized cutover migrates every affected field/constructor/mapper/port/caller/test
+without obsolete aliases/shims.
 
-Entity collections contain no nil elements. A required single-entity lookup
-returns a non-nil entity on success or the existing inspectable not-found error,
-never (nil, nil). Truly optional relationships must state their nil semantics;
-do not make every mapper fabricate empty entities. Empty collections are valid;
-HTTP's nil-versus-empty JSON representation remains transport-owned and must
-preserve its existing wire contract.
+No nil elements. Required lookups return nonnil entity or inspectable not-found,
+never (nil, nil). Optional relationships declare nil semantics; never fabricate
+empty entities. Empty collections are valid; preserve transport-owned nil/empty JSON.
 
-This pointer rule applies to entities, not every struct in a domain package.
-Small immutable values such as Money, Quantity, Source and Usage, application
-commands/queries, summaries and pure projections can remain values. Their
-collections can remain defined slices of values when appropriate. Pointer
-receivers are required for entity mutation, not for every value calculation.
-Classify the type by identity/lifecycle, not only its directory or name.
+Identity/lifecycle—not package/name—determines entity status. Small immutable
+Money/Quantity/Source/Usage, commands/queries, summaries, and projections may
+remain values with defined value-slice collections. Entity mutation requires
+pointer receivers, not every value calculation.
 
-Pointers are not automatically faster or immutable. A caller owns its loaded
-entity instance; do not share mutable pointers across concurrent requests or
-leak mutable aggregate state. Copy only at genuine ownership boundaries, preserve
-invariants, and avoid extra allocations/copies merely to satisfy a slogan.
+Pointers guarantee neither speed nor immutability. Callers own loaded instances;
+do not share mutable graphs across concurrent requests or leak aggregate state.
+Copy at real ownership boundaries, not for slogans or unnecessary allocations.
 
 ## 4. Separate function declarations visibly
 
-**Required baseline:** leave one blank line between handwritten function/method
-declarations, including one-line accessors. Keep an attached documentation comment
-or compiler directive next to its declaration; the separating line goes before
-that comment, not between the comment and function. Anonymous callbacks inside
-an expression are not top-level declarations to separate this way.
+**Required baseline:** one blank line between handwritten function/method
+declarations, including one-line accessors. Put it before any attached doc comment
+or compiler directive, never between that attachment and its function.
+Anonymous expression callbacks are not declarations needing this separation.
 
 ```go
 func (c *Category) IDValue() string { return c.ID }
@@ -160,40 +124,30 @@ func (c *Category) IDValue() string { return c.ID }
 func (c *Category) Rename(name string) { c.Name = name }
 ```
 
-Use standard gofmt-compatible formatting. Do not install, enable or invoke
-gofumpt in this profile. Golangci-lint is the only added Go quality runner;
-gofmt is part of the Go toolchain and can run through its built-in formatter.
-Neither gofmt nor the runner's built-in whitespace/return checks guarantee this
-rule between every function declaration. Preserve it in the authoring/review
-checklist and examples; do not advertise complete automatic enforcement or add a
-custom analyzer/second formatter without a separate explicit request.
+Use gofmt-compatible formatting; never install/enable/invoke gofumpt.
+Golangci-lint is the only added quality runner; it can run toolchain gofmt through
+its built-in formatter. Neither gofmt nor built-in whitespace/return checks
+guarantee every declaration gap: retain manual authoring/review coverage, never
+claim completeness. Custom analyzers/second formatters require a separate request.
 
 ## 5. Adopt golangci-lint as project tooling
 
-Go setup includes an explicit golangci-lint tooling plan alongside the handbook:
-project-local installation, an owned .golangci.yml, local check commands and the
-existing CI verification job. It is not a requirement to install Go tooling into
-non-Go projects. Treat an explicit handbook-only, no-install or no-CI-edit request
-as a scope constraint: provide the concrete plan and deferred step instead of
-performing it. Before writing config/build/CI files or installing a binary, show
-those paths in the approved setup output scope. Guidance approval alone does not
-authorize application refactoring, a global install, or repository-wide fixes.
+Go adoption includes a tooling plan: project-local golangci-lint, owned
+.golangci.yml, local commands, and the existing CI job—not Go tooling for non-Go
+projects. Show these paths in approved output scope before writing/installing;
+handbook-only/no-install/no-CI requests defer the concrete step. Guidance approval
+does not authorize application refactors, global installation, or repository fixes.
 
-Follow the [official installation guidance](https://golangci-lint.run/docs/welcome/install/local/):
-choose a fixed release compatible with the module's Go language version and the
-Go version used to build that release. Verify the actual binary version; do not
-copy a floating latest version or treat one release number as architecture.
-Prefer an official release binary in an ignored project-local bin directory,
-with the release archive checked against its published checksum before use.
-Use the same release and config in local commands and CI. Download and inspect
-an installer separately if used; never execute an unreviewed remote script via
-a pipe to a shell. Do not silently update global tooling, replace an existing
-version manager, add golangci-lint to the application's go.mod/tool dependencies,
-or change application dependencies to satisfy the linter.
+Follow [official installation](https://golangci-lint.run/docs/welcome/install/local/):
+pin a release compatible with both module Go and the Go version building the
+runner; verify the actual binary version. Prefer an official archive checked
+against its published checksum in ignored project-local bin. Local/CI use the
+same release/config. Inspect any downloaded installer separately—no unreviewed
+remote-script pipe. No floating latest, global updates, replacement version manager,
+application go.mod/tool entries, or dependency changes to satisfy lint.
 
-This minimal v2 configuration is a starting point for an owned Go project config,
-not permission to replace a human-maintained existing one. These rule names and
-settings follow the [official configuration](https://golangci-lint.run/docs/linters/configuration/#revive):
+Minimal v2 starting config; merge rather than replace human-maintained ownership.
+Rule names/settings follow [official configuration](https://golangci-lint.run/docs/linters/configuration/#revive):
 
 ```yaml
 version: "2"
@@ -220,23 +174,19 @@ formatters:
     - gofmt
 ```
 
-The argument-limit maximum is 4: a declared function with ctx plus four business
-parameters exceeds it. This general linter check can also flag domain helpers or
-framework signatures outside the boundary rule's scope; use a justified narrow
-exception rather than changing required third-party APIs or boxing every value.
-Conversely, do not assume interface method declarations, function-valued fields,
-semantic role names, entity/collection types or peer calls are all covered just
-because a function-count fixture is reported. Review those contracts explicitly.
+Argument-limit 4 flags ctx plus four business parameters. It may also flag pure
+helpers/framework APIs outside the boundary rule: use justified narrow exceptions,
+not forced wrappers/API redesign. A function fixture does not establish coverage
+of interface methods, function fields, semantic names, entities/collections, or
+peer calls; review them explicitly.
 
-Do not turn on every linter, adopt blanket suppressions, or claim this config
-implements all Google conventions. Enable dependency checks such as depguard only
-with the actual module/path graph and an exercised forbidden-edge fixture. Import
-checks cannot detect every forbidden peer operation routed through an interface
-or called from the same package. Do not install standalone Staticcheck, revive or
-a second formatter when their checks are already provided by golangci-lint.
+No enable-everything, blanket suppressions, or claim of complete Google coverage.
+Depguard needs the actual module graph and exercised forbidden-edge fixture;
+imports cannot catch same-package/interface-routed peer calls. Do not duplicate
+golangci-lint's Staticcheck/revive checks or formatter with standalone installs.
 
-From the actual Go module root, after installing the approved binary/config,
-provide these commands through the project's existing Makefile/task runner:
+After approved binary/config installation, expose these commands from the actual
+Go module root through the existing Makefile/task runner:
 
 ```sh
 ./bin/golangci-lint version
@@ -244,18 +194,15 @@ provide these commands through the project's existing Makefile/task runner:
 ./bin/golangci-lint run --config .golangci.yml ./...
 ```
 
-CI runs the same pinned runner without --fix and fails on violations. Local
-auto-fixing can be offered explicitly; never run --fix or repository-wide
-formatting during a handbook refresh without authorization. Use explicit config
-paths to avoid accidentally inheriting an unrelated home-directory config.
-Generated-code exclusions follow the project's real generated markers/paths and
-must not exclude handwritten mappers or weaken core dependency rules.
+CI uses that pinned runner without --fix and fails violations. Local autofix is
+explicit opt-in; no --fix/repository-wide formatting during handbook refresh.
+Explicit config paths avoid home-config inheritance. Generated exclusions follow
+actual markers/paths, never handwritten mappers or weakened core dependencies.
 
 ## 6. Verification that matches each claim
 
-Validate the config against the selected binary and exercise a temporary
-four-total/five-total-parameter example: accept the first, report the second,
-then accept the Command-based correction. Check a real changed application
-boundary and its negative path separately; a count warning is not behavior proof.
-Confirm local and CI version/config paths agree, and keep installation status
-separate from handbook adoption and reader loading.
+Validate config with the selected binary; temporary fixtures accept four total
+parameters, reject five, then accept Command correction. Separately exercise a
+real changed boundary/negative path: count warnings are not behavior proof.
+Confirm local/CI version/config agreement; report installation independently of
+handbook adoption/reader loading.

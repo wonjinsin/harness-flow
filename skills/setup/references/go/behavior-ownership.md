@@ -1,15 +1,8 @@
 # Behavior ownership and top-to-bottom readability
 
-**Required baseline:** code should read like a book, naturally from top to bottom.
-An orchestration method tells the operation's story at one level of abstraction;
-its reader should not have to reconstruct a predicate, collection algorithm, or
-representation conversion to understand the next step. This is a responsibility
-rule, not a function-length limit. Use this chapter with [layers](layers.md), [architecture](architecture.md), and [coding conventions](coding-conventions.md).
+**Required baseline:** orchestration reads top to bottom at one level of abstraction, without making readers reconstruct predicates, collection algorithms, or conversion details. This is ownership, not a length limit.
 
-Give each decision or transformation one owner beside the values whose meaning
-it defines. This applies to read models and collections, not only constructors
-and complex state transitions. Rich aggregates, private fields, and a class per
-rule remain optional. Meaningful behavior ownership does not.
+Place each decision beside the values whose meaning it defines, including read models/collections. Rich aggregates, private fields, and a class per rule are optional; behavior ownership is not. Before placing behavior use [architecture](architecture.md); for boundary implementations/types use [layers](layers.md) and [coding conventions](coding-conventions.md).
 
 ## Choose the owner by meaning
 
@@ -21,67 +14,36 @@ rule remain optional. Meaningful behavior ownership does not.
 | Stored-null conversion, hydration, write-field mapping, already-loaded query shapes | Handwritten persistence record/helper or adapter-local mapper | Business decisions, hidden lazy queries, generated-code edits |
 | Load/authorize/call/save, transaction scope, deadlines, external effects | Application service; handlers and repositories retain their protocol/I/O control flow | Reimplementing the above policies and transformations inline |
 
-Choose a method when behavior is naturally about its receiver; a named pure
-function is equally valid for a decision spanning supplied values. A DTO or DAO
-may have representation behavior, but is not a dumping ground for business
-rules. Do not introduce a DTO for every internal struct or a DAO wrapper just to
-obtain a method receiver. Extend generated models through owned mappers or
-supported generation inputs, never by editing generated output.
+Use a receiver method or a named pure function spanning supplied values. DTO/DAO representation behavior is valid, business policy there is not. Do not create DTOs/wrappers merely for receivers or edit generated models; use owned mappers/generation inputs.
 
 ## Write the story, then place the details
 
-Trace a real service, handler, and repository before writing their target rules.
-For each compound condition, derived field, nested loop, or mapping block, record:
-actual code → meaning → owning type/package/API → orchestration call → direct
-behavioral check. Distinguish an existing gap from the adopted target.
+Trace a real service, handler, and repository:
+actual code → meaning → owning type/package/API → orchestration call → direct behavioral check.
+Distinguish current gaps from targets.
 
-Name calls with the operation's vocabulary and make their inputs, result, and
-mutation clear. Reading those calls in order must explain the successful flow;
-guard clauses keep failures beside the step that fails. Keep a consistent level
-of detail within each method, including the extracted behavior. Its name should
-let the reader continue without opening its implementation. Splitting a coherent
-calculation into trivial forwarding methods or vague `process`/`handle` helpers
-only replaces a long block with navigation work.
+Show the resulting orchestration as target-language code, not only prose or an
+owner table. Calls name inputs, outcome and mutation; guard failures beside each
+step. Keep one abstraction level. Trivial forwarding/vague `process` helpers add
+navigation rather than meaning.
 
-A service calling `ValidateCandidate` and `CheckActiveCategory` is not enough if
-it still combines their results, counts invalid rows, and filters merchant
-matches itself. Composed decisions and collection algorithms need named owners
-too. A private service helper shortens a method but does not correct ownership.
-Moving that block into a repository, DTO, or catch-all `utils` is not a correction.
+Calling `ValidateCandidate` and `CheckActiveCategory` still leaves ownership wrong if service composes their predicate, counts invalid rows, or matches merchants. Those decisions/algorithms belong in domain, not private service helpers, repositories, DTOs, or `utils`.
 
-Keep error propagation, authorization orchestration, transaction callbacks, and
-I/O iteration where the operation is coordinated. Decoding and query construction
-may still branch in their adapters. Do not ban `if`/`for`, target a line count, or
-force a forwarding Manager/Facade/interface per helper. Simple CRUD and direct
-field mapping need no additional abstraction when they already tell the story.
+Keep applicable load, authorization, domain-check and save calls with their
+error/transaction ordering. Under a word limit, trim explanation, not protected
+steps. A scoped fragment identifies already-completed checks without inventing
+policy. Adapters may branch while decoding/querying; no `if`/`for` ban, line-count
+quota or Manager/Facade/interface for simple CRUD/direct mapping.
 
 ## Worked fragment: assess a review
 
-This Go fragment belongs in `internal/core/domain/review.go`. It extends a
-project whose domain already supplies `Candidate`, `Category` (including
-`ParentID`), `ReviewSummary` (three integer counters), `Review` (Import, Drafts,
-Summary), and the pure `ValidateCandidate`, `CheckActiveCategory`, `MerchantKey`
-policies. `Candidate` is a validation input value here, not an entity; `IncludedReview`
-and `DuplicateMatch` are pure read projections and retain value semantics.
-`Category` and `Draft` are entities: category references use `*Category`, and
-`Review.Drafts` uses the defined plural `Drafts` (`type Drafts []*Draft`), with
-nonnil drafts guaranteed by the loaded-snapshot contract. `CheckActiveCategory`
-accepts category pointers. Adapt to the real project's vocabulary; these are
-declared example policies, not universal requirements.
+Scoped `internal/core/domain/review.go` fragment, extending existing `Candidate`, `Category{ParentID}`, `ReviewSummary` (three counters), `Review{Import,Drafts,Summary}`, and unchanged pure `ValidateCandidate`, `CheckActiveCategory`, `MerchantKey` policies. No imports are needed here.
 
-The snapshot supplies all included rows across the import, not only a visible
-page. Duplicate candidate groups correspond positionally, one group per visible
-draft, as guaranteed by the outbound contract. Existing candidate validity and
-active owned category validation apply; a nonempty grandparent ID is also invalid.
-Classification and invalidity counters are independent, with invalidity counted
-once per row. IDs are warnings appended in candidate order, preserving repeats
-and prior IDs. Canonical equality is not fuzzy matching or automatic exclusion.
+`Candidate`, `IncludedReview`, `DuplicateMatch` are values/projections. `Category`/`Draft` are entities: use category pointers, pointer-taking `CheckActiveCategory`, and `Review.Drafts` as defined `type Drafts []*Draft`, with nonnil elements.
 
-When `CategoryID` is nonempty, the snapshot must supply nonnil Category and
-Parent references, including a loaded root parent with an empty `ParentID`.
-Omitted required references are invalid rather than dereferenced. When
-`CategoryID` is empty, those references are not required and are not consulted;
-candidate validity and the independent classification counter still apply.
+Snapshot success guarantees all import-wide included rows (not just the page) and one correctly aligned duplicate group per visible draft. Invalidity counts once per row, independently of classification. Matching appends warnings to prior IDs in candidate order with repeats, not fuzzy matching/exclusion.
+
+A nonempty `CategoryID` requires loaded nonnil Category and Parent, including a root parent with empty `ParentID`; a nonempty grandparent ID is invalid. Missing references are invalid. Empty `CategoryID` neither requires nor consults references; candidate validation/classification still apply.
 
 ```go
 package domain
@@ -151,14 +113,7 @@ func (review *Review) ApplyAssessment(owner string, included IncludedReviews, du
 }
 ```
 
-`ApplyAssessment` mutates a caller-owned, freshly loaded response and may reuse
-its slice backing storage; it does not promise immutable copies or idempotency.
-Do not share it concurrently or apply it twice. It performs no I/O and reads no
-clock. The status adaptation changes the response only, not the stored lifecycle.
-Reuse an existing equivalent projection policy rather than duplicating it.
-Do not silently truncate mismatched candidate groups; if alignment is not
-established by the real adapter, resolve that contract before adopting this
-fragment. Do not copy whole snapshots to extract these small calculations.
+Assessment mutates a caller-owned fresh response and may reuse backing slices: apply once, never share concurrently or claim idempotency/immutable copies. It reads no clock/I/O and changes uploading → processing only in the response, not stored lifecycle. Reuse an equivalent existing policy. Resolve missing/misaligned duplicate groups at the outbound contract; never truncate/pad them or copy whole snapshots to extract calculations.
 
 The service keeps its snapshot load and lifetime/error handling, then reads:
 
@@ -171,35 +126,15 @@ result.ApplyAssessment(owner, snapshot.Included, snapshot.Duplicates)
 return result, nil
 ```
 
-If supporting values currently live in `core/port/out`, move the pure input types
-into domain and migrate the port, provider/repository mappings, service, and tests together.
-The port's snapshot container may remain there, referring to domain inputs.
-Domain must not import that port to borrow its types; do not leave obsolete aliases.
+Move pure input types from `core/port/out` to domain and migrate ports, mappings, service, and tests without aliases. The snapshot container may stay in the port referring to domain; domain never imports the port.
 
-A read assessment is not confirmation authorization. A write still loads fresh,
-scoped state and invokes the same domain policies inside the service-owned,
-concurrency-protected unit of work. Moving a pure calculation must not move its
-state reads outside locks or weaken database constraints.
+Read assessment is not confirmation authority: writes reload scoped state and reuse domain policies inside the service-owned concurrency-protected transaction. Extraction must not move reads outside locks or weaken constraints.
 
 ## Verify at the owner and at the boundary
 
-- Exercise eligibility directly with valid/invalid candidates, missing or
-  explicitly accepted classification, active/archived/foreign categories, and
-  excessive parent depth. Multiple failures increment Invalid once; a row may
-  also increment NeedsClassification.
-- Exercise summaries with empty inputs, prior counters, and included rows outside
-  the visible page. Exercise matching with canonical equality, nonmatches, empty
-  groups, prior IDs, order, and repeated IDs. Check values without booting a
-  service, server, or database.
-- Exercise DTO omitted/null/value behavior and allowed fields at the transport
-  boundary; stored-null and hydration at the handwritten mapper. Pure conversion
-  checks cannot establish wire compatibility or database atomicity.
-- Keep service checks for denied/failed operations, scoped reads, cancellation,
-  transaction outcome, and durable effects. Use the real adapter for rollback,
-  constraint and concurrency claims, not helper-call counts.
+- Direct domain cases: valid/invalid candidates; missing/accepted classification; active/archived/foreign categories; missing required references/deep parents. Multiple failures add Invalid once, independently of NeedsClassification.
+- Summary/matching cases: empty input, prior counters/IDs, off-page included rows, canonical equality/nonmatches, empty groups, order/repeats. No server/database is needed.
+- Transport cases: omitted/null/value and field allowlists. Persistence mapper cases: stored null/hydration. Pure checks prove neither wire compatibility nor atomicity.
+- Service/real-adapter cases: denied/failed/scoped reads, cancellation, transaction/durable effects, rollback/constraints/concurrency—not helper-call counts.
 
-Include a real before/after fragment and ownership trace in the generated
-handbook, not just "thin services" or a folder diagram. Check the final flow by
-reading it top to bottom: can a reader explain the operation without opening
-helpers to discover what they do? Reuse accepted rules; do not invent
-normalization, acceptance, tenancy, or lifecycle policy to complete an example.
+Generated handbooks include a real before/after fragment and ownership trace. Read the final flow top to bottom without opening helpers; reuse accepted normalization/acceptance/tenancy/lifecycle rules rather than inventing policy to finish an example.

@@ -1,18 +1,12 @@
 # Go layers: implementation and review examples
 
-Use this chapter with the [canonical tree and dependency contract](architecture.md). The examples show a complete create/get/list vertical slice at the important boundaries, with scoped fragments rather than a single compilable file. Replace `example.com/app` with the target module; retain that project's compatible dependency versions. Fragments sharing a file/package are meant to be combined; imports are described where useful rather than repeated around every method. The [runnable example](../../examples/go) is a separate standard-library HTTP/SQLite adaptation, not an Ent implementation of these fragments.
+Read [architecture](architecture.md) before implementing: it owns the canonical tree, imports, default API, command placement, and exact service-call bans. This chapter implements a Chi/Ent/PostgreSQL/Zerolog create/get/list slice. Preserve an existing project's compatible stack under its real engine name; this is not migration authority.
 
-**Default profile:** use Chi, Ent, PostgreSQL, Zerolog; inbound interfaces, queries/results, and input errors remain in `internal/core/port/in`, inbound `*Command` structs live in `internal/core/port/in/command`, and outbound ports in `internal/core/port/out`. Persistence lives under `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: reads use providers, writes use repositories, and `db` owns only pool/client lifecycle and generic transaction mechanics. For an existing project, replace `postgres` with its real engine and adapt its actual driver/ORM; this profile is not authorization to migrate its database. Use aliases `inport`, `outport`, and `httpadapter` where package names would be ambiguous; import `command` by its package name. The example HTTP object is `UserController`; “handler” and “controller” are one responsibility, not two layers.
+Fragments are scoped, not one compilable file. Combine fragments sharing a file/package; each introduces its imports/assumptions. Replace `example.com/app` with the target module and retain compatible dependency versions. Aliases are `inport`, `outport`, `httpadapter`; `command` is imported directly. “Handler” and `UserController` are one responsibility.
 
-**Portable principles:** separate transport, application, domain, and persistence representations; carry the operation context through I/O; express contracts through application-owned types; enforce domain rules for every caller; and compose concrete dependencies only at the process boundary. The commands, errors, context signatures, and pagination below illustrate these contracts; adopting them requires migrating existing implementations and callers together.
+Before designing signatures or tooling, read [coding conventions](coding-conventions.md) for input thresholds, entity/value typing, naming, spacing, and lint coverage. Before extracting calculations or conversions, read [behavior ownership](behavior-ownership.md). Keep coordination at one level of abstraction and I/O/errors/transactions visible.
 
-**Readability baseline:** follow [behavior ownership](behavior-ownership.md).
-Each orchestration method should read naturally from top to bottom at one level
-of abstraction. Domain owns composed decisions and collection calculations;
-application inputs/results and adapter-local DTO/DAO mappers own their respective
-validation and conversion details. Keep I/O, errors, and transactions visible.
-
-Read [coding conventions](coding-conventions.md) for the required boundary input rule: count every argument including `ctx`, excluding the receiver; at five or more use a named Command/Query, keeping `ctx` first and outside the struct. Entity inputs/returns use pointers and defined plural `[]*Entity` collections; small value objects and pure projection collections may stay values. Follow Google Go naming and explicit dependency roles (`userProvider`, `userRepo`, `transactor`), and adopt golangci-lint only—no gofumpt or new custom analyzers. Blank lines between all handwritten functions remain required even where built-in lint coverage is incomplete.
+The [runnable example](../../examples/go) is a separate standard HTTP/SQLite adaptation, not an Ent implementation or production-profile evidence.
 
 ## 1. Start with the application contracts, not a JSON or database struct
 
@@ -83,18 +77,14 @@ type UserUseCase interface {
 }
 ```
 
-This contract does not know that creation arrived through `POST`, that pagination came from a query string, or that users are stored with Ent. A worker can construct a command without a fake HTTP request. Do not put `json` tags, an `http.ResponseWriter`, a Chi context, a database ID allocation object, or an ORM entity in it. A command does not need a wrapper for every scalar operation: `GetUser(ctx, id int)` is reasonable when there is only one input and no meaningful ambiguity.
-
-The `command` package may depend only on domain and standard-library types; it must not import parent `in`, services, transport, or ORM packages. It is not a generic parameter package: queries/results and interfaces stay in parent `in`, and transport DTOs stay in the adapter. Every consumer imports `command` directly; do not add aliases or re-exports in `in`. Moving existing commands preserves fields, pointer/collection shapes, nil-versus-empty and false-versus-omitted semantics, validation, and behavior. Keep `ctx` outside structs and use `cmd` for a local command variable so it does not shadow the package.
+These are HTTP/ORM-independent application types: no JSON tags, framework request/writer/context, ID-allocation object, or Ent entity. `GetUser(ctx, id)` needs no scalar wrapper. Follow [architecture's command dependency/migration rules](architecture.md#3-dependency-direction-is-about-imports-not-execution-order) when moving existing commands; use local `cmd` so it does not shadow the package.
 
 `ListUsersQuery.Normalize` owns the accepted bounds/defaults for every caller.
 `NewUserPage` consumes a normalized query and the bounded lookahead result; it
 owns trimming and `HasMore` without copying the user collection. These are
 application query/result behaviors, not JSON conversion or domain identity rules.
 
-**Needs project decision.** Protected use cases need a trusted actor/tenant representation and authorization semantics; this public CRUD illustration does not implement an identity system. Do not let a `TenantID` in an untrusted JSON body stand in for authenticated scope. See [security and operations](security-and-operations.md).
-
-**Optional.** Narrow domain capability interfaces such as `UserCreator` or `UserReader` are useful when callers genuinely need different subsets. A controller using all three operations can depend on `UserUseCase`. Do not split mechanically into an interface per method or introduce `ApplicationFacade`/`UserManager` forwarding every operation.
+For protected operations, read [security and operations](security-and-operations.md) before selecting trusted actor/tenant and authorization contracts; JSON `TenantID` is not authenticated scope. Narrow `UserCreator`/`UserReader` interfaces are optional for genuinely different consumer subsets, not mandatory per-method wrappers.
 
 ### Outbound ports: separate reads from writes
 
@@ -119,9 +109,9 @@ type UserRepository interface {
 }
 ```
 
-The repository insert contract returns a persisted entity pointer, including the generated ID. It never silently updates because an input carries a nonzero ID. The read-only provider's `FindByID` returns `ErrUserNotFound` when absent, not `(nil, nil)`; `List` returns an empty collection without error when there are no matches and uses stable `(created_at, id)` ascending order. The use case may request one extra row for `has_more`; the bounded public limit remains application-owned. Neither adapter forwards through the other, and neither needs another forwarding DAO/service.
+`Insert` returns generated identity, never implicit update authority from a nonzero ID. `FindByID` returns inspectable not-found, not `(nil, nil)`; empty `List` succeeds, ordered `(created_at, id)` ascending. Public bounds remain application-owned; providers support bounded lookahead.
 
-For this example, keep error category and retained diagnostic cause separate. In the same outbound port package:
+In the same outbound package, separate error category from private cause:
 
 ```go
 type RepositoryError struct {
@@ -137,14 +127,11 @@ func (e *RepositoryError) Unwrap() error { return e.Cause }
 func (e *RepositoryError) Is(target error) bool { return target == e.Kind }
 ```
 
-All construction sites below supply a non-nil known `Kind` and cause. `errors.Is(err, outport.ErrEmailTaken)` remains true through a service's `%w` wrap; `Unwrap` retains the original cause for cancellation and diagnostics. The error string intentionally excludes raw SQL/driver detail, which may contain user data. Core consumers branch on the port's categories, never on driver error types. A richer shared error implementation can live in the existing `internal/pkg/errors` when the project needs one; do not add this example as a second error system alongside an already correct one. [Domain](domain.md) and [data and transactions](data-and-transactions.md) cover larger error/concurrency contracts.
+Construction supplies known nonnil `Kind` and cause. `Is` preserves portable categories through `%w`; `Unwrap` preserves cancellation/diagnostics. `Error` excludes raw driver details/user data. Core branches on categories, never PostgreSQL types/constraint names. Reuse an existing correct `internal/pkg/errors` mechanism rather than adding a second system; before extending error/concurrency contracts, read [domain](domain.md) and [data and transactions](data-and-transactions.md).
 
-The reason to preserve causes is not to make a PostgreSQL error part of the public contract. Only the declared categories are portable promises; changing persistence must not require a handler to inspect a PostgreSQL constraint name.
-
-**Plausible violations:**
+**Wrong boundary contracts:**
 
 ```go
-// Wrong: both ports depend on adapter types and storage mechanics.
 type UserUseCase interface {
     CreateUser(context.Context, dto.CreateUserRequest) (*ent.User, error)
 }
@@ -154,15 +141,17 @@ type UserRepository interface {
 }
 ```
 
-These signatures make it impossible to change HTTP or storage without changing core. A transaction capability is valid when needed, but its callback/contracts must stay framework-neutral; see the complete design in [data and transactions](data-and-transactions.md).
+These illustrative invalid signatures use HTTP `dto`/generated `ent`, precisely
+the dependencies core must not import. Transaction contracts stay framework-neutral.
+
 
 **Review target:** a service test can invoke the inbound contract and fake the outbound contract without importing HTTP, Ent, or PostgreSQL. Interface checks should describe real substitutability, not merely mirror a concrete adapter.
 
 ## 2. Domain: valid business state without delivery or storage
 
-**Required baseline.** `internal/core/domain/user.go` owns user invariants. The default example uses an exported `User` with `ID int`, `Name`/`Email string`, `CreatedAt time.Time`, `Users []*User`, and a validating/normalizing `NewUser`. Preserve that understanding; do not assume it has private state or named IDs already.
+`internal/core/domain/user.go` owns the invariant. This scoped example imports standard `errors`, `net/mail`, `strings`, `time`, `unicode/utf8`. It uses exported `User` fields, pointer entities, and a defined `Users` collection—not pre-existing encapsulated state or named IDs.
 
-The following is a scoped example with standard-library imports `errors`, `net/mail`, `strings`, `time`, and `unicode/utf8`. It adopts explicit example policies: at most 100 name runes, a single mailbox address without a display name, trimming input, and lowercasing the entire email. **Needs project decision:** email equivalence and internationalization are business rules; lowercasing the local part is not a universal Internet rule. Match normalization, lookup, and the unique database key to the accepted policy.
+**Example policies, requiring project agreement:** trim input, at most 100 name runes, one mailbox without display name, lowercase the whole email. Local-part lowercasing is not universal Internet semantics; normalization, lookup, and unique storage key must agree.
 
 ```go
 package domain
@@ -192,23 +181,21 @@ func NewUser(id int, name, email string, now time.Time) (*User, error) {
 }
 ```
 
-The application supplies time; the domain does not read environment variables, open connections, or depend on a global logger. A non-HTTP caller receives the same invariant protection. HTTP format validation may give better feedback, but it cannot be the sole enforcement point.
+Application supplies time; domain reads no environment/connections/global logger. Every caller gets the invariant, even without HTTP validation. Exported fields permit later mutation: when lifecycle rules grow, add private state/transitions and explicit rehydration/accessors rather than copying validation across services. Before that change, read [domain modeling](domain.md); a small record needs no aggregate/event framework merely for terminology.
 
-Exported fields are a deliberate simplicity trade-off: a caller can still mutate them after construction. **Required when lifecycle transitions/invariants become complex:** move transitions behind methods/private state and provide explicit rehydration/accessors as appropriate, rather than duplicating validation in every service. Do not add a full aggregate/event framework to a small record solely because a comment calls `User` an aggregate root. See [domain modeling](domain.md) for identity, value objects, aggregates, and concurrency.
-
-**Wrong:**
+**Wrong domain ownership** (invalid contrast using HTTP `r`, Ent `client`,
+and decoded HTTP `req`, not declarations to add to domain):
 
 ```go
-// Wrong: a domain method is now coupled to transport and storage.
 func CreateUser(r *http.Request, client *ent.Client) error {
     return client.User.Create().SetName(r.FormValue("name")).Exec(r.Context())
 }
 
-// Wrong: construction succeeds even when the only invariant lives in a handler.
 u := &domain.User{Name: req.Name, Email: req.Email}
 ```
 
-The first combines three owners. The second bypasses the constructor and assumes every future caller will repeat HTTP validation.
+The first merges transport/storage with domain; the second bypasses construction.
+
 
 **Review target:** domain tests cover empty/long names, accepted normalization, malformed addresses, and time/ID assumptions without booting a server or database. Check that changing the accepted normalization rule includes a data migration/conflict decision rather than silently changing identity semantics.
 
@@ -281,28 +268,28 @@ func (s *useCase) ListUsers(ctx context.Context, q inport.ListUsersQuery) (inpor
 }
 ```
 
-This is a single-write create use case. It needs the database's atomic insert/unique constraint, not a ceremonial application transaction around one insert. A prior `FindByEmail` can improve a user-facing path but cannot prove absence under concurrency and may compare an unnormalized address. The example omits it deliberately and classifies the actual unique violation.
+One atomic insert needs no ceremonial application transaction. An email precheck is advisory under concurrency; the actual named unique violation decides conflict.
 
-`now` is a small injectable function, not a clock service framework. Composition supplies `time.Now`; a test can supply a fixed function. Constructors assume composition supplies valid non-nil dependencies; validate dependency wiring according to the project's startup convention, not by adding silent fallback repositories or clocks.
+Composition supplies valid nonnil dependencies and `time.Now`; tests inject fixed time. Do not add fallback repositories/clocks. Before reusing operations, apply [architecture's exact service-call restrictions](architecture.md#service-areas-and-exact-call-restrictions): extract pure behavior into domain or genuine application/I/O reuse into shared, never chain peer operations.
 
-The service areas are ownership categories, not mandatory empty folders. `usecase/<domain>` owns domain inbound operations; add `shared/<capability>` only for real reusable application coordination/I/O, and `orchestration/<workflow>` only for an implemented multi-domain workflow. Pure shared calculations, matching, eligibility, and collection summaries stay in domain. Peer operation/service calls are forbidden, including another operation on the same implementation, usecase-to-usecase, shared-to-shared, and orchestration-to-orchestration calls—even through interfaces, inbound ports, callbacks, or facades. Use cases must not call orchestration; shared capabilities must not call use cases or orchestration; orchestration must never call use cases. A use case/orchestration may depend on a narrow shared capability, and all service areas reach I/O through outbound ports only. See the [exact architecture call rules](architecture.md#service-areas-and-exact-call-restrictions).
-
-The list policy chooses default 50, maximum 100, and maximum offset 100000. These numbers are **project decisions**, not universal limits. The service invokes the query's normalization so worker/CLI callers receive the same checks; the result owns page shaping. HTTP parsing alone is insufficient. The provider returns at most the requested bounded count, including one lookahead row.
+The example query policy is default 50, max 100, offset max 100000—not universal limits. Normalize for all callers, shape the result in application, and request at most one extra row from the provider.
 
 **Required when the use case is protected:** orchestrate authorization before exposing or mutating data, using an explicit policy and trusted scope. **Required when two writes share an invariant:** use the transaction contract from [data and transactions](data-and-transactions.md). **Required when publishing must survive crashes:** use the durable delivery contract from [reliability and events](reliability-and-events.md). Do not append `go publishEvent(...)` to this service and claim reliability.
 
-**Wrong:**
+**Wrong coordination** (invalid contrast with HTTP `dto`, generated `ent`,
+and a hypothetical global `persistence` registry):
 
 ```go
 func (s *useCase) CreateUser(_ context.Context, req dto.CreateUserRequest) (*ent.User, error) {
-    // Wrong: drops cancellation, bypasses domain, and selects infrastructure.
     client := persistence.GlobalClient()
     return client.User.Create().SetName(req.Name).SetEmail(req.Email).
         Save(context.Background())
 }
 ```
 
-A subtler wrong version decodes correctly but checks `err.Error() == "duplicate email"`, sets an HTTP status inside the service, or logs every returned error before the handler logs it again. These are also boundary violations.
+Also reject error-text comparisons, HTTP status selection, or logging propagated
+failures here before the inbound boundary logs them.
+
 
 **Review target:** test query normalization and result shaping directly for invalid bounds, defaults, empty/exact/overfull pages, and no loss of returned users. Service checks use small provider/repository doubles and fixed time for rejected writes, normalized stored state, retained error categories, and coordination failures. Do not retest every pure rule through service mocks. See [testing and evolution](testing-and-evolution.md) for transaction/cancellation and real-adapter evidence.
 
@@ -337,7 +324,7 @@ type ErrorResult struct {
 }
 ```
 
-Keep `ErrorResult` in the existing `dto/response.go`. **Default wire style:** responses use `utils.StandardResponse` from `internal/pkg/utils/http.go`: `trid` is a string, `code` is a four-digit string, and `result` is omitted when empty. Creation returns code `"0201"`; ordinary success uses `"0200"`; the baseline error codes are `"0400"`, `"0404"`, `"0409"`, and `"0500"`. An error result is `{"msg": safeMessage}`, never a raw internal error string. The controller below preserves that envelope rather than adopting a different problem-details or bare-response default. Reuse a target project's established helper; do not create a second envelope authority. Moving an existing transport helper out of `utils` can be a deliberate cleanup, but is not a prerequisite or a silent layout change. Exposing `Email` is also an explicit API/data-access decision; an authenticated list may need a narrower representation.
+Keep `ErrorResult` in `dto/response.go` and use the established `utils.StandardResponse` (`internal/pkg/utils/http.go`). This controller implements [architecture's default envelope](architecture.md#4-exact-responsibility-and-file-decisions), not bare JSON/problem details or a second helper. Existing helper relocation requires an explicit migration. Exposing `Email` is an API/access decision; protected lists may need narrower responses.
 
 Put conversion in the **HTTP** mapper `internal/adapter/in/http/dto/user_mapper.go`:
 
@@ -371,31 +358,30 @@ func ToUserListResponse(page inport.UserPage) UserListResponse {
 }
 ```
 
-The application/provider/repository contracts promise non-nil users on success and non-nil elements in a result list. If an implementation violates that, correct it; do not turn an impossible nil row into a fake zero user. Entity collections use `domain.Users`; the response's `[]UserResponse` is a pure value projection, not a collection of domain entities. The mapper allocates one response slice, pre-sized to the result. That boundary allocation is intentional; avoid reflection, repeated appends without a reason, and a JSON round-trip merely to copy fields. An empty list becomes `[]`, not `null`, under this chosen wire contract.
+Success guarantees nonnil users/elements; fix a violating adapter rather than fabricating a zero user. `domain.Users` holds entities, while `[]UserResponse` is a value projection. One pre-sized slice allocation is intentional; no reflection/JSON round-trip or accidental `null` for an empty list.
 
-A mapper is an allowlist. The request cannot set `ID`, `CreatedAt`, a role, or internal state because those fields are not mapped. The response will not accidentally expose a later-added domain field, an ORM edge, or a password hash. Changes to wire names and response visibility remain local to HTTP rather than changing every caller of the application command.
+Mapping allowlists input/output independently: no client-set ID/time/role, nor accidental exposure of later domain fields, Ent edges, or password hashes.
 
-**Wrong:**
+**Wrong conversion** (independent invalid contrasts; `ent` is generated storage,
+`domainUser`/`req` are existing values, and `w` is the HTTP writer):
 
 ```go
-// Wrong: one struct is now a wire contract, ORM object, and business object.
 type CreateUserRequest = ent.User
 
-// Wrong: zero-copy convenience couples the public API to future domain fields.
 json.NewEncoder(w).Encode(domainUser)
 
-// Wrong: mapping is no longer a pure representation conversion.
 func ToCommand(req CreateUserRequest, repo outport.UserRepository) command.CreateUserCommand {
     repo.Insert(context.Background(), &domain.User{Name: req.Name})
     return command.CreateUserCommand{Name: req.Name, Email: req.Email}
 }
 ```
 
+
 **Review target:** DTO tests assert public field names, empty-list behavior, and the absence of internal fields. Mapper tests check allowed fields exactly. Application command tests should not require JSON serialization. Partial updates need an explicit omitted/null/value policy rather than using empty strings to mean all three; see [testing and evolution](testing-and-evolution.md) for compatibility cases.
 
 ## 5. HTTP controller: bounded decode, use-case call, safe response
 
-**Required baseline.** `internal/adapter/in/http/handler/user.go` owns HTTP parsing/status/headers. The following fragments share one handler package and use standard `context`, `encoding/json`, `errors`, `fmt`, `io`, `mime`, `net/http`, `strconv`, plus Chi, Chi middleware as `chimw`, Zerolog, `dto`, `domain`, `inport`/`outport`, and the existing `utils` envelope type. The constructor needs the inbound port, not the repository. The request logger is installed by middleware in the next section.
+`internal/adapter/in/http/handler/user.go` owns parsing/status/headers and depends on the inbound port. These shared-package fragments import standard `context`, `encoding/json`, `errors`, `fmt`, `io`, `mime`, `net/http`, `strconv`; Chi; Chi middleware as `chimw`; Zerolog; `dto`, `domain`, `inport`, `outport`; and existing `utils`. Middleware below installs the request logger.
 
 ```go
 type UserController struct {
@@ -438,7 +424,7 @@ func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
 
 ### Decode exactly one bounded JSON object
 
-This helper belongs with the HTTP handler or a cohesive HTTP-only helper, not in domain. It implements an example 64 KiB limit, `application/json` media type, unknown-field rejection, rejection of `null`, and rejection of trailing JSON. Exact size and unknown-field compatibility policy are **project decisions**; do not change an established API's tolerance by accident. `DisallowUnknownFields` is not a full JSON schema validator and does not reject duplicate JSON keys; if duplicate-key ambiguity matters for the endpoint, use an explicit validated decoding policy.
+This HTTP-only helper limits bodies to 64 KiB, requires `application/json`, rejects unknown fields, `null`, and trailing JSON. Size/unknown-field tolerance are compatibility decisions. `DisallowUnknownFields` neither validates a full schema nor rejects duplicate keys; use an explicit validated policy if duplicate-key ambiguity matters.
 
 ```go
 type requestError struct {
@@ -486,11 +472,11 @@ func bodyError(err error) error {
 }
 ```
 
-`bodyError(nil)` is intentional when a second successful decode finds another value: that is still an invalid single-object body. The helper does not return decoder text, field names supplied by the client, or internal validation traces. The server owns ordinary request-body closure; this helper does not defer a second unrelated lifecycle inside domain.
+`bodyError(nil)` deliberately rejects a successful second decode. It exposes no decoder text/client field names/internal traces. The server owns ordinary body closure, not domain.
 
 ### Classify errors once; serialize once
 
-Keep these fragments in the handler package. The error-to-HTTP mapping is transport-owned; the controller preserves the default four-digit code/envelope and `{"msg": safeMessage}` error result. The project may deliberately choose different status/error semantics, but record any compatibility change without moving status codes into core.
+Keep error/status mapping and serialization in the handler, preserving the accepted envelope and safe messages. A different status policy is an explicit API compatibility decision, never a core status code.
 
 ```go
 func (c *UserController) fail(w http.ResponseWriter, r *http.Request, err error) {
@@ -536,16 +522,16 @@ func (c *UserController) respond(w http.ResponseWriter, r *http.Request, status 
 }
 ```
 
-The response is marshaled before headers are committed. After `WriteHeader` or a partial write, a write failure cannot be repaired by writing another `500` body. The final log records delivery failure only; it does not retry business work. The fixed encoding-error response preserves the envelope and exposes no data; its `trid` is empty because the failure path uses a fixed safe body, while the request-scoped log still contains correlation. `TrID` middleware is the default correlation style; this chapter's explicit Chi `RequestID` adaptation uses `chimw.GetReqID` to populate the same `trid` field. If retaining `TrID`, use its existing typed context accessor instead. Do not install both independent ID generators.
+Marshal before committing headers. After `WriteHeader`/partial write, log delivery failure without writing a second `500` or retrying business work. The fixed encoding-error body retains the envelope with empty `trid`; request logs still carry correlation.
 
-For an already-canceled request the helper returns without attempting a response. Its access-log status may remain zero, meaning no response was observed, not a real HTTP status; middleware records cancellation explicitly. A database child deadline with a still-live request can map to `504` in this example. An operation timeout does not prove that a write did not commit; retry/idempotency policy is a separate [reliability](reliability-and-events.md) decision.
+This explicit Chi `RequestID` adaptation fills `trid` via `chimw.GetReqID`. If retaining the default `TrID`, use its typed accessor; never install both ID generators. A canceled request gets no response (access status may be zero); a child deadline on a live request maps to `504`. Timeout does not prove a write failed to commit; before adding retries read [reliability](reliability-and-events.md).
 
-The example's `RepositoryError.Error()` is sanitized. Do not assume every foreign error passed to `.Err(err)` is safe: raw SQL errors, HTTP client bodies, credentials, and sensitive field values need adapter-level sanitization and a project logging policy. Detailed cause retention does not authorize dumping that chain into logs. See [security and operations](security-and-operations.md).
+`RepositoryError.Error` is sanitized, not every foreign `.Err(err)`. Before logging SQL/client-body/credential/sensitive-field errors, apply [security and operations](security-and-operations.md)'s redaction and single-owner policy; retained causes are not permission to dump them.
 
-**Wrong:**
+**Wrong HTTP path** (independent invalid handler fragment with generated `ent`
+and a captured Ent `client`; these are not imports/dependencies to add):
 
 ```go
-// Wrong: unbounded decode, ignored errors, bypassed use case, raw diagnostic exposure.
 var req ent.User
 json.NewDecoder(r.Body).Decode(&req)
 row, err := client.User.Create().SetName(req.Name).Save(context.Background())
@@ -555,6 +541,7 @@ if err != nil {
 }
 json.NewEncoder(w).Encode(row)
 ```
+
 
 **Review target:** HTTP tests exercise bad content type, empty/null/malformed/extra JSON, unknown fields under the accepted policy, oversized bodies, invalid path/query numbers, category-to-status mapping, public error redaction, and exactly one use-case call. Use-case failures must not accidentally serialize an Ent object or fall through into a second response.
 
@@ -586,11 +573,9 @@ func NewRouter(userUseCase inport.UserUseCase, log zerolog.Logger) *chi.Mux {
 }
 ```
 
-This fragment reuses the health controller and preserves `GET /healthz`, `POST /users/`, `GET /users/`, and `GET /users/{id}`. Slash-normalization or redirect behavior must be explicit rather than assumed. The default middleware concerns also include CORS, `TrID`, and IP handling. **Needs project decision:** CORS origins/credentials and trusted proxy handling. Do not copy a middleware named `RealIP` and trust arbitrary forwarded headers from the Internet; choose behavior appropriate to the deployment. See [security and operations](security-and-operations.md).
+Routes preserve `GET /healthz`, `POST /users/`, `GET /users/`, `GET /users/{id}`. Redirect/slash normalization is not implicit. Before configuring CORS origins/credentials, forwarded-IP trust, or client-provided correlation headers, read [security and operations](security-and-operations.md). Never trust arbitrary `RealIP` forwarding headers.
 
-`RequestID` in this example is an explicit alternative to `TrID`; choose one canonical correlation mechanism instead of generating two unrelated IDs. A request ID is not a transaction ID, tenant, authentication credential, or idempotency key. If correlation headers are accepted from clients, apply the project's validation/trust policy rather than using them as authorization evidence.
-
-Middleware registration order is significant: the request logger wraps recovery so a recovered response is visible to it, and recovery wraps handlers. A framework timeout alone cannot make uncooperative work stop; service and persistence must propagate/check the context. Request deadline budgets and `http.Server` timeouts are separate operational settings.
+Use one canonical `RequestID` or `TrID`; it proves neither transaction, tenant, authentication nor idempotency. Registration order matters: logger wraps recovery, which wraps handlers. Framework timeout cannot stop context-ignoring I/O; request budgets and server timeouts are distinct.
 
 ### Request-scoped logger and access-log ownership
 
@@ -625,15 +610,13 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 
 This deliberately avoids request bodies, authorization headers, query strings, and raw paths that may embed personal identifiers. Add a normalized route template, if needed, through the router's supported route context, not an unbounded user-controlled label. HTTP request logging does not replace business audit records.
 
-**Required baseline ownership:** middleware emits one access record; the HTTP error boundary emits one unexpected-failure record. The same ownership applies to worker/job consumers and CLI command boundaries: domain, service/use-case, provider, repository, and outbound-adapter code return contextual errors without logging the propagated failure. Follow the [cross-inbound ownership rule and exception policy](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs); operation metrics and required audit records are separate signals. Domain code does not log successful construction on every invocation.
+**Logging owner:** middleware emits one access record; the owning inbound HTTP/worker/CLI boundary emits one unexpected-failure record. Domain/service/provider/repository/outbound adapters return contextual failures without logging them again. Before introducing exceptions, audit, or other signals, read [security's cross-inbound ownership policy](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs). Metrics/audits are separate; sensitive audits need their own schema/access/retention/atomicity, not an access-log line.
 
-**Required when security-sensitive actions occur:** audit logging has its own schema, access controls, retention, and sometimes atomicity requirements. It is not merely the middleware's access line. [Security and operations](security-and-operations.md) covers this distinction.
-
-**Wrong:**
+**Wrong routing/middleware** (invalid contrasts: `emailExists`/`saveUser` stand
+for direct persistence helpers; `userService`/`defaultUser` are captured dependencies):
 
 ```go
 r.Post("/users", func(w http.ResponseWriter, r *http.Request) {
-    // Wrong: routing owns the repository and business rule.
     if emailExists(r.FormValue("email")) {
         http.Error(w, "duplicate", http.StatusConflict)
         return
@@ -641,7 +624,6 @@ r.Post("/users", func(w http.ResponseWriter, r *http.Request) {
     saveUser(r.FormValue("name"), r.FormValue("email"))
 })
 
-// Wrong: a cross-cutting transport wrapper starts an application workflow.
 func CreateDefaultUser(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         userService.CreateUser(context.Background(), defaultUser)
@@ -649,6 +631,7 @@ func CreateDefaultUser(next http.Handler) http.Handler {
     })
 }
 ```
+
 
 Authentication extraction can be middleware; resource-level permission and domain eligibility still belong to a trusted application policy/use case. A middleware that loads every possible entity, performs writes, or commits generic request-wide transactions obscures those boundaries.
 
@@ -658,9 +641,7 @@ Authentication extraction can be middleware; resource-level permission and domai
 
 ### Schema input and generated Ent output are different owners
 
-**Default profile.** Handwrite schema declarations in `internal/adapter/out/persistence/postgres/dao/schema/user.go`; generate the client/entities/builders/predicates under `postgres/dao/ent`. The example schema has integer ID, nonempty name/email, unique email, immutable creation time, and a creation-time index. Ent generates a storage representation, not the application's domain entity.
-
-This schema fragment gives the example's unique constraint an explicit storage key and a composite list index. It uses `time`, `entgo.io/ent`, and Ent's `schema/field` and `schema/index` packages:
+Handwrite `internal/adapter/out/persistence/postgres/dao/schema/user.go`; generate rows/builders/predicates under `dao/ent`. This schema imports `time`, `entgo.io/ent`, `schema/field`, `schema/index` and declares the named email key and composite list index:
 
 ```go
 package schema
@@ -684,13 +665,11 @@ func (User) Indexes() []ent.Index {
 }
 ```
 
-Declaring `StorageKey` is an intentional schema/migration decision. There is only one email uniqueness declaration in this example; do not also leave an unrelated field-level unique index and then guess which one failed. Inspect the real migrated constraint/index names and driver behavior when adapting the classifier below. Schema code, generated output, and deployed migration must agree. Do not run destructive schema synchronization as ordinary production startup. See [data and transactions](data-and-transactions.md).
-
-**Wrong:** patching generated `dao/ent/user.go` to add a business method or changing generated SQL but not schema/migrations. The next generation discards that change, and another deployment may have a different database. Generated code must remain reproducible from owned inputs and the project's pinned toolchain.
+`StorageKey` is a migration decision: keep one email-uniqueness declaration and inspect actual constraint names/driver behavior. Schema, generated output, and deployed migration must agree. Never patch generated rows/SQL or destructively synchronize schema at ordinary startup; before schema changes read [data and transactions](data-and-transactions.md).
 
 ### Domain/Ent mapper
 
-The read provider and write repository share this handwritten mapper in `internal/adapter/out/persistence/postgres/dao/user_mapper.go`, outside generated `dao/ent`. It imports `time`, `domain`, and generated `ent`. Exported helper names permit use from both adapter packages; they are not application ports. A mapper used by only one adapter can instead stay local to that owner. Mapping never belongs in generic `db`.
+This shared handwritten `postgres/dao/user_mapper.go` imports `time`, `domain`, generated `ent`; exported helpers serve provider/repository, not core. A single-owner mapper may stay local. Never put mapping in generic `db` or generated output.
 
 ```go
 package dao
@@ -712,9 +691,7 @@ func ToDomainUser(row *ent.User) *domain.User {
 }
 ```
 
-The example's exported domain fields make rehydration a direct assignment. If domain becomes encapsulated, introduce its explicit rehydration API and handle its error contract; do not call a creation constructor that substitutes `time.Now`, generates new IDs, or rejects valid historical data under newly changed rules. Mapping must not lazily query associations or normalize stored values differently from creation. Load precisely the state needed by the operation in the provider/repository, then map it.
-
-The named write-data struct is optional but useful when several same-typed fields would be easy to swap. For a tiny mapper a direct constructor chain is also acceptable. Neither calls for reflection or a universal entity converter. See [domain](domain.md) for reconstruction and historical invariant changes.
+Exported fields permit direct hydration here. Encapsulated domain needs an explicit rehydration API/error contract, not a creation constructor that invents time/identity or rejects historical state under new rules. Load required associations explicitly; mapping performs no lazy queries or new normalization. The named write-data struct is optional swap protection, not a reason for reflection/universal converters; read [domain](domain.md) before changing reconstruction rules.
 
 ### Exact storage error mapping shared by the adapters
 
@@ -820,29 +797,29 @@ func (p *userProvider) List(ctx context.Context, offset, limit int) (domain.User
 }
 ```
 
-The application supplies valid insert candidates from `domain.NewUser(0, ...)`; the adapter never treats an input ID as a request to update. It returns generated database identity explicitly. An update operation needs its own accepted semantics, including affected-row/version checks when lost updates matter; do not bolt a conditional update onto `Insert`.
+`Insert` persists a valid `NewUser(0, ...)` candidate and returns generated identity. Updates need their own accepted affected-row/version semantics; do not conditionally update inside `Insert`.
 
-A broad `ent.IsConstraintError(err)` does **not** prove duplicate email. The failure could be another unique key, a foreign key, a check constraint, or a nullability problem. In this example only SQLSTATE `23505` on the explicitly named email key maps to `ErrEmailTaken`. All other failures retain a generic storage category and the original cause. Driver wrapping behavior and actual constraint names must be exercised against the real PostgreSQL/Ent stack; unit-testing an invented error string is not sufficient evidence.
+Only pgx SQLSTATE `23505` on `users_email_key` means email conflict here—not every Ent constraint error. Other keys/FKs/check/null failures retain generic category and cause. Exercise actual PostgreSQL/Ent/driver names/wrapping, not invented error strings.
 
-Pass `ctx` to every Ent terminal operation. Do not store context on `userRepo`/`userProvider`, replace it with `Background`, or use panic-on-error helpers such as `SaveX`/`AllX` for ordinary request failures. An in-process service deadline is useful only if the database call receives it. Providers never perform writes; repositories do not expose read methods. Both use generated Ent directly rather than forwarding through one another or a redundant handwritten DAO interface.
+Pass `ctx` to every terminal Ent call; no stored context, `Background`, or panic-on-error `SaveX`/`AllX`. Providers read and repositories write directly through generated Ent, without forwarding through each other/another DAO.
 
-**Required when a use case needs an atomic multi-repository write:** call `WithinTransaction(ctx, func(txCtx context.Context) error)` and use the existing injected repositories/providers with `txCtx`. The `postgres/db` resolver selects the transaction-bound `tx.Client()` for those calls, or the base client when no scope exists; invalid, expired or foreign scopes fail rather than fall back. No repository bundle, shared-field swap, or separate runner for owner-lock policy. Keep owner/tenant validation and locking explicit inside the callback. The `db` package owns lifecycle and context binding, without provider/repository imports or business queries. Never pass the outer context or query a captured root client for participating I/O. See [data and transactions](data-and-transactions.md) for the full implementation and failure handling.
+Before atomic multi-adapter work, read [data and transactions](data-and-transactions.md): existing injected adapters resolve `txCtx` per call to `tx.Client()`, base only when scope is absent; invalid/expired/foreign scopes fail closed. `db` owns lifecycle/binding, workflow owns owner/tenant checks/locks. No field swaps, repository bundles, owner-policy-specific runners, outer-context or captured-root I/O.
 
-**Wrong:**
+**Wrong persistence** (independent invalid contrasts; `err`/`rows` are query results
+and `dto` is the HTTP package that persistence must not import):
 
 ```go
 func (p *userProvider) FindByID(id int) (*ent.User, error) {
-    // Wrong: hides cancellation and leaks the storage representation.
     return p.client.User.Get(context.Background(), id)
 }
 
 if ent.IsConstraintError(err) {
-    return outport.ErrEmailTaken // Wrong: conflates unrelated failures and drops cause.
+    return outport.ErrEmailTaken
 }
 
-// Wrong: current page length is not the number of matching rows in the database.
 return dto.UserListResponse{Total: len(rows)}
 ```
+
 
 **Review target:** integration tests against the chosen PostgreSQL/Ent/driver exercise inserted IDs, round-trip timestamps, absent rows, zero-row lists, stable ordering for equal timestamps, cancellation/deadlines, the actual email unique key under concurrent inserts, and an unrelated constraint failure that must not map to email conflict. Tests that need transaction semantics must prove rollback and root-versus-transaction client binding.
 
@@ -893,15 +870,13 @@ func (c *UserController) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-This query parser rejects repeated pagination keys, empty values, non-integers, and integer overflow rather than quietly treating them as zero. Numerical range/default policy remains in the application, protecting non-HTTP callers. Zero `limit` deliberately means default in this example; if public `limit=0` should instead be invalid, distinguish omitted and supplied values in the HTTP mapping and record the chosen application semantics.
+Parsing rejects repeated/empty/noninteger/overflow values; application owns ranges/defaults for every caller. Zero limit means default here; making explicit `limit=0` invalid requires preserving supplied-versus-omitted intent and recording that policy.
 
-A request with `limit=2` may fetch three rows. If it gets three, the application returns the first two with `has_more=true`; if it gets two, `has_more=false`. It does not call two rows a total of two. If the API needs `total`, add a read-only provider count capability and define whether list/count must share a snapshot. A separate count on a live database may disagree under concurrency; this is a consistency decision, not a mapper bug.
+With limit 2, fetch at most 3: three rows produce two with `has_more=true`; two produce `false`, never `total=2`. A real total needs provider count and a decision about list/count snapshot consistency.
 
-Offset pages can skip or repeat records when earlier rows change between requests. The tie-breaker makes ordering deterministic for a given dataset, not snapshot-consistent across requests. **Required when workload or semantics demand it:** adopt keyset pagination with an opaque validated cursor encoding the full ordering tuple, a matching predicate/index, and a compatibility policy. Do not silently switch a published API from offset to cursor. [Data and transactions](data-and-transactions.md) and [testing and evolution](testing-and-evolution.md) cover the relevant query and compatibility concerns.
+Unique tie-breakers stabilize one dataset, not successive offset pages under concurrent changes. When workload/semantics require keyset pagination, use an opaque validated full-ordering-tuple cursor and matching predicate/index; preserve published API compatibility. Before changing this contract read [data and transactions](data-and-transactions.md) and [testing and evolution](testing-and-evolution.md).
 
-**Wrong:** accepting arbitrary `sort` and passing it straight to SQL; returning all rows because a client supplied `limit=-1`; ordering only by nonunique `created_at`; or constructing `Total: len(page.Users)` in a mapper. All can appear reasonable in a successful single-page test and still violate the contract.
-
-**Review target:** missing/default/negative/oversized/repeated/overflow values, empty pages, exactly-full pages, lookahead pages, equal timestamps, and concurrent changes under the documented pagination consistency model.
+**Review target:** missing/default/negative/oversized/repeated/overflow input, empty/exact/lookahead pages, tied timestamps, documented concurrent-change behavior. Never pass arbitrary sort to SQL, treat `-1` as unlimited, or label page length `total`.
 
 ## 9. Config, database construction, shared packages, composition
 
@@ -944,9 +919,7 @@ func LoadDatabase(lookup func(string) (string, bool)) (Database, error) {
 }
 ```
 
-The pool/time values are example project decisions, not universal capacity recommendations. A complete project config should preserve its existing environment names, secret sourcing, HTTP budgets, and validation conventions. Never include the DSN or rejected secret value in validation messages. Validate configuration once before accepting traffic, not separately in every repository method.
-
-**Wrong:** `os.Getenv("DATABASE_URL")` in `core/domain`, parsing pool size in every request, ignoring parsing errors, or embedding a production password in a shared constant.
+Pool/time values are example decisions. Preserve environment names, secret sourcing, HTTP budgets, and validation conventions; report no DSN/rejected secrets. Validate once before traffic—not in requests, repositories, or domain—and fail on parsing errors.
 
 ### Database resources are adapter infrastructure
 
@@ -978,22 +951,16 @@ func NewEntClient(ctx context.Context, cfg config.Database) (*ent.Client, error)
 }
 ```
 
-After successful construction the returned Ent client owns the underlying driver/database close. On failure this function closes what it opened and preserves both primary and cleanup errors. This example uses `errors.Join`; an older target toolchain needs its existing equivalent cause-preserving mechanism, not a silent loss of the ping failure. Do not log raw connection errors without the project's redaction policy. The production shutdown sequence must stop serving/working before closing persistence; see [security and operations](security-and-operations.md).
-
-**Wrong:** treating `sql.Open` as proof of connectivity, leaking `db` after a failed ping, running schema mutation on every request, or closing the shared client at the end of a repository operation.
+Success transfers driver/database-close ownership to the Ent client; failed ping closes what was opened and retains primary+cleanup errors. For older toolchains use the existing cause-preserving equivalent to `errors.Join`. `sql.Open` alone proves no connectivity. Do not close the shared client per operation or log raw connection errors; before production lifecycle work read [security and operations](security-and-operations.md) for redaction and stop-work-before-persistence-close ordering.
 
 ### `pkg` is not a business backdoor
 
-Keep the existing `internal/pkg/{constants,errors,logger,utils}` organization, but require cohesion:
+Retain cohesive `internal/pkg/{constants,errors,logger,utils}` mechanics, not another service layer:
 
-- `constants` may hold genuinely shared stable symbols. A user name limit belongs with user policy when it is not shared infrastructure; an HTTP header constant must not drag `net/http` into domain.
-- `errors` may hold the project's single error mechanism, with proper wrapping/category semantics. Business-specific error categories can remain with domain or the owning port. Avoid a second custom error framework.
-- `logger` can construct the Zerolog logger and expose typed context integration. Domain does not depend on it to log every transition.
-- `utils` is not a destination for `CreateUser`, SQL builders, DTO mapping, or all validation. Keep HTTP helpers transport-local and domain helpers domain-local. Extract only genuinely reused, cohesive mechanics.
-
-For example, a small normalization helper is mechanically simple, but the **choice** to lowercase email is domain policy; its placement must not make an HTTP-only helper the hidden owner of identity semantics.
-
-**Wrong:** `utils.ExecuteUseCase(any)`, a `constants` package importing persistence, or a global `logger.UserRepository` registered at startup. Broad shared packages can conceal exactly the coupling the visible layers were intended to prevent.
+- Shared stable constants only; user policy stays domain-owned, HTTP symbols must not pull transport into core.
+- One cause-retaining error mechanism; domain/port categories may remain with their owners.
+- Logger construction/typed context integration, not per-transition domain logging or a global repository registry.
+- Reused helpers only: no `utils.ExecuteUseCase(any)`, SQL/DTO mapping, or central validation bag. Mechanical email normalization does not transfer ownership of identity policy out of domain.
 
 ### Composition selects all concrete adapters
 
@@ -1016,9 +983,7 @@ userUseCase := user.NewUseCase(userProvider, userRepo, time.Now)
 router := httpadapter.NewRouter(userUseCase, log)
 ```
 
-Then compose the actual `http.Server`, startup failure propagation, readiness, and bounded graceful shutdown using the project's operational chapter. This fragment deliberately is not a fake complete `main`; it demonstrates the ownership of construction and cleanup without hiding lifecycle work in a handler. Do not call `log.Fatal` inside a child goroutine and assume deferred cleanup will run: process exit bypasses normal defers. [Security and operations](security-and-operations.md) owns the full lifecycle guidance.
-
-**Review target:** invalid configuration fails before requests; driver registration is present; startup ping is bounded; resource creation failures clean up; no global service locator is needed; domain/service tests can instantiate their dependencies directly. Use existing lifecycle/error conventions rather than adding a second container or configuration loader solely to match the example.
+Complete `http.Server`, readiness, startup failure propagation, and bounded shutdown using [security and operations](security-and-operations.md). This is wiring, not a full `main`: no child-goroutine `log.Fatal` that bypasses defers. Review invalid config, driver registration, bounded ping, failed-creation cleanup, and directly constructible test dependencies; reuse existing lifecycle conventions rather than adding another loader/container.
 
 ## 10. Named types and interface placement without ceremony
 
@@ -1041,51 +1006,14 @@ A named type is not an alias: `type UserID = int` does not prevent accidentally 
 
 **Wrong:** a function with six positional `int` IDs that repeatedly swaps tenant and user, or adding wrappers to every string solely because named types look architectural. A type should encode useful meaning/invariants, not add conversion work without preventing mistakes. See [domain](domain.md).
 
-**Required baseline interface placement:** keep inbound interfaces in parent `core/port/in` and outbound interfaces in `core/port/out`, never in the inbound `command` subpackage. Queries/results and `ErrInvalidInput` also remain in parent `in`. Implementations are structs in adapters or service. Put compile-time assertions beside implementations, as shown above. The domain may define a meaningful behavior abstraction if its own rules need it; it must not import a repository simply to query its own invariants.
+For boundary placement follow [architecture](architecture.md#2-the-canonical-tree); put compile-time interface assertions beside implementations. Domain may own abstractions its rules need, but never import repository ports to query invariants.
 
-A persistence implementation may have private helper interfaces when several query builders genuinely share behavior. Those are not new application ports and should not be exported as a universal `BaseRepository[T]`. Avoid a generic CRUD contract whose unrestricted update map bypasses domain operations. A use case that needs `ReserveInventory` should express that business capability, not `Save(any)` plus a sequence of adapter-specific casts.
-
-Prefer consumer-owned interfaces and concrete implementations, not interfaces designed up front for mocking. This profile's core ports are consumer/application-owned architectural contracts; they are not a rule to generate an interface for every constructor, mapper, logger, or configuration struct. Canonical package/file placement and portable interface design can coexist.
+Private adapter helper interfaces are fine for genuine builder reuse, not a universal exported `BaseRepository[T]`. Express `ReserveInventory` rather than generic `Save(any)`/unrestricted update maps/casts. Consumer-owned core ports do not require interfaces for constructors, mappers, loggers, or configuration.
 
 ## 11. The vertical slice as a reviewable change
 
-To add an HTTP operation in this architecture, identify the exact representation at each handoff:
+Trace the concrete create path in §§1–7: route → bounded DTO decode → `command.CreateUserCommand` → inbound port → `domain.NewUser` → repository → DAO write mapping → `Save(ctx)`/migrated unique key → DAO domain mapping → response allowlist/Location/status. [Architecture](architecture.md#4-exact-responsibility-and-file-decisions) owns placement; use each section's review target for changed boundaries rather than duplicating that checklist.
 
-```text
-router.go: POST /users/
-  handler/user.go: decodeCreateUser -> dto.CreateUserRequest
-  dto/user_mapper.go: request.ToCommand -> command.CreateUserCommand
-  core/port/in/command/user.go: CreateUserCommand declaration
-  core/port/in/user.go: UserUseCase.CreateUser(context.Context, command.CreateUserCommand)
-  core/service/usecase/user/usecase.go: domain.NewUser -> userRepo.Insert(ctx, entity)
-  core/port/out/user.go: UserRepository.Insert contract
-  persistence/postgres/dao/user_mapper.go: entity -> write data
-  persistence/postgres/repository/user_repo.go: Ent create builder -> Save(ctx)
-  persistence/postgres/dao/schema + migrated constraint: authoritative unique email rule
-  persistence/postgres/dao/ent: generated row -> dao mapper -> domain entity pointer
-  dto/user_mapper.go: domain user -> UserResponse
-  handler/user.go: Location + status + JSON
-```
+Domain results suffice here. Richer reads may use an application-owned projection/outbound query capability, never Ent or HTTP DTOs in core or a new copy at every call. Trivial mappers need no interface/manager/facade.
 
-The code above contains no generic forwarding facade between those boundaries, and a trivial mapper has no interface. The application exposes domain results for this simple case. A richer read use case can return an application-owned projection instead, with an outbound query capability returning that projection, without forcing Ent or HTTP DTOs into core. Do not manufacture a new DTO-shaped copy at every function simply to make the arrow diagram longer.
-
-For a reviewer, concrete rejection examples are:
-
-| Observed change | Specific violation and correction |
-| --- | --- |
-| `service` imports `adapter/in/http/dto` | Transport leaked inward; define/use `command.XCommand` from `core/port/in/command` and map in the HTTP mapper. |
-| Parent `in` declares or re-exports `CreateUserCommand` | Commands belong in `core/port/in/command`; migrate signatures, services, mappers, mocks, and tests to `command.CreateUserCommand` directly, preserving fields and nil/false semantics. |
-| `command` imports parent `in`, services, transport, or ORM | The command package points outward or creates a cycle; limit it to domain/standard-library dependencies and leave queries/results/input errors in parent `in`. |
-| `domain.User` embeds `ent.User` | Storage schema became business state; separate domain fields/behavior and use the persistence mapper. |
-| Handler fields include `*ent.Client` | Handler bypasses application orchestration; inject the inbound port. |
-| `router.go` checks email availability | A route declaration now owns business/storage behavior; move it into the use case if needed and still enforce uniqueness in storage. |
-| Repository returns HTTP `404` or JSON | Outbound adapter leaked delivery protocol; return core error category/domain value and let the handler map it. |
-| `user_mapper.go` appears in `core/service` and imports both DTO and Ent | Two adapter boundaries collapsed; put HTTP mapping in `dto/user_mapper.go` and shared storage mapping in `persistence/postgres/dao/user_mapper.go`. |
-| New repository method accepts no context or calls `Background` | Cancellation/deadline is severed; accept and pass the use-case context to the terminal Ent operation. |
-| `Total` is `len(users)` | Metadata misrepresents a page as the full result; remove/rename it or implement a real count contract. |
-| All Ent constraint errors become duplicate email | Unknown failures are misclassified; inspect the actual named unique violation and retain the cause. |
-| `TrID` is passed as evidence of a transaction | Correlation is being confused with atomicity; bind all writes to the actual transaction client. |
-| Every layer logs and returns the same error | One failure produces duplicate noisy records; choose access/error/audit ownership deliberately. |
-| New `UserManager` forwards every `UserUseCase` method | Extra abstraction has no independent responsibility; wire the controller to the domain inbound port. |
-
-Use [testing and evolution](testing-and-evolution.md) for executable verification, [domain](domain.md) for invariants/identity, [data and transactions](data-and-transactions.md) for atomicity/concurrency, [reliability and events](reliability-and-events.md) for delivery/retries, and [security and operations](security-and-operations.md) for trust, resource limits, logging, and lifecycle. No protected-data, transaction, reliable-event, or idempotency guarantee should be inferred from a CRUD sample or these single-operation fragments.
+Before claiming guarantees beyond this slice, read the applicable owner: [testing](testing-and-evolution.md) for executable evidence, [domain](domain.md) for invariants/identity, [data](data-and-transactions.md) for atomicity/concurrency, [reliability](reliability-and-events.md) for delivery/retry, [security](security-and-operations.md) for trust/resource/logging/lifecycle. Public CRUD proves none of protected-data, transaction, reliable-event, or idempotency guarantees by itself.

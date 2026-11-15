@@ -125,6 +125,14 @@ coding handbook. It is a standalone adoption workflow, not a new mandatory step
 in the skill chain. See the [setup skill](skills/setup/SKILL.md) and
 [shared reference index](skills/setup/references/index.md).
 
+The setup entry is a workflow and retrieval guide: adoption owns delivery and
+refresh rules, the reference index selects chapters, and the technical chapters
+own the detailed contracts and examples. Read those chapters when directed;
+the shorter entry does not replace the substantive handbook.
+Technical chapters consolidate repeated rules by owner, and testing guidance
+links to the runnable example's named checks instead of copying their fixtures.
+Unique implementation and failure-path examples remain in their owning chapters.
+
 The default Go profile is layer-first Clean/Hexagonal architecture with core
 input/output ports and adapter-local mapping. Examples use Chi, Ent, PostgreSQL,
 and Zerolog. Dependency versions are not architectural requirements. The handbook

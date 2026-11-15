@@ -1,38 +1,45 @@
 # Runnable Go architecture example
 
-This is a self-contained executable adaptation of the [Go architecture handbook](../../references/go/architecture.md). It preserves the handbook's layer layout and dependency direction, but **deliberately selects standard-library `net/http` and `database/sql` with SQLite instead of the canonical Chi / Ent / PostgreSQL profile**. It does not change that canonical default or demonstrate the behavior of those other adapters.
+Create a user and audit row atomically, then read the user through real HTTP and
+SQLite adapters. This [blueprint adaptation](../../references/go/architecture.md)
+uses standard-library `net/http` and `database/sql`, **not the canonical
+Chi/Ent/PostgreSQL profile**. No mock production adapter, external service,
+generated code or test-only production switch is required.
 
-The complete use case is **create a user and its audit record in one local database transaction**, followed by retrieval. There are no mock production adapters, test-only production switches, external services, or generated files required to understand the implementation.
-
-The HTTP contract is also a conscious simplification, **not a replacement for the canonical profile's API**. That profile uses `/users/` for creation/listing, `/users/{id}` for retrieval, `/healthz` for health, and a `{trid, code, result}` response envelope with error results shaped as `{msg}`. This executable instead implements `POST /users` (without the trailing slash), `GET /users/{id}`, and `GET /health`; successful user responses are direct user objects, errors use `{"error":"..."}`, and no list endpoint or request-correlation envelope is included. Its router does not promise compatibility redirects from the canonical paths. Preserve or explicitly migrate an existing project's external contract when adapting these layers.
+Its API deliberately differs: `POST /users`, `GET /users/{id}`, `GET /health`,
+direct user JSON and `{"error":"..."}` failures. The canonical profile instead
+uses `/users/` create/list, `/healthz` and `{trid,code,result}` with `{msg}` errors.
+This example supplies no list, correlation envelope or compatibility redirects;
+preserve an existing application's wire contract when adapting it.
 
 ## Prerequisites and exact commands
 
-- Go 1.23 or newer. Method-aware `ServeMux` routes and integer ranges require modern Go; do not set `GODEBUG=httpmuxgo121=1`.
-- A working C compiler and `CGO_ENABLED=1`, required by the pinned `github.com/mattn/go-sqlite3 v1.14.53` driver. On macOS, install the Xcode Command Line Tools if a C compiler is not already available. On Linux, install the distribution's C compiler toolchain.
-- `curl` for the HTTP walkthrough. The optional `sqlite3` CLI is not needed by the service or tests.
-
-From the repository root:
+Go 1.23+, a C compiler and `CGO_ENABLED=1` are required by the pinned
+`github.com/mattn/go-sqlite3 v1.14.53`. Use Xcode Command Line Tools on macOS or
+the distribution compiler on Linux. Do not set `GODEBUG=httpmuxgo121=1`: the
+router uses method-aware ServeMux patterns. The walkthrough needs `curl`, not
+SQLite CLI. This module is independent of the JavaScript repository.
 
 ```sh
 cd skills/setup/examples/go
 go mod tidy
 CGO_ENABLED=1 go test ./...
 CGO_ENABLED=1 go test -race ./...
-```
 
-`go mod tidy` resolves the pinned release and writes real `go.sum` entries. No checksums are fabricated in this teaching source. The module has no dependencies on the surrounding JavaScript repository.
-
-Start with a new database so the walkthrough's first user has ID `1`:
-
-```sh
 database_dir="$(mktemp -d)"
 CGO_ENABLED=1 go run ./cmd/api -listen 127.0.0.1:8080 -database "$database_dir/users.db"
 ```
 
-The equivalent defaults are `-listen 127.0.0.1:8080 -database users.db`. The database's parent directory must already exist and be writable. The service creates its tables at startup and preserves data on restart. `-database` is a filesystem path, not a raw SQLite DSN; DSN options are owned by the adapter. The default interface is loopback: **do not expose this unauthenticated teaching service to a network**. An occupied port or unusable database causes startup to fail, not an in-memory fallback.
+`go mod tidy` resolves the pinned dependency and real checksums. Use a fresh
+database for walkthrough ID 1. Defaults are `127.0.0.1:8080` and `users.db`;
+`-database` is a filesystem path, not a DSN, with an existing writable parent.
+Tables initialize at startup and persist across restarts. Occupied ports and
+unusable databases fail startup rather than silently falling back to memory.
+**Keep this unauthenticated teaching service on loopback, not a public network.**
 
-Send requests from another terminal. Press Ctrl-C in the service terminal, or send SIGTERM to the running binary, to stop accepting new connections, allow active handlers up to ten seconds to finish, and close the database. On a shutdown timeout the server force-closes connections and reports an error. For deployment experiments, build and signal the binary directly rather than treating `go run` as a process supervisor:
+Ctrl-C/SIGTERM stops admission, drains handlers for up to ten seconds and closes
+the database. Drain timeout force-closes connections and reports failure. For
+process/deployment checks, build and signal the binary directly, not `go run`:
 
 ```sh
 CGO_ENABLED=1 go build -o /tmp/architecture-handbook-api ./cmd/api
@@ -41,142 +48,146 @@ CGO_ENABLED=1 go build -o /tmp/architecture-handbook-api ./cmd/api
 
 ## HTTP walkthrough
 
-All of these commands show the response status and headers with `-i`.
+From another terminal:
 
 ```sh
-# 200, {"status":"ok"}; this probes database reachability.
+# 200: {"status":"ok"}, a bounded database reachability probe.
 curl -i http://127.0.0.1:8080/health
 
-# 201 with Location: /users/1, normalized name/email, and a creation timestamp.
+# 201: Location /users/1, normalized fields and generated creation timestamp.
 curl -i -X POST http://127.0.0.1:8080/users \
   -H 'Content-Type: application/json' \
   -d '{"name":"  Alice  ","email":"ALICE@Example.com"}'
 
-# 200, the same persisted user representation.
+# 200: the same persisted user.
 curl -i http://127.0.0.1:8080/users/1
 
-# 409, {"error":"email already exists"}; no second user or audit is committed.
+# 409: {"error":"email already exists"}; no second user/audit.
 curl -i -X POST http://127.0.0.1:8080/users \
   -H 'Content-Type: application/json' \
   -d '{"name":"Another Alice","email":"alice@example.com"}'
 
-# 400, {"error":"invalid request"}.
+# Both 400: {"error":"invalid request"}.
 curl -i -X POST http://127.0.0.1:8080/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":" ","email":"not-an-email"}'
-
-# Unknown JSON fields are rejected with 400, not silently bound to domain state.
+  -H 'Content-Type: application/json' -d '{"name":" ","email":"broken"}'
 curl -i -X POST http://127.0.0.1:8080/users \
   -H 'Content-Type: application/json' \
   -d '{"name":"Bob","email":"bob@example.com","admin":true}'
 
-# 400 for a non-positive or malformed ID; 404 for a valid but missing ID.
+# 400, 400, then 404: {"error":"user not found"} for the last request.
 curl -i http://127.0.0.1:8080/users/0
 curl -i http://127.0.0.1:8080/users/not-a-number
 curl -i http://127.0.0.1:8080/users/999999
 ```
 
-Successful creation returns a JSON object shaped like this; the actual timestamp is generated at creation:
-
-```json
-{"id":1,"name":"Alice","email":"alice@example.com","created_at":"2026-01-01T12:00:00Z"}
-```
-
-| Situation | Status | Public response |
-| --- | --- | --- |
-| Create succeeds and commits | 201 | User JSON and `Location` |
-| Get succeeds | 200 | User JSON |
-| Malformed/oversized body, trailing JSON, unknown field, invalid domain input or ID | 400 | `{"error":"invalid request"}` |
-| User does not exist | 404 | `{"error":"user not found"}` |
-| Normalized email already exists | 409 | `{"error":"email already exists"}` |
-| Unexpected persistence/use-case failure | 500 | `{"error":"internal server error"}` |
-| Health database check fails or times out | 503 | `{"error":"service unavailable"}` |
-
-The request body limit is 1 MiB. An array instead of an object is rejected; `null` or an empty object cannot satisfy domain validation. Error responses never expose SQL statements, trigger messages, raw driver errors, or stack traces. Underlying causes remain wrapped for internal inspection and server-side logging. Unmatched routes and unsupported methods retain standard `ServeMux` 404/405 behavior rather than promising this JSON envelope for every possible HTTP response. The `GET` route patterns also support `HEAD` through `ServeMux`.
+Success shape: `{"id":1,"name":"Alice","email":"alice@example.com","created_at":"<generated instant>"}`.
+Bodies are limited to 1 MiB; malformed, oversized, trailing or unknown-field JSON
+returns 400. Arrays are rejected; null/empty objects fail domain validation.
+Unexpected application/storage failures return 500 `{"error":"internal server error"}`;
+failed/timed-out health checks return 503 `{"error":"service unavailable"}`.
+Raw SQL, triggers, driver messages and stacks stay private; causes remain wrapped.
+Unmatched routes/unsupported methods retain ServeMux 404/405 behavior, not this
+JSON promise. GET patterns also support HEAD.
 
 ## Code map and ownership
 
-```text
-cmd/api/main.go                                                     Composition, flags, lifecycle
-internal/core/domain/user.go                                        User invariants and semantic errors
-internal/core/port/in/user.go                                       UserUseCase interface
-internal/core/port/in/command/user.go                               CreateUserCommand input data
-internal/core/port/out/user.go                                      User provider and typed write repository interfaces
-internal/core/port/out/transaction.go                               Common context-callback Transactor contract
-internal/core/service/usecase/user/user.go                           User create/get application implementation
-internal/adapter/in/http/router.go                                  Method/path registration only
-internal/adapter/in/http/handler/user.go                             Transport, safe status mapping
-internal/adapter/in/http/handler/health.go                           Bounded database readiness check
-internal/adapter/in/http/dto/user_mapper.go                          Request/response shapes and mapping
-internal/adapter/out/persistence/sqlite/db/database.go               Pool, driver, connection policy and schema
-internal/adapter/out/persistence/sqlite/db/transaction.go            Transaction lifecycle, private context scope and executor resolution
-internal/adapter/out/persistence/sqlite/provider/user.go             Read-only user lookup
-internal/adapter/out/persistence/sqlite/provider/user_mapper.go      Provider-owned persisted-row mapping
-internal/adapter/out/persistence/sqlite/repository/user.go           User insert through the context-selected executor
-internal/adapter/out/persistence/sqlite/repository/audit.go          Audit insert through the same executor resolver
-```
+| Owner | Source and responsibility |
+| --- | --- |
+| Composition | [`cmd/api/main.go`](cmd/api/main.go): flags, concrete dependencies, server/database lifecycle |
+| Domain | [`internal/core/domain/user.go`](internal/core/domain/user.go): invariants, entity and semantic errors |
+| Inbound contract | [`port/in/user.go`](internal/core/port/in/user.go) and [`command/user.go`](internal/core/port/in/command/user.go): interface and mutation input |
+| Application/outbound | [`service/usecase/user/user.go`](internal/core/service/usecase/user/user.go), [`port/out/user.go`](internal/core/port/out/user.go), [`transaction.go`](internal/core/port/out/transaction.go): orchestration, read/write and transaction ports |
+| HTTP | [`router.go`](internal/adapter/in/http/router.go), [`handler/`](internal/adapter/in/http/handler), [`dto/user_mapper.go`](internal/adapter/in/http/dto/user_mapper.go): routes, protocol/errors and wire mapping |
+| SQLite mechanics | [`db/database.go`](internal/adapter/out/persistence/sqlite/db/database.go), [`db/transaction.go`](internal/adapter/out/persistence/sqlite/db/transaction.go): schema/pool, private scope, executor and lifecycle |
+| SQLite behavior | [`provider/`](internal/adapter/out/persistence/sqlite/provider) and [`repository/`](internal/adapter/out/persistence/sqlite/repository): read/row mapping versus user/audit writes |
 
-Dependencies flow inward: HTTP handlers depend on `inport.UserUseCase`; its `user.UseCase` implementation depends on domain and outbound ports. `main` selects the concrete SQLite provider, repositories and `db.Transactor`. The domain and application import neither HTTP nor SQL. The provider owns reads; repositories own writes; `db` owns pool/schema/transaction mechanics and executor resolution and imports neither provider nor repository. HTTP and persisted-row mapping are separate; neither database rows nor HTTP request types cross a core port.
+Dependencies point inward; core imports no HTTP/SQL, and `db` imports no provider
+or repository. Command callers import the child package directly, without parent
+aliases; queries/results stay in parent `in` when needed. Command imports are only
+domain/stdlib, never parent/service/transport/ORM; context remains a separate argument.
+Entity boundaries use `*domain.User` and defined `domain.Users []*User`; small values
+stay values and missing lookups return `ErrNotFound`, never `(nil,nil)`. Apply the
+[coding contracts](../../references/go/coding-conventions.md), including named input
+at five total boundary parameters counting context but not receiver.
 
-Inbound interfaces stay in `internal/core/port/in`; their `*Command` input structs live in its `command` child package and are used directly as `command.CreateUserCommand`, without parent-package aliases or re-exports. Queries and results stay in the parent `in` package when needed; this example uses a scalar ID query and a domain result rather than dedicated query/result structs. The command package is not a generic parameter or HTTP DTO package: it may depend on domain types and the standard library, never its parent `in` package, services, transport, or ORM code. HTTP DTO mapping constructs the command; `context.Context` remains a separate method argument.
-
-This example has only the user application capability. The local audit write is part of user creation, not a separate multi-domain workflow, so there are no empty shared or orchestration packages. Entity inputs and results use `*domain.User`; `domain.Users` is `[]*User`, while small scalar values and timestamps remain values. `FindByID` returns `ErrNotFound`, never a successful nil result. Application boundaries with five or more total arguments, counting context but excluding the receiver, use a named command/query; contexts stay separate from those data types.
-
-`outport.Transactor.WithinTransaction(ctx, func(txCtx context.Context) error) error` is the common execution contract. The application calls its existing injected repositories and providers with `txCtx`; it does not receive a repository bundle or SQL handle. The adapter carries the transaction in a private typed context scope, and each persistence operation resolves the executor from its supplied context. Ordinary contexts select the base pool. Reuse the runner for operations sharing the database and transaction policy rather than adding per-domain `WithX`, `Tx`, UnitOfWork, or Transactor layers. Different validation or owner-locking workflows do not by themselves require separate runners: make those steps explicit inside the same callback. Separate runners need a concrete incompatible transaction policy. “Unit of Work” is an optional conceptual label, not a required type or package. A single atomic statement needs no extra transaction wrapper unless it participates in a multi-operation invariant.
+Audit is part of user creation, not another domain workflow: no empty shared or
+orchestration packages are needed. There are only inserts because no update/delete
+use case exists; later mutations belong to repositories, not read providers.
 
 ### Creation boundary
 
-1. The DTO decoder accepts one JSON value with known fields and constructs a `command.CreateUserCommand`.
-2. `domain.NewUser` trims the name, requires 1–100 valid UTF-8 characters without NUL, and validates a plain email address of at most 254 bytes. NUL is rejected before persistence because SQLite's `length()` stops at that character. This example **chooses** to trim and lowercase the entire email, including its local part; a real product must decide its own identity normalization policy. Syntax validation does not establish address ownership or deliverability.
-3. The application calls the shared `Transactor.WithinTransaction` once. It does not perform a racy "email exists" precheck.
-4. `db.Transactor` opens a real `sql.Tx` and binds it to `txCtx` with an adapter-private typed key and scope. The application passes `txCtx` to its injected user and audit repositories. Their common resolver selects that same transaction without mutating either adapter's base pool field.
-5. The application inserts the user, obtains its database ID, and writes `user.created` with that ID. The schema enforces unique email and an audit foreign key. Only the users table's unique constraint is translated into `ErrEmailConflict`; a failing audit is not mislabeled as a duplicate email.
-6. A callback error, panic, or cancellation triggers rollback. The database transaction helper checks the transaction context before commit. The application returns a created user only after commit succeeds.
+1. DTO decoding accepts one known-field JSON value and maps a `CreateUserCommand`.
+2. `NewUser` trims the name and requires 1–100 valid UTF-8 characters without NUL;
+   SQLite `length()` stops at NUL. Email must be a plain address of at most 254 bytes.
+   Trimming and lowercasing the **entire** email is this example's policy, not a
+   universal equivalence rule or proof of ownership/deliverability.
+3. The application invokes `WithinTransaction(ctx, func(txCtx context.Context) error)`
+   and calls its existing injected repositories with `txCtx`. Private adapter scope
+   binds one `sql.Tx`, without repository bundles or shared-field mutation.
+4. User insert yields the ID; audit records `user.created` with that ID/timestamp.
+   Database unique-email and foreign-key constraints decide validity, not an existence
+   precheck. Only the relevant user unique failure maps to `ErrEmailConflict`.
+5. Callback error, panic or cancellation attempts rollback; cancellation is checked
+   before commit. Success is returned only after commit. A later disconnect does
+   not undo it, and this example supplies no idempotency protocol for unknown outcomes.
 
-Repositories and providers are reusable across ordinary and transactional calls. A provider read supplied with `txCtx` uses the same transaction and can observe its uncommitted writes; using the outer context inside a callback would instead request a base connection and can block on this example's single occupied connection. Always forward `txCtx` throughout the atomic workflow. The callback context is valid only during that callback and must not escape or be used concurrently. Nested runner calls are rejected; expired scopes and scopes belonging to another pool return errors rather than silently falling back to the base database. The example needs only insert operations; add update/delete behavior to the owning repository when a real use case requires it, not to the read-only provider.
-
-`r.Context()` reaches the service, transaction callback, and every SQL operation. The readiness probe derives a one-second deadline from its request context. A disconnect after a successful commit does not undo that commit; cancellation is not a guarantee that a previously submitted operation never happened. There is no idempotency key protocol to resolve an ambiguous client outcome here.
+Each provider/repository resolves the executor per call: ordinary context selects
+the pool, `txCtx` selects that transaction and permits read-own-writes. Outer-context
+I/O inside the callback escapes it and can block on the occupied single connection.
+Reject nested, expired and foreign-pool scopes; do not retain/share callback contexts
+or resolve them to a fallback pool. `r.Context()` reaches SQL; readiness derives a
+one-second timeout. Reuse the runner across workflows; validation/owner-locking
+steps do not create a new runner. A single atomic statement needs no extra wrapper
+unless it joins a wider invariant. Different runners need an incompatible policy,
+not a mandatory UoW label. See [transaction rules](../../references/go/data-and-transactions.md).
 
 ### SQLite connection and schema policy
 
-Every connection is configured with `_foreign_keys=on`, `_busy_timeout=5000`, and `_txlock=immediate` in the driver DSN. Foreign-key enforcement is connection-local in SQLite, so setting it once with an arbitrary pooled `PRAGMA` would be insufficient. The adapter permits **one open connection**, serializing local database operations and avoiding unsupported expectations of parallel SQLite writers. Concurrent requests still race for the use-case result; the database unique constraint decides the winner. Another process can hold a file lock long enough to fail this service's operation. The busy timeout is a SQLite lock-wait setting, not an application retry policy, and it should not be treated as a strict request-deadline guarantee under all driver scheduling conditions.
+Every connection uses `_foreign_keys=on`, `_busy_timeout=5000`, `_txlock=immediate`;
+one pooled PRAGMA would not enforce foreign keys on every connection. The pool has
+**one open connection**: application calls may compete, but this is not a parallel
+SQLite-writer implementation. Another process can exhaust the lock wait. Busy timeout
+is neither a retry policy nor a strict cancellation-latency guarantee.
 
-Tests use distinct on-disk databases in `t.TempDir()`, not the shared-name or per-connection traps of `:memory:` databases. No sleep is used to order concurrent calls or cancellation. Closing the database occurs before test temporary-directory cleanup.
-
-`CREATE TABLE IF NOT EXISTS` initializes a new teaching database in a transaction. **It is not a versioned migration system** and does not upgrade incompatible tables from another application or a future schema. Deliberately use a new file for a different schema; production migration ownership and rollout compatibility remain project decisions.
+Tests use private on-disk `t.TempDir()` databases, avoiding `:memory:` pooling traps,
+with database closure before directory cleanup and barriers instead of ordering sleeps.
+Transactional `CREATE TABLE IF NOT EXISTS` initializes new files; it does not upgrade
+old schemas or provide versioned migrations. Use a fresh file for another schema.
 
 ## Behavior checked by the suite
 
-Run the whole suite from this module with `CGO_ENABLED=1 go test ./...`. Focused boundary checks are:
+Run the module commands above; use `-run <TestName> -v` to focus on a named case.
+The actual assertions, rather than a second copy of the test code, live in:
 
-```sh
-CGO_ENABLED=1 go test ./internal/core/domain -run TestNewUser -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestAuditConstraintFailureRollsBackFirstWrite -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestCancellationBetweenTransactionWritesRollsBackPersistedUser -v
-CGO_ENABLED=1 go test ./internal/adapter/out/persistence/sqlite/repository -run TestRepositoryRemainsReusableAfterContextTransactionRollback -v
-CGO_ENABLED=1 go test ./internal/adapter/in/http -v
-```
-
-- **Domain:** external consumers check rejection of empty/long names, leading/embedded NUL, malformed emails and display-name/multiple-address input, plus the declared normalization policy.
-- **Real commit/read:** service creation persists one user and one audit with the correct relationship and timestamp; retrieval reconstructs the same domain values.
-- **Actual rollback of the first write:** a real SQLite trigger rejects the audit insert after the user insert. Calling the real service produces a trigger constraint error, and direct queries find zero users and zero audits. Removing the trigger permits creation with the same email, demonstrating that the failed attempt did not reserve it.
-- **Reusable adapter and same-repository rollback:** two inserts through the same injected repository and `txCtx` hit the real unique constraint on the second write. The callback error rolls back the first insert. The same repository then performs an ordinary base-pool write with the original context, demonstrating that transaction state was not stored in or left behind on the shared adapter.
-- **Concurrent uniqueness:** eight goroutines start from a channel barrier and invoke the real service against the same database. Exactly one succeeds and seven observe `ErrEmailConflict`; only one user and one audit remain. A direct SQL duplicate insert also fails with SQLite's unique-constraint error, proving the invariant is not only an application precheck. The one-connection policy means this is concurrent application-call coverage, **not a multi-connection or multi-process writer stress test**.
-- **Cancellation between actual writes:** a real transaction callback inserts a user, cancels its context, and attempts the transaction-bound audit insert. The resulting cancellation is checked, then a separate live context queries persisted state and finds zero users/audits. This test exercises the output transaction port directly to deterministically place cancellation between writes; it does not introduce a fake transaction or a production test hook.
-- **Context scope boundaries:** provider reads see uncommitted writes through `txCtx`; expired contexts are rejected after commit, rollback and panic; nested runners and foreign-pool reads/writes cannot start or escape into independent work. An ordinary concurrent call waits for the base connection instead of borrowing another call's transaction.
-- **Lifecycle failures:** a deferred foreign-key violation fails at commit and leaves no persisted audit; cancellation after a successful final SQL write still prevents commit. Driver constraint causes remain inspectable through wrapped errors.
-- **Foreign key:** direct insertion of an audit for a missing user fails with SQLite's foreign-key constraint error.
-- **HTTP behavior:** in-process `httptest` requests use the real router, service and SQLite adapter for success, retrieval, invalid bodies, duplicates, missing IDs, and safe 500 responses after a real trigger rejection. These tests assert status, response contents and persisted state, not implementation source text or mock-call echoing.
+- [Domain tests](internal/core/domain/user_test.go): normalization, blank/101-character
+  names, NUL and invalid address syntax.
+- [Repository tests](internal/adapter/out/persistence/sqlite/repository/user_test.go):
+  user/audit commit and read; trigger-rejected second write and retry; duplicate-write
+  rollback then ordinary reuse of the same adapter; eight concurrent creates with
+  one winner plus a direct SQL uniqueness violation; cancellation between writes and
+  after the last write; same-context read-own-writes; expired/nested/foreign scopes;
+  concurrent ordinary-call isolation; panic and commit-failure cleanup; foreign keys
+  and retained driver causes. Counts are checked with a live context after rollback.
+- [HTTP tests](internal/adapter/in/http/router_test.go): real router/service/SQLite
+  success and read, Location, invalid bodies, duplicates, missing IDs and safe 500
+  after trigger rejection. In-process tests do not exercise OS-signal shutdown.
 
 ## Deliberate limits
 
-This example demonstrates a local transaction and layered request path, not production readiness. In particular, it does **not** prove:
+This is local transaction/request-path evidence, not production readiness:
 
-- Chi middleware behavior, generated Ent transaction-client binding, PostgreSQL isolation, PostgreSQL constraint/error mapping, or production migration behavior. Port the adapter and rerun database-native integration tests for those choices.
-- Multi-process contention handling, crash/power-loss durability testing, backup/restore, load capacity, driver cancellation latency bounds, or high availability.
-- Distributed atomicity, message publication, outbox delivery, retries, idempotency, external payment/email correctness, or exactly-once execution. The audit row is local data, not an event publisher.
-- Production authentication, authorization, tenant isolation, TLS, CORS policy, rate limiting, secure deployment, or a complete privacy/logging policy. User data is public to anyone who can reach this local server; audits are relational records, not tamper-proof security evidence.
-- A separate process-level HTTP smoke test or an OS-signal shutdown test merely because the in-process suite passes. Exercise the actual `go run` or built service and the `curl` walkthrough when validating the runnable application.
+- SQLite does not prove Chi middleware, generated Ent binding, PostgreSQL isolation,
+  constraint classification or migrations. Run the actual selected adapters.
+- One-connection application concurrency does not prove multi-process contention,
+  crash durability, restore, load capacity, bounded driver cancellation or availability.
+- A local audit is not an event publisher or tamper-proof security log. No outbox,
+  broker/provider correctness, retries, idempotency or distributed exactly-once claim.
+- No production authn/authz/tenancy, TLS, CORS, rate limiting, privacy or deployment
+  guarantee: anyone who reaches this server can access its user data.
+- Tests alone do not prove the running process or signal handling. Exercise the
+  built binary and HTTP walkthrough separately.
 
-Add those mechanisms only when the project requires them, with explicit project-owned decisions and suitable verification. See the [data and transaction guidance](../../references/go/data-and-transactions.md), [testing guidance](../../references/go/testing-and-evolution.md), and [security/operations guidance](../../references/go/security-and-operations.md) before promoting this teaching profile into a deployed service.
+Adopt additional mechanisms only for real requirements, using
+[testing](../../references/go/testing-and-evolution.md) and
+[security/operations](../../references/go/security-and-operations.md) for matching
+failure and operational evidence.

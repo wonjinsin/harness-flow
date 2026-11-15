@@ -1,404 +1,244 @@
 # Adopting the shared handbook
 
-The shared Go reference expresses a chosen architecture. The project handbook
-expresses how that architecture applies to one actual codebase. Setup must make
-that translation explicit and reviewable; copying a directory of generic essays
-or translating Go syntax is not sufficient.
+The shared reference is authoring material. The project handbook records how its
+rules apply to actual code, subordinate to canonical instructions and accepted
+local decisions. Neither copied essays nor translated Go syntax establish adoption.
 
 ## 1. Discovery record
 
-Start with the target project's canonical instructions and accepted architecture
-records. Inspect build manifests, module boundaries, framework entrypoints,
-representative HTTP/background paths, persistence code, generated-code markers,
-error conventions, and test commands. Use available language intelligence for
-symbol relationships. Read actual code before describing the stack.
+Read canonical instructions, accepted architecture records, manifests, module
+boundaries and representative HTTP/background/persistence slices. Inspect generated
+code markers, errors and actual commands; use available language intelligence for
+symbol relationships. Record:
 
-Capture enough facts to ground the profile:
-
-| Area | Facts to establish |
+| Area | Required facts |
 | --- | --- |
-| Structure | Language/module roots, entrypoints, routes, DTOs, application/domain/ports/adapters, generated code, existing handbook |
-| Behavior | Existing public request/response/error contracts, use cases, invariants, identity/tenancy, atomicity and external effects |
-| Constraints | Database/ORM, async model, transaction semantics, deployment and migration constraints, existing exceptions |
-| Evidence | Commands available, tests actually present, executable representative slice, inaccessible runtime or unresolved decisions |
+| Structure | Language/framework, module roots, entrypoints, routes, DTO/core/port/adapter ownership, generated code and existing guidance |
+| Behavior | Public request/response/error contracts, invariants, identity/tenancy, transactions and external effects |
+| Constraints | Database/ORM, async and resource lifetimes, deployment/migration limits and accepted exceptions |
+| Evidence | Available commands, implemented tests, representative executable slice, unavailable runtimes and unresolved policies |
 
-Do not infer a mature architecture from package names alone. A package named
-`domain` may contain ORM entities; a repository named `Repository` may use an
-unrelated root database client inside a supposed transaction. Describe the
-observed mismatch separately from the desired rule. Do not claim compliance just
-because the generated guide now says the right thing.
-
-Do not collect secrets. Configuration names and public example files can establish
-required settings without reading credential-bearing files. Do not modify
-user-scope agent instructions or other repositories.
+Describe current implementation gaps separately from desired rules. Package names,
+a generated guide or a passing build do not prove architectural compliance. Inspect
+public configuration examples, not secrets; do not modify user-scope instructions
+or other repositories.
 
 ### Choose delivery before authoring
 
-Architecture and delivery are separate decisions. Changing where guidance lives
-must not change the agreed application layout, language, framework, or public
-contract. Resolve delivery before writing guidance, native rules, or pointers.
-Read-only discovery and showing candidate plans are allowed before selection.
+Resolve storage/loading before writing guidance, rules or pointers. Discovery and
+candidate plans may proceed first. Use the native question interface when available,
+explain choices in the user's language, and keep delivery separate from architecture:
 
-Ask **how the project should store and load its guidance**, using the runtime's
-native question interface when available:
-
-| Mode | Proposed structure | Loading tradeoff |
+| Mode | Output | Loading tradeoff |
 | --- | --- | --- |
-| Claude Code native rules | Substantive rules and examples in `.claude/rules/` | Native Claude loading; detailed matching rules consume context when activated; other tools are not automatically integrated |
-| Shared handbook plus reader wiring | One project-owned handbook and thin tool-specific reading instructions | Reusable across selected tools; ordinary documents are not automatically loaded |
+| Claude Code native rules | Substantive rules/examples in `.claude/rules/` | Claude-native startup/path loading; activated detail consumes context; no other reader integration implied |
+| Shared handbook plus reader wiring | One authoritative handbook with thin selected-reader pointers | Reusable across tools; ordinary documents do not load automatically |
 
-For shared-handbook mode, ask which readers to connect: **Claude Code, Codex,
-OMP**, with multiple selections allowed. Ask this dependent question only when
-needed; Claude-native mode already identifies Claude Code. Accept no wiring only
-when the user explicitly requests handbook-only output. Never infer target tools
-from the current session or interpret missing targets as permission to skip them.
+For shared mode, ask which readers to connect: **Claude Code, Codex, OMP**,
+allowing multiple selections. Offer the full set, not just tools with existing
+files. No wiring requires explicit handbook-only selection. Reuse approved
+choices; never infer them from the active session or file presence. Ask this
+dependent question only when needed. Claude-native plus additional readers needs
+an explicit mode decision, not duplicated authorities. Verify unfamiliar readers.
 
-Explain the choices in the user's language. Project facts can support a
-recommendation, not an unasked selection. A mode/reader combination explicitly
-requested by the user or already approved for the project does not need to be
-asked again. The mere existence of files is not proof of that approval.
-
-Claude-native mode does not also promise Codex or OMP loading. If the user asks
-for additional readers, ask whether to switch to shared-handbook mode rather than
-silently copying rules into multiple authoritative locations. For an unfamiliar
-reader, establish its actual instruction mechanism before promising a bridge.
-
-Summarize the selected mode, readers, concrete output paths, always-loaded versus
-path-scoped versus explicitly fetched material, and shared-entrypoint effects.
-Use the project's existing approval policy, not a new general design gate.
-On refresh, preserve that accepted choice; a mode/reader migration needs a new
-explicit decision. Selection alone is not evidence that files are installed or
-that any runtime loaded them.
+Before writing, show mode, readers, concrete paths, always-loaded/path-scoped/fetched
+content and shared-entrypoint effects under the project's approval policy. Preserve
+that arrangement on refresh; migration needs a new decision. Approval is not proof
+of installation or loading, and does not authorize application changes.
 
 ## 2. Reference-to-project profile
 
-For each architectural responsibility, identify the canonical Go path, the actual
-target path, its target-language construct, and the disposition. Use concrete
-names, not `path/to/service` in the accepted artifact.
+Map each responsibility to its canonical path, actual target path, owning type/API,
+target-language mechanism, disposition and verification. Use concrete names in the
+accepted artifact. Read [architecture](go/architecture.md) for the Go tree and
+call restrictions and [coding conventions](go/coding-conventions.md) for command
+ownership, signatures, entity/value shapes and quality tooling. Missing lint
+coverage does not waive a rule.
 
-For a new Go project, preserve the selected layer-first baseline:
+Classify existing mismatches before changing guidance:
 
-- Composition in `cmd/api`; domain in `internal/core/domain`.
-- Input contracts in `internal/core/port/in`; output contracts in
-  `internal/core/port/out`; domain-specific use cases in
-  `internal/core/service/usecase/<domain>`.
-- Actual reused application stages in `service/shared/<capability>`; real
-  composite workflows in `service/orchestration/<workflow>`. No sibling
-  use-case/service calls, orchestration-to-use-case calls, or empty packages.
-- HTTP routes, handlers, middleware, and DTO mapping under
-  `internal/adapter/in/http`.
-- Storage under `internal/adapter/out/persistence/<actual-engine>/`, with
-  read-only `provider`, write `repository`, reusable `db` mechanics and
-  adapter-owned `dao` schema/generated/mapping code. The default engine is
-  PostgreSQL; an existing MySQL/SQLite choice is an explicit adaptation.
+| Mismatch | Action |
+| --- | --- |
+| Equivalent naming | Record the mapping and use accepted project names. |
+| Established exception | Preserve its boundary, rationale and scope. |
+| Unapproved architectural departure | Present the conflict and ask which rule governs; do not migrate source silently. |
+| Unknown behavior | Inspect the actual API or ask the precise unresolved policy question. |
 
-Adopt [coding conventions](go/coding-conventions.md) alongside structure: entity
-pointer/plural-collection contracts, small value-type exceptions, named inputs
-at five total boundary parameters including context (receiver excluded), explicit
-dependency roles, naming, declaration spacing and golangci-lint-only tooling.
-Do not interpret missing enforcement as permission to omit the rule or claim a
-passing linter enforces it.
-
-For an existing project, a mismatch is not permission for an automatic source-code
-migration. Classify it:
-
-1. **Equivalent naming:** different names preserve the same dependency boundary.
-   Record the mapping; use the project's accepted names in generated examples.
-2. **Established exception:** the project deliberately chose a different boundary
-   for a documented reason. Preserve it and record its scope.
-3. **Unapproved architectural departure:** a dependency or layout contradicts the
-   chosen baseline without an accepted reason. Show the conflict and ask about
-   adoption or migration; do not silently rewrite the application.
-4. **Unknown behavior:** file inspection cannot establish a policy or framework
-   guarantee. Ask the precise settling question or verify the actual API.
-
-Keep API compatibility separate from internal layout. A move to cleaner handlers
-does not authorize changing JSON fields, numeric identifiers, pagination,
-authentication, error codes, or side-effect semantics.
+Layout cleanup does not authorize changing JSON fields, identifiers, pagination,
+authentication, errors or side effects. Preserve current contracts pending decisions.
 
 ### Language adaptation is semantic
 
-A target-language profile must explain at least these conversions:
+Explain these conversions rather than imposing parallel Go-style packages:
 
-- Go interfaces → the target's explicit interface/protocol/abstract boundary,
-  without exporting ORM or transport models into core.
-- Go `context.Context` → request cancellation, task lifetime, deadline and
-  transaction context in that framework. An async keyword is not cancellation.
-- Go error wrapping → typed errors/exceptions and retained causes, with stable
-  safe public mapping at the adapter boundary.
-- Transaction callback → a scoped context passed to existing repositories and
-  providers, which resolve one real target-ORM transaction/session internally.
-  Use the target framework's supported request/task-local equivalent when needed;
-  never mutate singleton adapter fields or assume opening a session binds all I/O.
-- DTO/domain/record mapping → explicit transformations and validation ownership,
-  including lazy ORM state, serialization, and hydration constraints.
-- Composition → dependency lifetime and transaction/request scope supported by
-  the target framework; no assumption that singleton injection is always safe.
+| Go concept | Target contract |
+| --- | --- |
+| Interfaces/ports | Native interface/protocol boundary; no ORM or transport models in core |
+| `context.Context` | Actual cancellation, deadline, task lifetime and transaction scope; `async` alone is not cancellation |
+| Wrapped errors | Typed categories/exceptions retaining private causes, with stable safe adapter-owned public mapping |
+| Transaction callback | Existing repositories/providers resolve one real ORM transaction/session through a propagated scope or verified request/task-local equivalent; never swap singleton fields |
+| DTO/domain/record mapping | Explicit validation/conversion ownership, hydration, loaded-state and serialization semantics without hidden lazy I/O |
+| Composition | Supported request/transaction/dependency lifetimes, not assumed singleton safety |
 
-Do not add a parallel Go-style package convention to another language without
-showing how the project will use it. Conversely, do not erase the user's chosen
-boundaries because a framework encourages active-record models or route-level
-business logic. Surface that architectural decision.
+Opening a session does not bind all I/O. Verify framework APIs; surface conflicts
+with active-record or route-owned business logic instead of erasing chosen boundaries.
 
 ## 3. Decide applicability before materializing patterns
 
-Assess every shared chapter, including production topics missing from the PoC.
-Use an adoption ledger with explicit scope and rationale:
+Assess every chapter, including production risks absent from a PoC. Record scope
+and rationale for each disposition:
 
-- **Adopted:** a required project rule with concrete paths and examples.
-- **Deferred:** relevant, but blocked by a named decision or intentionally later
-  behavior. Record the trigger for revisiting it and do not claim compliance.
-- **Not applicable:** the application has no corresponding guarantee or mechanism;
-  state why. This is not permission to ignore a newly introduced risk later.
-- **Open:** the code and accepted requirements cannot determine the policy.
+- **Adopted:** required project rule with concrete paths/examples.
+- **Deferred:** relevant but intentionally later or blocked; name the trigger or
+  decision and do not claim compliance.
+- **Not applicable:** no corresponding guarantee/mechanism; state why and revisit
+  when risk changes.
+- **Open:** code and accepted requirements do not establish the policy.
 
-Examples:
-
-A CRUD service with one insert does not need an event broker. It still needs a
-unique constraint for a concurrent uniqueness invariant. Creating two rows with
-an all-or-nothing promise requires both writes to use the same transaction now,
-even if the service is called a PoC. Sending a webhook reliably after a commit introduces
-an outbox/equivalent decision; it must not be described as solved by an inline
-HTTP call. A service without tenants should not acquire a fictional tenant
-model, but adding tenant-owned resources reopens authorization and data scoping.
-Reuse `WithinTransaction(ctx, func(txCtx context.Context) error)` and call the
-existing repositories/providers with `txCtx`; do not introduce callback repository
-bundles or per-operation `WithX`/`XTx`/UoW contracts. Keep owner/tenant checks and
-lock ordering in the workflow, not separate execution contracts merely because
-creation has no existing owner to lock. Do not wrap a single atomic statement
-solely to satisfy a pattern; retain its constraints and concurrency requirements.
-
-Do not turn every optional section into a library dependency or future-proofing
-layer. The handbook should make a mechanism available when needed, not force
-its premature implementation.
+One-insert CRUD needs constraints, not a broker. An all-or-nothing multi-write needs
+one transaction now; reliable post-commit publication needs an outbox/equivalent,
+not merely an inline HTTP call. Do not invent tenants for a tenantless project.
+For atomic work read [the transaction contract](go/data-and-transactions.md#2-application-owned-atomicity-without-a-root-client-escape),
+including existing-adapter binding, workflow-owned locks and the single-statement
+exception. Optional mechanisms are not mandatory dependencies or future-proofing layers.
 
 ### Go tooling output and execution scope
 
-For Go adoption/refresh, include a concrete project-owned golangci-lint plan:
-compatible fixed official binary version, ignored local binary location, actual
-module-root `.golangci.yml`, existing Makefile/task-runner commands and existing
-CI job. Merge current quality configuration instead of installing a competing
-one. Follow the [coding chapter](go/coding-conventions.md) for configuration,
-checksum/version verification and limitations; do not add gofumpt, standalone
-duplicate linters or an unrequested custom analyzer.
+Include a concrete project-local golangci-lint plan: compatible fixed official
+version, ignored binary location, actual module-root `.golangci.yml`, existing
+runner commands and CI job. Merge existing quality configuration. Apply
+[coding conventions](go/coding-conventions.md) for checksum/version/config checks
+and limitations; no gofumpt, duplicate standalone linters or unrequested analyzer.
 
-Show these non-handbook files and installation actions with the proposed output
-paths before executing them. An approved setup scope can include local tooling;
-handbook-only, no-install and no-CI-edit constraints must remain effective.
-Document the exact deferred step when execution is outside scope; do not ask
-again when the user's explicit scope already resolves it. A handbook approval
-does not itself authorize application source moves, global installation,
-application `go.mod` changes, broad formatting or `--fix`.
+Show non-handbook paths/actions before execution. Respect handbook-only, no-install
+and no-CI-edit scope; document deferred steps without re-asking settled choices.
+Handbook approval does not permit source moves, global installs, application
+`go.mod` changes, broad formatting or `--fix`.
 
 ## 4. Output contract
 
-Write the selected delivery plan, not a fixed directory template. Use existing
-accepted locations when compatible with that plan. Do not silently migrate
-them. Keep durable guidance out of ignored plans/specs directories and do not
-force-add ignored artifacts.
+Use accepted locations compatible with the selected plan. Do not silently move
+guidance, place durable rules in ignored plans/specs, or force-add ignored artifacts.
 
-**Claude Code native rules**
+**Claude Code native rules:** use `.claude/rules/architecture.md` as the concise
+common profile/path/reading-map entrypoint. Put detailed layer rules/examples in
+focused files, such as `domain.md`, `http.md` and `persistence.md`, with actual
+names resolved in the plan. Rules without `paths` load at startup; scoped rules
+activate on matching reads/writes/edits. Derive patterns from real paths and retain
+planning-critical rules in the common surface before a scoped trigger. Do not load
+the encyclopedia unconditionally or discard detail to meet a length quota. No shared
+handbook mirror, extra root pointer or additional reader is implied.
 
-- Use `.claude/rules/architecture.md` as a concise common entrypoint for the
-  approved architecture, path map, delivery decision, and topic reading map.
-- Put substantive layer guidance and examples in focused native rule files,
-  such as `.claude/rules/domain.md`, `http.md`, and `persistence.md`. Resolve
-  actual names in the output plan; this is not a mandatory file count.
-- Rules without `paths` frontmatter load at startup. Scope layer-specific
-  rules with `paths` patterns derived from the project's actual code paths.
-  Scoped rules activate when matching files are read, written, or edited;
-  do not rely on them alone for rules needed before those actions.
-- Do not make the entire encyclopedia unconditional or discard detailed
-  examples to meet an arbitrary rule-file length. Explain context cost and
-  keep globally necessary constraints in the common rule.
-- Do not also create a `docs/guidelines` mirror or an extra root pointer unless
-  the selected plan needs it. No other reader integration is implied.
+**Shared handbook:** preserve its accepted location. Only after shared mode is
+selected, if none exists, propose `docs/guidelines/index.md` and adjacent pages.
+Reader files contain approved reading instructions, not independent copies. Stop
+before output creation if reader/no-wiring selection remains unresolved.
 
-**Shared handbook plus reader wiring**
+Either entrypoint must record:
 
-- Use the accepted handbook location. If none exists, propose
-  `docs/guidelines/index.md` and adjacent pages **only after this mode is chosen**.
-- Keep one authoritative body of guidance. Native reader files contain only the
-  reading contract and applicable topic references, not independent copies.
-- Add wiring only for selected readers, using the mechanisms below. Without an
-  explicit reader/no-wiring decision, stop before creating the output files.
+- Approved profile, exact responsibility/path map and authority beneath canonical
+  instructions; local exceptions and reasons.
+- Mode/readers, output/wiring paths, loading conditions, shared-entrypoint effects
+  and proposed/approved/verified status.
+- Adopted/deferred/not-applicable/open ledger, separating rules from implemented state.
+- Task-to-chapter retrieval for planning, implementation, review and setup refresh.
+- Exercised verification and limits; do not fossilize historical logs into rules.
 
-The selected entrypoint, whether a native common rule or a handbook index, must state:
-
-- The approved architecture and stack profile, exact responsibility-to-path map,
-  and the local handbook's authority relative to canonical project instructions.
-- The selected delivery mode and readers, actual output and wiring paths, loading
-  conditions, shared-entrypoint effects, and proposed/approved/verified status.
-- The adopted/deferred/not-applicable/open ledger, local exceptions and reasons,
-  and the distinction between an accepted rule and implemented application state.
-- A task-to-chapter reading map and entrypoints for planning, implementation,
-  review, and later setup refreshes.
-- Verification actually exercised and precise limits. Keep historical command
-  output out of normative rules when it would become stale.
-
-A complete handbook normally has architecture/layers, coding conventions and
-quality tooling, domain, data/transactions, reliability/events, security/operations,
-and testing/evolution pages. It may merge or split files to match the project.
-The organization is not a hardcoded file count. It must not silently omit
-relevant behavior because one page is long.
+Cover architecture/layers, coding/tooling, domain, data/transactions, reliability,
+security/operations and testing/evolution as applicable. Merge/split pages for the
+project, not a mandatory file count; a long page is not a reason to omit a guarantee.
 
 ### Required depth of an adopted section
 
-For every substantial adopted rule, provide:
+For each substantial rule give its applicability, boundary rationale, actual owner
+and paths, correct target-language code with failure paths, a plausible violation
+and its consequence, behavioral/boundary/error checks with required runtimes, and
+related decisions/revisit triggers. Keep the index short, not the handbook's substance;
+"follow SOLID" or "add transactions" is insufficient. Repeated boilerplate adds no depth.
 
-1. The exact rule and the condition under which it applies.
-2. Why violating it breaks a boundary or consumer-visible guarantee.
-3. Actual file paths and the layer that owns the decision.
-4. Correct target-language code, including the important failure path.
-5. A plausible wrong implementation and its specific failure.
-6. Verification of behavior, boundaries, and errors. Identify any real runtime
-   needed to prove the claim.
-7. Related decisions and the point at which this rule must be revisited.
+Include one complete slice: real entry adapter → handler/DTO → inbound contract →
+service/domain → outbound contract → concrete adapter/mapping → composition, with
+success and negative behavior. For Go command placement/imports/caller migration,
+apply [coding conventions §2](go/coding-conventions.md#2-five-total-boundary-parameters-require-an-input-struct).
 
-The index may be short. The substantive pages must not be reduced to generic
-phrases such as "follow SOLID", "use repositories", "handle errors", or "add
-transactions". Do not add repeated boilerplate merely to make them longer.
+Apply [behavior ownership](go/behavior-ownership.md): trace an actual compound
+decision, collection calculation and representation conversion to named owners,
+show before/after calls and direct checks. Include read models and application
+inputs/results, not only constructors; state absent behavior rather than inventing
+it. Domain owns business rules, DTO/handwritten DAO owns representation, and services
+retain sequencing, scoped I/O and transactions. Private service helpers, trivial
+forwarders and "thin service" slogans do not satisfy the contract.
 
-Include a complete representative vertical slice: route → handler and DTO mapping
-→ inbound command/interface → application service → domain → outbound interface
-→ concrete adapter and mapping → composition, with success and negative behavior.
-When the project does not use HTTP, use its real entry adapter instead.
-For Go, place inbound `*Command` inputs in `core/port/in/command`; keep
-interfaces, Query and result types in `core/port/in`. Show imports flowing from
-the parent port and consumers to `command`, never back to the parent or a service.
-Migrate every command caller without compatibility aliases; retain transport DTOs
-and outbound-specific inputs at their existing boundaries.
-
-The slice must read naturally from top to bottom, with business steps at a
-consistent level of abstraction. Apply [behavior ownership](go/behavior-ownership.md):
-show an actual compound decision, collection calculation, and representation
-conversion before and after assigning each to a named type/package/API and
-direct behavioral check. Include read models and application commands/results,
-not only entity constructors. If a behavior is absent, state that rather than
-inventing it. Pure business rules belong in domain; DTOs and handwritten DAO
-mappers own representation behavior, not use-case execution. Services retain
-sequencing, scoped I/O and transactions. Private service helpers, trivial
-forwarders, or \"thin service\" slogans alone do not satisfy this contract.
-
-Do not leave placeholders or `TODO` code in an accepted example. A scoped fragment
-is fine when its surrounding types and assumptions are explicit; label it as a
-fragment, not a runnable application. If a framework API is unknown, verify it or
-state the blocked example instead of publishing guessed code as a standard.
+Scoped fragments must name their surrounding types/assumptions and not masquerade
+as runnable apps. No placeholders or `TODO` in accepted examples. Verify unfamiliar
+APIs or name the blocked example rather than publish guessed code.
 
 ## 5. Reader wiring and canonical authority
 
-Preserve the project's single canonical instruction surface and existing thin
-imports. Do not create both an authoritative `CLAUDE.md` and an authoritative
-`AGENTS.md` with independently maintained copies. Follow its instruction-update
-and human-approval policy; in a harness-flow project, existing instruction-file
-revisions use `harness-flow:llm-md-revise`.
+Preserve one canonical instruction surface and existing thin imports; do not create
+independently authoritative `CLAUDE.md` and `AGENTS.md` copies. Follow local update
+and human-approval policy, including `harness-flow:llm-md-revise` where established.
+Claude-native mode uses its selected rules directly. Shared mode uses:
 
-In Claude-native mode, the selected native rules are the loading surface.
-Do not create a separate shared handbook or duplicate its authority by default.
-In shared-handbook mode, choose a reliable surface for each selected reader:
-
-| Selected reader | Reading-contract surface | Boundary |
+| Reader | Reading-contract surface | Constraint |
 | --- | --- | --- |
-| Claude Code | Existing accepted `CLAUDE.md` surface or a thin `.claude/rules/architecture.md` bridge | Preserve existing imports; use `paths` for narrower bridges when appropriate |
-| Codex | The project's accepted `AGENTS.md` instruction chain | Verify the chain for the actual working directory; do not invent automatic loading of ordinary docs |
-| OMP | The canonical project instructions actually supplied/loaded by OMP, commonly `AGENTS.md` | Inspect the established surface; do not invent a new config path or change global settings |
+| Claude Code | Accepted `CLAUDE.md` or thin `.claude/rules/architecture.md` bridge | Preserve imports; scope narrower bridges with actual `paths` where appropriate |
+| Codex | Accepted `AGENTS.md` chain | Verify the chain for the actual working directory |
+| OMP | Actually supplied canonical instructions, commonly `AGENTS.md` | Do not invent config paths or modify global settings |
 
-Reuse a shared instruction entrypoint when selected tools already share it.
-One pointer can serve Codex and OMP; do not create competing copies. If changing
-that entrypoint also affects an unselected tool, disclose the effect in the plan
-and obtain the applicable approval. Reader selection defines intended support,
-not an access-control guarantee. Do not promise isolation that a shared file
-cannot provide. Leave unselected tool-specific instruction files untouched.
+Reuse shared entrypoints. Disclose effects on unselected readers and obtain applicable
+approval; selection is not access-control isolation. Leave unselected tool-specific
+files untouched. A shared pointer should require:
 
-For shared-handbook mode, propose a small pointer whose meaning is:
+> Before planning, implementing or reviewing, read the project handbook entrypoint
+> and task-selected chapters. Follow the adopted path map and conditional rules;
+> carry them into plans, acceptance checks and independent review briefs. Surface
+> conflicts instead of silently inventing another architecture.
 
-> Before planning, implementing, or reviewing a change, read the project handbook
-> entrypoint and the chapters selected by its task map. Follow the adopted
-> responsibility/path map and conditional rules. Carry relevant constraints into
-> the plan, implementation acceptance checks, and independent review briefs. If a
-> requirement conflicts with an adopted rule, surface the conflict instead of
-> silently inventing a new structure.
-
-Replace "project handbook entrypoint" with the actual path in the adopted
-project. The pointer is a loading contract, not a second copy of the entire
-handbook. A link alone does not prove that an agent loaded the destination;
-exercise a representative planning/direct-implementation/review task to verify
-retrieval where that integration is claimed.
-
-Verify loading in every selected runtime using its available instruction
-diagnostics or an actual read trace. For path-scoped rules/bridges, check a
-matching file and a nonmatching file; common architecture rules must be available
-when planning before any path-specific trigger. Confirm that a shared-handbook
-reader retrieves the entrypoint and relevant chapter rather than only its link.
-A supplied-text model exercise can check interpretation, not native startup
-loading. If a runtime is unavailable, finish independent authoring but mark that
-reader integration unverified and do not claim it is active.
-
-Instructions are not mechanical enforcement. If the project requires a hard
-import or dependency boundary, adopt its existing architecture test/linter/CI
-mechanism or approve a suitable one. Do not claim that a Markdown rule blocks
-an invalid import at runtime.
+Replace the generic entrypoint with its real path. Verify each selected runtime
+through instruction diagnostics or actual read traces, including representative
+planning/direct-implementation/review retrieval. Check matching and nonmatching
+paths for scoped bridges, common rules before path triggers, and retrieval of the
+handbook/chapter rather than only its link. Supplied-text evaluation is not native
+loading evidence. An unavailable runtime stays unverified, not active; finish
+independent authoring. Hard boundaries require existing/approved architecture
+checks or CI, not a claim that Markdown prevents invalid imports.
 
 ## 6. First adoption and refresh behavior
 
-For first adoption, do not reopen an already approved profile. Ask only unresolved
-choices that change the artifact. If writing new docs is authorized and there is
-no material conflict, write them and present the result under the project's
-review policy. Existing instruction changes still follow their approval rules.
+First adoption asks only unresolved artifact-changing choices, not renewed approval
+of an accepted profile. Write authorized, conflict-free guidance under project
+review policy; instruction changes retain their approval requirements.
 
-For a refresh:
+For refresh, read current index/chapters/examples/exceptions first. Compare shared
+changes with available history, distinguishing local decisions and human edits;
+revision records or source citations are not prerequisites. Propose narrow merged
+changes preserving examples/exceptions unless the user selects replacements. Ask
+about genuine API/architecture/policy conflicts, not unchanged prose. Verify changed
+examples and record only actually adopted changes.
 
-1. Read the current project index, chapters, exceptions, and examples first.
-2. Compare the current handbook with the shared guidance and any reliable
-   available history; do not require source citations or revision records.
-3. Separately identify shared-guidance changes, existing local decisions, and
-   human edits. A "generated" heading is not permission to discard the file.
-4. Propose narrow merged changes. Preserve current examples and deliberate
-   exceptions unless the user selects a replacement.
-5. Ask about genuine conflicts, not every unchanged sentence. Do not silently
-   resolve an API/architecture/business-policy conflict in favor of the latest
-   shared text.
-6. Verify changed examples and record only changes actually adopted.
-
-Without a previous snapshot, you cannot reliably distinguish a template line
-from a human edit. Treat current content as locally maintained; show proposed
-changes without inventing an automatic three-way merge. Do not build a new
-configuration, templating, or schema-versioning engine for this workflow.
-
-A documentation refresh never implicitly authorizes application refactors,
-framework replacement, generated-code regeneration, repository-wide formatting,
-or deletion of obsolete-looking user files.
+Without a previous snapshot, treat all current content as locally maintained;
+"generated" is not overwrite permission. Do not invent a three-way merge, template
+engine or schema-versioning system. Refresh alone authorizes no app refactor,
+framework replacement, regeneration, broad formatting or deletion of user files.
 
 ## 7. Validation and truthful completion
 
-Use the target's actual commands. At minimum, exercise a representative adopted
-slice and a negative path, inspect boundary mapping and imports, and verify
-all referenced files/links. For unfamiliar target-framework behavior, run a
-small real example instead of trusting translated syntax.
+Use actual target commands to exercise a representative slice and negative path;
+check mappings/imports and links. Run a small real target-framework example for
+unfamiliar semantics. For authorized Go tooling, verify pinned binary/config and
+local/CI consistency, accepted four-total/rejected five-total declarations and
+Command correction. Inspect typing, role names, peer-call direction and function
+spacing where lint is silent.
 
-For authorized Go tooling, verify the actual pinned binary and configuration,
-exercise accepted four-total and rejected five-total parameter declarations and
-the Command-based correction, and check local/CI version consistency. Inspect
-entity/value and collection shapes, role names, peer-call direction and function
-spacing separately when the runner does not cover them. Report a planned tool,
-installed binary, executed check and active reader as distinct states.
+Match each claim to evidence: domain tests do not prove database constraints;
+service mocks do not prove rollback/isolation/driver cancellation; SQLite does not
+prove Ent/PostgreSQL; broker acknowledgment does not prove consumer commit; a build
+does not prove authorization, isolation, recovery, shutdown or public HTTP behavior.
 
-Claims require matching evidence:
-
-- Domain tests prove selected invariants, not database constraints.
-- Mocked services do not prove transaction atomicity, isolation, or driver
-  cancellation. Use the actual database/ORM for those claims.
-- A local SQLite teaching example does not prove Ent/PostgreSQL behavior.
-- Broker acknowledgments do not prove a consumer's inbox/business transaction.
-- A successful build does not prove authorization, tenant isolation, recovery,
-  graceful shutdown, or externally visible HTTP behavior.
-
-If the environment cannot execute a required claim, name the unavailable runtime
-and the exact unverified guarantee. Complete independent pages, but do not mark
-that claim verified or activation complete. Resolve information reachable through
-files/tools before asking the user.
-
-The completion report names the project entrypoint, adopted profile/deviations,
-actual verification, remaining decisions, and whether the canonical reading
-contract was activated. Setup ends there; application feature implementation,
-code review, and project-memory revision remain their own workflows.
+Resolve tool/file-reachable facts first. Name unavailable runtimes and exact blocked
+guarantees, finish independent pages, and never mark unexecuted claims or full
+activation verified. Report entrypoint, adopted profile/deviations, actual checks,
+remaining decisions and reading-contract status. Planned tooling, installed binary,
+executed checks and active readers are distinct states. Setup ends here; application
+implementation, review and project-memory revision remain separate workflows.

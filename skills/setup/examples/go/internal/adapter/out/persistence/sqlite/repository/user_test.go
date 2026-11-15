@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +32,15 @@ func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider
 		}
 	})
 	return ctx, db, provider.NewUserProvider(db), sqlitedb.NewTransactor(db)
+}
+
+func newUser(t *testing.T, name, email string) *domain.User {
+	t.Helper()
+	user, err := domain.NewUser(name, email, time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return user
 }
 
 type rowCounts struct {
@@ -81,16 +89,10 @@ func TestCreateUserCommitsUserAndAuditAndCanBeRead(t *testing.T) {
 
 func TestRepositoryRemainsReusableAfterContextTransactionRollback(t *testing.T) {
 	ctx, db, _, transactor := newDatabase(t)
-	first, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	duplicate, err := domain.NewUser("Another", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	first := newUser(t, "Alice", "alice@example.com")
+	duplicate := newUser(t, "Another", "alice@example.com")
 	userRepository := repository.NewUserRepository(db)
-	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+	err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
 		if _, err := userRepository.Insert(txCtx, first); err != nil {
 			return err
 		}
@@ -141,28 +143,24 @@ func TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint(t *testing.T)
 	const callers = 8
 	start := make(chan struct{})
 	results := make(chan error, callers)
-	var group sync.WaitGroup
 	for range callers {
-		group.Add(1)
 		go func() {
-			defer group.Done()
 			<-start
 			_, err := users.CreateUser(ctx, command.CreateUserCommand{Name: "Alice", Email: "ALICE@example.com"})
 			results <- err
 		}()
 	}
 	close(start)
-	group.Wait()
-	close(results)
 	var successes, conflicts int
-	for err := range results {
+	for range callers {
+		err := <-results
 		switch {
 		case err == nil:
 			successes++
 		case errors.Is(err, domain.ErrEmailConflict):
 			conflicts++
 		default:
-			t.Fatalf("unexpected concurrent result: %v", err)
+			t.Errorf("unexpected concurrent result: %v", err)
 		}
 	}
 	if successes != 1 || conflicts != callers-1 {
@@ -185,14 +183,11 @@ func TestCancellationBetweenTransactionWritesRollsBackPersistedUser(t *testing.T
 	ctx, db, userProvider, transactor := newDatabase(t)
 	transactionContext, cancel := context.WithCancel(ctx)
 	defer cancel()
-	user, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	user := newUser(t, "Alice", "alice@example.com")
 	userRepository := repository.NewUserRepository(db)
 	auditRepository := repository.NewAuditRepository(db)
 	var insertedID int
-	err = transactor.WithinTransaction(transactionContext, func(txCtx context.Context) error {
+	err := transactor.WithinTransaction(transactionContext, func(txCtx context.Context) error {
 		inserted, err := userRepository.Insert(txCtx, user)
 		if err != nil {
 			return err
@@ -229,11 +224,8 @@ func TestAuditForeignKeyRejectsUnknownUser(t *testing.T) {
 func TestProviderReadsUncommittedWriteThroughTransactionContext(t *testing.T) {
 	ctx, db, userProvider, transactor := newDatabase(t)
 	userRepository := repository.NewUserRepository(db)
-	input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+	input := newUser(t, "Alice", "alice@example.com")
+	err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
 		inserted, err := userRepository.Insert(txCtx, input)
 		if err != nil {
 			return err
@@ -258,10 +250,8 @@ func TestTransactionScopeExpiresAfterCallback(t *testing.T) {
 		t.Run(outcome, func(t *testing.T) {
 			ctx, db, userProvider, transactor := newDatabase(t)
 			userRepository := repository.NewUserRepository(db)
-			input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-			if err != nil {
-				t.Fatal(err)
-			}
+			input := newUser(t, "Alice", "alice@example.com")
+			var err error
 			var escaped context.Context
 			callbackErr := errors.New("reject operation")
 			panicValue := new(int)
@@ -348,11 +338,8 @@ func TestForeignPoolScopeRejectsRepositoryAndProviderOperations(t *testing.T) {
 	_, otherDB, otherProvider, _ := newDatabase(t)
 	otherUsers := repository.NewUserRepository(otherDB)
 	otherAudits := repository.NewAuditRepository(otherDB)
-	input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+	input := newUser(t, "Alice", "alice@example.com")
+	err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
 		if _, err := otherUsers.Insert(txCtx, input); !errors.Is(err, sqlitedb.ErrTransactionPoolMismatch) {
 			t.Fatalf("foreign write error = %v, want ErrTransactionPoolMismatch", err)
 		}
@@ -374,16 +361,10 @@ func TestForeignPoolScopeRejectsRepositoryAndProviderOperations(t *testing.T) {
 func TestConcurrentOrdinaryCallDoesNotBorrowTransactionScope(t *testing.T) {
 	ctx, db, _, transactor := newDatabase(t)
 	userRepository := repository.NewUserRepository(db)
-	transactionUser, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ordinaryUser, err := domain.NewUser("Bob", "bob@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	transactionUser := newUser(t, "Alice", "alice@example.com")
+	ordinaryUser := newUser(t, "Bob", "bob@example.com")
 	rollbackErr := errors.New("roll back held transaction")
-	err = transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+	err := transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
 		if _, err := userRepository.Insert(txCtx, transactionUser); err != nil {
 			return err
 		}
@@ -436,13 +417,10 @@ func TestCommitConstraintFailureRollsBackTransaction(t *testing.T) {
 func TestCancellationAfterFinalWritePreventsCommit(t *testing.T) {
 	ctx, db, _, transactor := newDatabase(t)
 	userRepository := repository.NewUserRepository(db)
-	input, err := domain.NewUser("Alice", "alice@example.com", time.Unix(0, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	input := newUser(t, "Alice", "alice@example.com")
 	transactionContext, cancel := context.WithCancel(ctx)
 	defer cancel()
-	err = transactor.WithinTransaction(transactionContext, func(txCtx context.Context) error {
+	err := transactor.WithinTransaction(transactionContext, func(txCtx context.Context) error {
 		if _, err := userRepository.Insert(txCtx, input); err != nil {
 			return err
 		}

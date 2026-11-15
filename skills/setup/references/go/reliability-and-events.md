@@ -1,8 +1,6 @@
 # Reliability, idempotency, and events
 
-Use this reference to put a precise guarantee around a side effect, not to turn every CRUD application into a distributed system. Start with [architecture](architecture.md), [coding conventions](coding-conventions.md), [layers](layers.md), and [data and transactions](data-and-transactions.md). Adopt only mechanisms justified by the actual failure model; record unresolved product decisions using [adoption](../adoption.md).
-
-Application transactions, reliable event delivery, idempotency storage, and provider reconciliation require explicit implementation when applicable; do not infer them from the layer layout. Do not discard service context or replace it with repository `context.Background()`. `TrID` correlates requests; it cannot make any operation atomic.
+Use this chapter when duplicate commands, durable delivery, or external effects need a precise guarantee. Adopt only mechanisms justified by the failure model; [adoption](../adoption.md) records unresolved policy. Layering and `TrID` supply neither transactions nor reliable delivery.
 
 ## 1. Choose the smallest honest guarantee
 
@@ -16,24 +14,21 @@ Application transactions, reliable event delivery, idempotency storage, and prov
 | **Optional** | Measured failure/latency isolation need | A circuit breaker, bulkhead, cache, broker, or workflow engine. Each adds state and operational costs. |
 | **Needs project decision** | Before adopting the corresponding mechanism | Retry budget, replay window, key scope, terminal failures, ordering scope, schema compatibility, compensation policy, and recovery ownership. |
 
-A database constraint and a request deadline are often the entire solution for local CRUD. Do not introduce a broker to replace a function call or retry every error to hide a weak boundary.
+For local CRUD, constraints and a deadline may suffice; a broker does not improve a function call.
 
 ### Placement
 
-- `internal/core/domain`: invariants and domain facts; no HTTP client, broker, Ent, or retry loop.
-- `internal/core/port/in` (`inport`): context-aware use cases and application results.
-- `internal/core/service/usecase/<domain>`: domain operation order and recoverable application states; `service/shared/<capability>`: reusable application capabilities; `service/orchestration/<workflow>`: a real cross-domain workflow and its transaction scope. Follow the dependency rules in [architecture](architecture.md), not peer-service calls or orchestration-to-usecase calls. Pure shared business calculations remain domain behavior.
-- `internal/core/port/out` (`outport`): context-aware read providers, write repositories, the common context-callback transactor, external vendor operations, and durable event recording as required.
-- `internal/adapter/in/http`: parse the key, authenticate, validate input, invoke the input port, and map typed outcomes to HTTP. Do not implement a second business workflow in middleware.
-- `internal/adapter/out/persistence/postgres/{provider,repository,db,dao}`: read queries in `provider`; writes and durable idempotency/inbox/outbox mutations in `repository`; reusable pool/transaction lifecycle and context-handle resolution in `db`; generated Ent code and handwritten mapping in separate `dao/ent` and `dao/*_mapper.go` files (or adapter-owner local mappers). Pass callback `txCtx` to existing providers/repositories so all participating I/O resolves the same transaction. `db` must not import `provider` or `repository`.
-- External vendor adapters remain outside persistence: HTTP protocol, credentials, vendor error translation, and provider-documented retry rules belong to the corresponding outbound integration adapter. “Provider” under persistence means database reads, not an external vendor. Add an adapter directory only if the integration exists.
-- `cmd/api/main.go`: own reusable clients, database pools, workers, startup, and shutdown. A separate publisher executable is optional, not a requirement.
+- Domain owns invariants/facts; input ports own context-aware use cases/results. Services own operation order, recoverable states, and transaction scope. Follow [architecture](architecture.md) when choosing usecase/shared/orchestration; no peer-service or orchestration-to-usecase calls.
+- Output ports expose required persistence, transaction, vendor, and durable-event capabilities. HTTP authenticates, parses/validates, delegates, and maps outcomes—not a second workflow.
+- Under `internal/adapter/out/persistence/postgres`, `provider` reads, `repository` writes idempotency/inbox/outbox and business state, `db` owns lifecycle/private context-handle resolution, and `dao` separates generated `ent` from handwritten mappers. Existing adapters receive callback `txCtx` for the same transaction; `db` never imports providers/repositories. Read [data and transactions](data-and-transactions.md) when implementing this boundary.
+- Vendor adapters outside persistence own protocol, credentials, error translation, and documented retry rules; persistence “provider” means database reads. Add integrations only when used.
+- `cmd/api/main.go` owns reusable clients/pools/workers and lifecycle. A separate publisher executable is optional.
 
 ## 2. Deadlines and cancellation are resource ownership
 
-**Required baseline.** Accept `context.Context` as the first argument of I/O-bearing ports and pass it through every layer. Do not store a request context on a reusable service, replace it with `context.Background()`, or use values in it as a substitute for explicit business arguments. A child timeout can shorten but cannot extend its parent's lifetime.
+**Required baseline.** Put `context.Context` first on I/O ports and propagate it. Never store request contexts on reusable services, replace them with `context.Background()`, or hide business arguments in them. A child deadline cannot extend its parent.
 
-Section-scoped Go example for a provider adapter; imports are `context`, `encoding/json`, `errors`, `fmt`, `io`, `net/http`, `net/url`, and `time`. `baseURL` is a validated, trusted HTTPS configuration value, not user input. Construct this adapter once in composition and reuse its owned HTTP client across calls. This read operation has no automatic retry:
+Complete adapter-scoped read example; imports: `context`, `encoding/json`, `errors`, `fmt`, `io`, `net/http`, `net/url`, `time`. Composition constructs/reuses this client with a validated trusted HTTPS `baseURL`, never user input. No automatic retry:
 
 ```go
 type Receipt struct {
@@ -95,25 +90,21 @@ func (c *ReceiptClient) Lookup(ctx context.Context, id string) (Receipt, error) 
 }
 ```
 
-The status vocabulary above is illustrative integration data, not a domain policy for User. Translate it to project-owned application types at the outbound boundary. Provider bodies may contain secrets; do not include them in returned errors.
+Status values are illustrative integration data, not User policy; translate at the outbound boundary. Never include provider bodies in errors. `Do` does not treat non-2xx as errors; close every returned body. EOF plus close enables reuse, but do not drain unbounded data just for reuse. Composition owns reusable transports and load-appropriate connection/TLS/header/pool budgets; `Client.Timeout` includes body reading. Streams need separate budgets.
 
-`Client.Do` does not turn non-2xx statuses into Go errors. Close the body on every successful `Do`, including error statuses. Reading to EOF and closing enables connection reuse when supported; deliberately stop at the size limit rather than draining an unbounded response just to reuse a connection. Reuse clients/transports. Configure connection/TLS/header budgets and connection pool limits in composition where required by load; `Client.Timeout` includes reading the response body. Streaming endpoints need different budgets rather than globally disabling every timeout.
-
-**Wrong:** `http.Get(url)` in a service with no context, unbounded `io.ReadAll`, and an unclosed body. Failures consume connections and memory after the caller has gone away.
-
-**Verification:** cancel before dispatch and during body reading; assert prompt return and no persisted success. Serve oversized, malformed, slow, redirect, and non-2xx responses using an HTTP test server; assert bodies are closed and provider details do not enter public output. Cancellation does not prove a remote side effect did not happen.
+**Verify:** cancellation before dispatch/during body reading; oversized, malformed, slow, redirect and non-2xx responses via a test server; prompt return, closed bodies, no persisted success or public provider details. Cancellation cannot prove a remote effect did not happen.
 
 ## 3. Retry only an operation whose semantics permit it
 
-**Required when retries are adopted.** Before retrying, establish all of these:
+**Required when retries are adopted.** Require:
 
-1. The failure is classified as transient by the dependency contract, not merely `err != nil` or every `5xx`.
-2. Repeating the operation is safe: it is read-only, naturally idempotent, or uses the same durable operation key against a provider that actually supports it.
-3. Attempts plus backoff fit a total deadline, with a finite attempt count, per-attempt timeout, and capacity budget.
-4. Only one layer owns the retry policy; account for SDK, proxy, broker, and caller retries to avoid multiplicative load.
-5. Each attempt has a fresh request/body and closes its response. Respect bounded `Retry-After` delays where the provider contract requires them.
+1. Dependency-documented transient classification, not every error/`5xx`.
+2. Read-only/naturally idempotent semantics or a stable durable key the provider supports.
+3. Finite attempts, per-attempt timeouts, backoff and capacity within a total deadline.
+4. One retry owner accounting for SDK/proxy/broker/caller retries.
+5. Fresh request/body and closed responses per attempt; bounded `Retry-After` where required.
 
-This helper is a complete, section-scoped policy example for a **read-only** callback. Imports: `context`, `errors`, `math/rand`, and `time`. `transient` is an adapter-specific classifier; it must not classify validation/authentication errors or permanent not-found as transient without a documented consistency contract.
+Complete **read-only** policy example; imports: `context`, `errors`, `math/rand`, `time`. Durations/counts illustrate configuration, not approved project policy. `transient` is adapter-specific; validation/authentication/permanent not-found are not transient absent a documented consistency contract.
 
 ```go
 func retryRead(
@@ -154,15 +145,15 @@ func retryRead(
 }
 ```
 
-Do not apply this helper to payment submission or a database transaction that already made external calls. For a serialization/deadlock retry, restart the **entire local transaction** with a fresh `txCtx`, passing it to the same existing repositories/providers and reloading state; keep irreversible work outside it. A commit connection failure may leave the commit outcome unknown; do not assume rollback or retry with a new identity. A circuit breaker cannot establish idempotency or recover an unknown outcome.
+Never apply this helper to payment submission or transactions that already called external services. Serialization/deadlock recovery restarts the **entire local transaction**, reloads state with fresh `txCtx` through existing adapters, and excludes irreversible work. A failed commit connection may mean unknown outcome: neither rollback nor retry with a new identity is safe to assume. Circuit breakers do not fix this.
 
-**Verification:** assert exact maximum attempts, cancellation during backoff, no retry on permanent errors, and stable operation identity across attempts. Fault-inject an accepted request followed by connection loss. A retry that creates a second external effect is not reliable.
+**Verify:** exact maximum attempts, canceled backoff, permanent errors, stable operation identity, and accepted-then-disconnected requests without a second effect.
 
 ## 4. Bound concurrency and name the owner
 
-**Required baseline.** Every goroutine needs an owner that cancels and waits for it, every channel needs one closing owner, and every shared mutable value needs synchronization or exclusive ownership. A request must not launch an untracked goroutine for required work. Request cancellation ends request-owned work; durable work belongs to a persisted job and process-owned worker.
+**Required baseline.** Every goroutine has a cancel/wait owner; every channel one closing owner; mutable shared state synchronization or exclusive ownership. Required work must not use detached request goroutines. Persist durable jobs for process-owned workers.
 
-For a finite, independent **read-only** batch, the following section-scoped Go function uses `golang.org/x/sync/errgroup`; imports are `context`, `errors`, and that package. Choose the limit from the downstream budget, not the number of input elements:
+Complete finite independent **read-only** batch example using `golang.org/x/sync/errgroup`; imports: `context`, `errors`, that package. Choose the limit from downstream capacity:
 
 ```go
 func ReadBatch(ctx context.Context, ids []string, limit int,
@@ -192,23 +183,21 @@ func ReadBatch(ctx context.Context, ids []string, limit int,
 }
 ```
 
-`Go` may block at the limit; callbacks must honor cancellation so the owner can finish. The group-derived context is canceled when `Wait` returns: do not use it for subsequent work. This bounds active callbacks but does not make an unbounded input slice safe; enforce a batch limit at ingress. Do not concurrently use a transaction unless its driver/ORM explicitly supports that behavior. Parallel writes require a separate consistency design, not this read-batch helper.
+`Go` can block at the limit; callbacks must honor cancellation. The group context ends with `Wait`, so do not reuse it afterward. Bound ingress batch size too. Concurrent transaction use requires driver/ORM support; parallel writes need a separate consistency design.
 
-**Wrong:** `go sendEmail(context.Background(), user)` followed by HTTP success. A process crash loses the email; shutdown cannot wait for it, and background errors are unobserved.
-
-**Verification:** assert peak active calls never exceeds the limit, all launched calls have ended before return, cancellation unblocks dispatch, and shared output has no races. For optional best-effort work, explicitly document that loss is acceptable instead of claiming durable delivery.
+**Verify:** bounded peak calls, all launched calls ended before return, cancellation unblocks dispatch, race-free output. Explicitly permit loss for best-effort work; detached `go sendEmail(context.Background(), user)` cannot claim durability or orderly shutdown.
 
 ## 5. An idempotent HTTP command is a state machine
 
-**Required when duplicate commands would violate the product contract.** An idempotency key identifies one logical command within a defined scope; it is neither authentication nor a replacement for a business uniqueness constraint. Authenticate and authorize every attempt, including replay. Never return another principal's cached result just because a key matches.
+**Required when duplicate commands violate the product contract.** A key identifies one logical command, not authentication or permanent business uniqueness. Authenticate and authorize every attempt/replay; never expose another principal's cached result.
 
-**Needs project decision:** key format and maximum length; whether the API requires it; authenticated principal/tenant scope; operation/API version; fingerprint normalization; replay retention and privacy; replay of terminal business rejection; and response semantics after retention. The fields below are an illustrative extension, not authority to add tenancy or an identity policy.
+**Needs project decision:** required/optional key, format/length, trusted principal/tenant scope, operation/API version, normalization, retention/privacy, terminal-rejection replay, and post-retention behavior. Do not invent tenancy.
 
-A defensible scope is `(trusted_scope, operation_version, key)`, where `trusted_scope` comes from verified server-side identity/membership policy. If the API is public, design an explicit safe scope rather than silently substituting a caller-supplied user ID. Fingerprint normalized semantic command fields with a stable versioned encoding and SHA-256; include every field/header that changes the operation. Do not hash a Go map with unspecified custom serialization. A fingerprint is not encryption; avoid retaining unnecessary personal input.
+Scope can be `(trusted_scope, operation_version, key)` with verified server-side identity/membership. Public APIs need an explicit safe scope, not caller-supplied user IDs. SHA-256 the operation-changing fields/headers using stable versioned semantic encoding, not nondeterministically serialized maps. Hashes are not encryption; retain minimal personal input.
 
 ### Local-only command: atomic reservation, effect, and result
 
-The following is **real PostgreSQL schema** for the local transaction algorithm. `result` is an application result serialized by the persistence mapper; it is not an Ent object or an arbitrary HTTP response. Size limits and retention are project configuration.
+**Real PostgreSQL schema.** `result` is a bounded, versioned application result mapped by persistence, never an Ent object/arbitrary HTTP response. The 1–128-byte key constraint is this example's policy; result limits/retention require configuration.
 
 ```sql
 CREATE TABLE command_dedup (
@@ -233,7 +222,7 @@ CREATE TABLE command_dedup (
 );
 ```
 
-The following is **transaction pseudocode**, not standalone Go or one SQL statement. All SQL uses bound parameters. It assumes PostgreSQL `READ COMMITTED`; a conflict followed by a **new statement** can observe the concurrent winner. Do not combine the insert and fallback read into one snapshot-dependent CTE and assume it always returns a row.
+**Transaction pseudocode**, with bound SQL parameters at PostgreSQL `READ COMMITTED`. The conflict read must be a **new statement** to see a concurrent winner; an insert/fallback CTE may share a snapshot and return nothing.
 
 ```text
 Authenticate; resolve trusted scope; authorize action; validate and normalize input.
@@ -271,25 +260,23 @@ On cancellation, infrastructure error, or failed business write: ROLLBACK.
 On uncertain COMMIT outcome: report outcome unknown; resolve using the SAME key.
 ```
 
-Here `processing` is transaction-local and **never intentionally committed**. State transitions are `absent -> processing (uncommitted) -> completed (commit)` or `processing -> absent (rollback)`. Concurrent insertions wait on the unique conflict; use a bounded lock wait/deadline. Map that wait's expiration to the documented in-progress/retry response, not to proof of rollback by the other request. The `processing` fallback detects incompatible/corrupt older workflows; do not implement timestamp-based takeover in this algorithm.
+`processing` is **never intentionally committed**: `absent -> processing (uncommitted) -> completed (commit)` or `processing -> absent (rollback)`. Bound unique-conflict waits; timeout means documented contention, not proof the other attempt rolled back. Visible `processing` detects incompatible/corrupt workflows, not permission for age-based takeover.
 
-A known business rejection can be recorded without a business effect. If a SQL constraint error aborts the transaction, use a correctly scoped savepoint and rollback to it before recording a terminal outcome, or roll back the entire attempt and do not cache it. Do not issue `UPDATE` in an already aborted transaction. Decide which rejections are replayable; transient infrastructure failures are not automatically terminal results.
+Cache only approved terminal rejections. A SQL constraint error aborts the transaction: roll back a correctly scoped savepoint before recording an outcome, or roll back the attempt without caching. Never update an aborted transaction or treat infrastructure failure as automatically terminal.
 
-At the HTTP boundary define a stable mapping, for example semantic success replay uses the original resource ID and values with the same documented status; mismatch uses a distinct `409` code; an in-progress request uses a documented conflict/retry response. These are API choices, not universal status mandates. This algorithm promises **semantic application-result replay**, not byte-for-byte preservation of old headers or JSON. If exact HTTP replay is required, define a versioned, bounded public response snapshot and its transactional persistence explicitly; do not serialize transport types into the domain.
+Define HTTP mappings in the API contract: e.g. same resource/status on semantic replay, distinct `409` mismatch, documented contention/retry outcome. These are choices, not universal mandates. This algorithm replays **semantic application results**, not old headers/JSON bytes; exact HTTP replay needs a bounded versioned public snapshot persisted transactionally outside domain types.
 
-Retention is part of the guarantee: after a row is deleted, the same key may run again. Keep rows at least through the documented client retry window, handle in-flight cleanup with database locking, and use independent business uniqueness for permanent uniqueness. Do not expire a key merely because processing is slow. Limit per-principal key creation and retained bytes.
+Deletion permits re-execution: retain through the client retry window, lock against in-flight cleanup, never expire merely slow work, and enforce permanent uniqueness separately. Bound per-principal keys/bytes. An in-memory check or saving the key after business writes races/crashes; a separately committed reservation instead needs a full recovery protocol.
 
-**Wrong:** check an in-memory map, insert the business row, then save the key. Two replicas race, or a crash occurs between the business insert and key storage. Likewise, committing a reservation first and calling it atomic leaves a stuck reservation unless a complete durable recovery protocol exists.
-
-**Verification:** race identical keys; exactly one local effect and equal replayed results must remain. Change one semantic field with the same key; assert mismatch and no new write. Crash before commit, after commit, and before the HTTP response. Check replay after response loss, current authorization on replay, cross-scope isolation, lock timeout, terminal rejection, and retention behavior. A provider call inside this transaction is **not** made atomic by the key table.
+**Verify:** concurrent equal keys yield one effect/equal results; changed semantics mismatch without writes; crashes before/after commit and response loss; current replay authorization, scope isolation, lock timeout, terminal rejection, retention. A key table cannot make a provider call atomic.
 
 ## 6. Domain facts are not integration contracts
 
-A domain event expresses a fact meaningful inside the model, such as `UserRegistered`; a plain method result is sufficient if no event abstraction is needed. Domain code may return facts without importing JSON, topics, timestamps from the broker, or publication APIs. A domain fact raised before commit is not evidence of a committed change.
+Domain facts such as `UserRegistered` express model meaning without JSON/topics/broker clocks/publication APIs; ordinary method results may suffice. Facts raised before commit do not prove persistence.
 
-An integration event is an explicitly versioned external contract produced from committed application intent. Map it in the application/outbound boundary, selecting only information consumers are allowed to see. Do not publish the entire domain object or an Ent entity.
+Integration events are versioned external contracts mapped from committed application intent, exposing only permitted fields—not whole domain/Ent objects.
 
-Section-scoped Go envelope example; imports are `encoding/json` and `time`. Its IDs and sequence are supplied by the application's transaction, not generated again for each publish attempt:
+Scoped envelope example; imports: `encoding/json`, `time`. The transaction supplies stable IDs/sequence, never regenerated on publish:
 
 ```go
 type IntegrationEvent struct {
@@ -304,13 +291,13 @@ type IntegrationEvent struct {
 }
 ```
 
-The aggregate/version fields are appropriate only when the project has that ordering model. A simple User CRUD project need not invent aggregates or publish user email. IDs must be unique in the documented producer namespace; correlation IDs are not deduplication IDs. Do not put secrets or access tokens in payloads or trace baggage.
+Aggregate/version fields require an actual ordering model; simple CRUD need not invent aggregates or expose email. IDs are unique in a documented producer namespace; correlation IDs are not deduplication IDs. No secrets/tokens in payloads/baggage.
 
 ## 7. Transactional outbox: durable intent, not atomic delivery
 
-**Required when a committed local change must eventually produce an external event.** In one database transaction, update business state and insert the immutable event envelope into an outbox. Publishing before commit can expose rolled-back state; publishing after commit without an outbox can lose the event on a crash. The outbox solves this local dual-write gap. It does not make broker delivery exactly once or guarantee eventual success without functioning workers and recovery.
+**Required when committed local changes must produce external events.** Business writes and immutable outbox intent share one transaction. Publishing before commit exposes rolled-back state; publishing afterward without durable intent loses events on crash. Outbox closes that dual-write gap, not exactly-once delivery or eventual success without workers/recovery.
 
-**Real PostgreSQL SQL**, adapted by a persistence adapter; IDs and lease tokens are generated by the application using a suitable unique ID source:
+**Real PostgreSQL SQL** for a persistence adapter; the application supplies unique event IDs and fresh lease tokens:
 
 ```sql
 CREATE TABLE event_outbox (
@@ -365,15 +352,15 @@ UPDATE event_outbox
  WHERE id = $1 AND lease_token = $2 AND published_at IS NULL;
 ```
 
-**Publisher algorithm pseudocode:** claim and commit; publish each claimed immutable envelope with the same event ID; wait for the broker's documented durable/routing confirmation; then mark published with the claim token and require one row updated. A stale token means ownership changed: do not overwrite the new owner's state. Use a network timeout shorter than the lease, claim only work that can start in time, and renew a lease conditionally if necessary. On crash, expired leases are reclaimable. Monitor exhausted attempts and route to a durable failed/quarantined state under a defined recovery policy instead of retrying poison data forever.
+**Publisher algorithm:** claim/commit, publish the immutable envelope with its original ID, await documented broker durability/routing confirmation, then mark published with the claim token and require one updated row. Stale tokens cannot overwrite newer ownership. Network timeout must be shorter than the lease; claim only work that can start in time and renew conditionally when needed. Expired leases recover crashes. Under the approved recovery policy, quarantine exhausted/poison work durably instead of retrying forever.
 
-A lease fences **database bookkeeping**, not a paused worker's broker send. If the broker accepted a message but its confirmation was lost, or the process died before `published_at`, a later worker publishes it again. Even a single publisher can produce duplicates. Use broker durability, routing failure detection, retention, and consumer deduplication appropriate to the selected broker. A RabbitMQ publisher confirm does not mean any consumer completed its work.
+Leases fence **database bookkeeping**, not a paused worker's send. Lost confirmation or death before `published_at` causes duplicate publication even with one worker. Choose broker durability/routing/retention and consumer deduplication accordingly; a RabbitMQ confirm does not mean consumer completion.
 
-`SKIP LOCKED` is useful for work queues but does **not** provide per-aggregate order: another worker can skip a locked earlier event. The simple table above promises no strict ordering. If strict per-stream order is required, claim only the next sequence per stream, serialize that stream's publishing, choose an appropriate broker partition key, and enforce sequence handling at the consumer. Do not add strict ordering for unrelated users without a requirement.
+`SKIP LOCKED` can skip an earlier locked event: this table promises **no strict order**. If required, claim only the next stream sequence, serialize publishing, select the broker partition key, and enforce consumer sequence handling. Do not impose ordering on unrelated users.
 
 ## 8. Consumer inbox: commit first, acknowledge second
 
-**Required when repeated delivery must not repeat a local effect.** Identity is `(consumer_name, event_id)` in a documented producer namespace. `consumer_name` denotes a stable logical handler/projection version, not a process/replica ID. Store sufficient information to detect an event ID reused with different semantic content.
+**Required when repeated delivery must not repeat a local effect.** Identity is `(consumer_name, event_id)` within a documented producer namespace. Use a stable logical handler/projection version, not replica ID; retain enough content identity to detect reuse.
 
 **Real PostgreSQL schema:**
 
@@ -413,27 +400,26 @@ On known rollback/transient failure: no success acknowledgment; bounded redelive
 On unknown commit outcome: do not acknowledge as success; redelivery resolves via inbox.
 ```
 
-Crash before commit: transaction rolls back and redelivery can apply the effect. Crash after commit but before ack: delivery repeats and the inbox suppresses the repeated **local database** effect. Ack failure has the same duplicate window. Acknowledging first loses work if the transaction later fails. An inbox row written in a separate transaction can suppress work that never happened. Neither inbox nor outbox deduplicates a provider call outside the database.
+Crash before commit rolls back; crash after commit/before ack or ack loss redelivers, suppressing only the repeated **local database** effect. Ack-first loses work; separate inbox commits can suppress work that never happened. Neither inbox nor outbox deduplicates external provider calls.
 
-For a partitioned log such as Kafka, do not commit an offset past an earlier unprocessed record in the same partition. Kafka transaction guarantees do not automatically extend to an unrelated PostgreSQL transaction; use the same local inbox reasoning. Keep inbox records through the broker replay/redelivery horizon; deletion or resetting `consumer_name` can reapply old effects. Broker message IDs/delivery tags are not necessarily stable event identities.
+Kafka offsets must not pass earlier unfinished partition records; Kafka transactions do not encompass unrelated PostgreSQL work. Retain inbox identities through broker replay/redelivery horizons; deletion or renamed consumers can reapply effects. Delivery tags/broker IDs are not necessarily stable event identities.
 
 ### Ordering, schema evolution, and poison messages
 
-**Needs project decision:** whether a consumer needs every event in order, only the latest state, or commutative updates. With a sequence model, atomically store the last applied version with the effect: apply `n` only when the current version is `n-1`. Treat `n <= current` according to verified duplicate/stale semantics; treat a gap as a parked/deferred record, not a successfully applied inbox entry. Reorder buffering, snapshot rebuilding, and gap repair need explicit bounds and ownership. An inbox unique key alone does not solve ordering.
+**Needs project decision:** ordered-every-event, latest-state, or commutative semantics. With sequence ordering, store cursor and effect atomically; apply `n` only at `n-1`. Verify duplicate/stale semantics for `n <= current`; park gaps without a processed inbox entry. Bound/own reordering, rebuild and gap repair; uniqueness alone cannot order events.
 
-- Preserve immutable event IDs and event meaning across retries and replay. Do not regenerate the event ID per attempt.
-- Prefer additive compatible fields with documented defaults; readers should tolerate unknown fields where the contract allows. Do not change the meaning or type of an existing field silently. Use a new schema/event version for incompatible changes and support mixed producers/consumers during rollout.
-- Validate schema/version before applying effects. An unsupported version or irreparably malformed payload is a poison message, not a reason for an endless tight requeue loop.
-- Quarantine durably with event identity, safe reason, attempt history, and access controls. Acknowledge/remove the original only after the selected broker's durable dead-letter/parking mechanism or a durable local quarantine record is confirmed. A custom “publish to DLQ, then ack” has its own dual-write window; duplicates must be acceptable and deduplicable, and loss on an unconfirmed DLQ send is not acceptable.
-- Redrive needs an operator procedure, authorization, rate limits, and idempotency. A fixed event may require a new event identity under a defined correction contract; do not mutate historical content under an already processed ID.
+- Preserve event identity and meaning on replay. Add compatible fields/defaults; incompatible meanings/types need new schema/event versions and mixed-version rollout.
+- Validate schema before effects. Unsupported/malformed poison data cannot loop forever.
+- Quarantine identity, safe reason and attempt history durably with access controls. Ack/remove only after confirmed durable broker parking or local quarantine. “Publish DLQ, then ack” has another dual-write window: deduplicate duplicates and never accept loss from unconfirmed forwarding.
+- Authorize/rate-limit redrive. Corrections may need a new identity under an explicit contract, never mutated history under a processed ID.
 
-**Verification:** inject process death between every database/broker boundary; duplicate and reorder deliveries; expire a publisher lease while the old worker is paused; lose confirms/acks; reuse an ID with changed content; send unknown schema and poison data; restore an old database backup and replay the broker. Assert the documented local effects and recovery states, not an unqualified “exactly once.”
+**Verify:** process death at database/broker boundaries, duplicates/reordering, paused stale publisher, lost confirms/acks, changed-content IDs, poison/unknown schemas, old backup plus broker replay. Assert scoped effects/recovery, not distributed “exactly once.”
 
 ## 9. Irreversible provider work and reconciliation
 
-**Required when the use case includes an external effect.** There is no ordinary atomic transaction spanning a local database, an arbitrary broker, and a payment/email/shipping API. Do not keep a database transaction open during a slow provider call and claim that rollback undoes it.
+**Required with external effects.** Ordinary transactions cannot span PostgreSQL, an arbitrary broker and payment/email/shipping APIs. A slow provider call inside a DB transaction cannot be undone by rollback.
 
-A durable external-operation workflow can be:
+Durable operation workflow:
 
 1. In a local transaction, validate authorization/invariants, reserve the business operation, record a stable provider operation key and normalized intent, and enqueue required work. Commit.
 2. A bounded worker claims the operation. It calls the provider **outside** the database transaction, using the same provider idempotency key on every attempt only when that provider's contract supports it.
@@ -441,23 +427,16 @@ A durable external-operation workflow can be:
 4. On timeout, connection loss, or crash after submission, persist/retain an `unknown` or `pending_reconciliation` state. Query the provider by stable operation key/reference or process a verified webhook; a negative lookup may itself be eventually consistent. Reconcile under a bounded policy before resubmitting.
 5. If the provider has neither usable idempotency nor authoritative lookup, automatic retries cannot guarantee no duplicate effect. Escalate ambiguous operations for a project-approved manual resolution path rather than returning fabricated success or failure.
 
-Provider idempotency has scope, parameter-mismatch rules, retention, and concurrent-request behavior. Local key retention cannot extend a provider's shorter guarantee. Do not retry after the provider's deduplication window with a new key and call it safe. Rate limits and authentication failures also need explicit handling. Verified webhooks can arrive before the synchronous response or repeat; deduplicate and apply guarded state transitions, and reject contradictory transitions for investigation.
+Provider key scope, mismatch/concurrency behavior and retention bound retry safety; local retention cannot extend them. Never renew safety by choosing a new key after expiry. Handle quotas/auth failures explicitly. Verified webhooks may precede responses or repeat: deduplicate, guard transitions and investigate contradictions.
 
-A saga is **required only when** a business workflow spans independently committed steps and needs coordinated recovery. Persist each step's state, attempt identity, outcome, and next action; make transitions conditional so duplicate workers cannot advance a step twice locally. Compensation is a new business action, not rollback: a refund may fail or differ from cancellation, and email cannot be unsent. Decide which steps are compensable, the ordering, authorization, deadlines, and who resolves stuck workflows. Use a workflow engine only when it earns its complexity; a local transaction is preferable for one database.
+Use a saga **only when independently committed business steps require coordinated recovery**. Persist step state, attempt identity, outcome and next action; conditional transitions prevent duplicate local advancement. Compensation is a new action, not rollback: refunds can fail and email cannot be unsent. Approve compensability, order, authority, deadlines and stuck-work owner. Prefer a local transaction for one DB; engines are optional.
 
-**Wrong:** `charge(); saveOrder();` followed by `return err` if the save fails. The charge remains even though the caller sees failure. Also wrong: `saveOrder(); charge(); markPaid();` with no durable pending state or reconciliation; a crash can strand the order or cause a second charge.
+`charge(); saveOrder()` can charge despite a failed save; `saveOrder(); charge(); markPaid()` can strand/recharge without durable pending state/reconciliation.
 
-**Verification:** provider accepts then drops the response; worker dies before local success; webhook races with synchronous completion; provider returns a late success after local timeout; compensation fails; provider deduplication expires; reconciliation lookup is temporarily stale. Assert one stable logical operation, truthful pending/unknown state, auditable transitions, and a reachable repair procedure. Use the actual provider's idempotency contract rather than assuming a universal provider guarantee.
+**Verify:** accepted-but-disconnected call, worker death before local success, racing/late webhooks, failed compensation, expired deduplication and stale negative lookup. Require stable logical identity, truthful pending/unknown state and reachable repair under the actual provider contract.
 
 ## 10. Adoption and operational evidence
 
-Before declaring a mechanism operational, document its scope and failure windows in the project-owned handbook. Link to [security and operations](security-and-operations.md) for credentials, metrics, shutdown, and recovery, and [testing and evolution](testing-and-evolution.md) for the test strategy. The [runnable Go example](../../examples/go) demonstrates a local layered boundary; it does not supply production-complete authentication, broker delivery, or provider reconciliation.
+Record each adopted guarantee, failure window, numerical configuration and recovery owner in the project handbook. Proposed budgets are not approved policy. When operating it, read [security and operations](security-and-operations.md) for credentials/telemetry/shutdown/restore; when selecting evidence, read [testing and evolution](testing-and-evolution.md).
 
-Minimum evidence is conditional on the adopted feature:
-
-- **All projects:** cancellation propagation, finite resource budgets, constraint conflict mapping, no leaked body/rows/goroutines, and safe public failures.
-- **Idempotent commands:** concurrent duplicates, mismatch, response loss, commit uncertainty, retention, and replay authorization.
-- **Events:** atomic business/outbox writes; duplicate publishing; inbox effect atomicity; commit-before-ack; poison handling; ordering and schema compatibility where promised.
-- **External effects:** ambiguity, stable provider identity, reconciliation, and compensation/manual repair where required.
-
-An alertable backlog, a redrive runbook, and a practiced recovery path are part of a durable-delivery claim. A table named `outbox` is not evidence that those guarantees hold.
+The section verification cases are conditional on the adopted feature. Durable-delivery claims additionally need an alertable backlog, authorized redrive and practiced recovery. The [runnable local example](../../examples/go) supplies layered SQLite checks—not production authentication, broker delivery or provider reconciliation.

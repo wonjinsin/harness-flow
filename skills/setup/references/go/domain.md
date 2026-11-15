@@ -1,16 +1,16 @@
 # Domain modeling in Go
 
-Use this chapter with [architecture](architecture.md), [layers](layers.md), [coding conventions](coding-conventions.md), and [data and transactions](data-and-transactions.md). The canonical model package is `internal/core/domain`; application operations use `internal/core/service/{usecase/<domain>,shared/<capability>,orchestration/<workflow>}`. This handbook is guidance, not permission to replace existing project rules; record project decisions through [adoption](../adoption.md).
+Domain models live in `internal/core/domain`. Read [architecture](architecture.md) for application package/dependency rules, [layers](layers.md) for mapping boundaries, [coding conventions](coding-conventions.md) for signatures, and [data and transactions](data-and-transactions.md) for persistence enforcement when those concerns arise. Preserve existing project rules; record decisions through [adoption](../adoption.md).
 
 ## Adoption levels
 
-- **Required baseline:** identify actual invariants; give pure decisions, composed validation, derived business values, and collection/read-model calculations a named domain owner; validate construction and mutation; separate transport/storage mapping; keep domain independent of HTTP, Ent, and SQL.
-- **Required when behavior is stateful:** give one owner responsibility for legal state transitions and prevent callers from bypassing it.
-- **Required when several writes protect one fact:** define the consistency boundary and its concurrent persistence enforcement. An in-memory aggregate alone cannot protect against other processes.
-- **Optional:** rich aggregates, domain services, specifications, domain events, and multiple bounded contexts. Adopt a mechanism because a named rule needs it, not because a directory exists.
-- **Needs project decision:** business vocabulary, identity scope, allowed transitions, normalization, money and time semantics, cross-record consistency, deletion and retention, and compatibility with historical data.
+- **Required:** name domain owners for actual invariants, pure/composed decisions, derived values, and collection/read-model calculations; validate construction/mutation and separate HTTP/Ent/SQL mapping.
+- **When stateful:** one owner controls legal transitions.
+- **When several writes protect one fact:** define atomicity and concurrent persistence enforcement; an in-memory aggregate cannot protect other processes.
+- **Optional:** rich aggregates, domain services, specifications, events, and bounded contexts only for a named need.
+- **Project decisions:** vocabulary, identity scope, transitions, normalization, money/time semantics, consistency, deletion/retention, and historical compatibility.
 
-The default example's `User` is intentionally small: `ID int`, `Name`, `Email`, and `CreatedAt`, with a validating/normalizing `NewUser`. Preserve that model when adopting it unless requirements justify changing it. It does not establish a universal email identity policy, tenant model, or full domain-driven design implementation.
+Preserve the default small `User` (`ID int`, `Name`, `Email`, `CreatedAt`, validating/normalizing `NewUser`) unless requirements justify change. It implies no universal email, tenant, or DDD policy.
 
 ## 1. Discover rules before choosing objects
 
@@ -24,33 +24,27 @@ A useful rule names a fact that must remain true, its owner, the operations that
 | An email identity is unique within its agreed scope | Account context | Canonical-key policy plus database unique constraint |
 | A caller can operate on this tenant | Application/security boundary | Authentication, authorization, and tenant-scoped repository predicates |
 
-These rows illustrate possible requirements, not rules to impose on an unknown product. For example, some businesses allow overselling or idempotent repeated release. Ask whether that is intended before choosing the first or second behavior.
-
-**Incorrect:** infer “users must be adults,” “names are at most 20 characters,” or “all balances are nonnegative” from generic best-practice examples. These are business decisions, not architectural truths.
-
-**Verification cases:** walk one successful workflow, one rejected transition, one concurrent conflict, one historical record, and one cross-tenant attempt with the domain owner. If two people use the same word for different facts, settle the vocabulary or context boundary before creating a shared `User` type.
+These are hypothetical policies: overselling or repeated idempotent release may be valid. Do not invent age, name-length, or balance restrictions. Confirm vocabulary and walk success, rejected transition, concurrent conflict, historical data, and cross-tenant access with the domain owner.
 
 ## 2. Entities, value objects, and aggregates
 
 ### Entities: identity survives changes
 
-An entity is the same entity after some attributes change. Use an explicit ID type when mixing IDs would be a real source of errors; do not create wrappers mechanically for every string. The database identifier may be assigned by the database or generated by the application. That choice changes the create/retry workflow; it does not belong in an HTTP DTO.
+Identity survives attribute changes. Add typed IDs where mixing identities is a real risk, not mechanically for every string. Application- versus database-assigned identity changes create/retry behavior, not HTTP DTO design.
 
-**Required entity convention:** accept and return entities as pointers, and define plural entity collections such as `type Reservations []*Reservation` for collection parameters/results. Keep identity and mutation ownership explicit; a pointer does not make concurrent mutation safe. Small value objects, IDs, immutable snapshots, and pure read projections may remain values and value collections. This is a semantic convention, not a claim that every struct is faster as a pointer; see [coding conventions](coding-conventions.md) for typing and boundary-signature rules.
+**Required:** entities cross boundaries as pointers; use named plural collections such as `type Reservations []*Reservation`. Small values, IDs, immutable snapshots, and pure projections may use values/value collections. Pointers express identity/mutation ownership, not automatic speed or concurrency safety.
 
 ### Value objects: equality is their value
 
-A value object has no independent lifecycle. Examples include an amount with its currency or a date range with a defined endpoint convention. Prefer immutable value semantics for small values. A Go struct containing slices, maps, or pointers is not deeply immutable merely because it is passed by value.
+A value object has no independent lifecycle: an amount/currency or date range with defined endpoints. Prefer small immutable values; struct copies containing slices, maps, or pointers remain shallow.
 
 ### Aggregates: one mutation owner and consistency boundary
 
-An aggregate root accepts operations that maintain the aggregate's invariants. Other layers cannot mutate invariant-bearing fields directly. References to other aggregates normally use identity rather than an arbitrarily deep graph. The boundary is chosen from required consistency and lifecycle, not one table per aggregate or the largest graph Ent can load.
-
-An aggregate is not automatically a transaction implementation. Repository writes still need concurrency predicates and the application transaction boundary described in [data and transactions](data-and-transactions.md). A single aggregate may span several tables; a single legitimate transaction may span several aggregates.
+The root controls invariant-bearing mutation. Reference other aggregates by identity rather than deep loaded graphs; choose boundaries from consistency/lifecycle, not tables or Ent loading capabilities. An aggregate may span tables; a valid transaction may span aggregates. Persistence still needs the concurrency predicates and application boundary in [data and transactions](data-and-transactions.md).
 
 ### Concrete example: reservation lifecycle
 
-**Scope and assumed policy:** the following is a self-contained `internal/core/domain/reservation.go` example for a hypothetical stock reservation workflow. IDs are nonempty opaque strings; tenants are positive integers; SKU identifiers are case-sensitive and cannot have surrounding whitespace; a reservation starts active and can be released once. Creation time is an instant. Release time cannot precede creation. These are declared example decisions, not requirements for every product using a `User` model. Recording an active reservation does **not** itself prove inventory availability; the application must atomically reserve inventory and insert the reservation.
+**Example policy, not a universal model:** `internal/core/domain/reservation.go` uses nonempty opaque IDs, positive tenant IDs, case-sensitive unpadded SKUs, active creation, and one release no earlier than creation. Recording the reservation does not prove availability: the application atomically reserves stock and inserts it.
 
 ```go
 package domain
@@ -157,17 +151,15 @@ func (r *Reservation) Snapshot() ReservationSnapshot {
 }
 ```
 
-The exported snapshot allows adapters to supply data but cannot mutate an existing reservation. It is deliberately distinct from a JSON DTO. A zero-value `Reservation` is not a valid reservation; Go cannot forbid its allocation, so callers use constructors and behavior rejects invalid receivers. Do not invent a generic `SetState` method that defeats the transition boundary. Do not share a mutable aggregate pointer across request goroutines; each use case owns its loaded instance, and persistence arbitrates competing instances.
+The snapshot is an adapter mapping value, not a JSON DTO or mutable entity alias. Constructors and behavior reject invalid zero values; no generic `SetState` may bypass transitions. Each use case owns its loaded instance; persistence arbitrates competing instances, not shared mutable request pointers.
 
-**Incorrect:** `type Reservation struct { State string; Quantity int64 }` followed by `r.State = "released"` in a handler. This bypasses the timestamp and transition rule. Merely adding `Validate()` somewhere does not prevent later invalid mutation.
-
-**Verification cases:** zero/negative quantity; blank and padded SKU; active record with release timestamp; unknown stored state; valid released historical record; release before creation; release twice; snapshot modification leaves the entity unchanged; two separately loaded active copies cannot both persist a release. The last case is a repository integration test, not only a domain unit test.
+**Verify:** nonpositive quantity; blank/padded SKU; active-with-release-time; unknown state; valid released history; release before creation/twice; snapshot mutation leaves entity unchanged. Integration must prove two loaded active copies cannot both persist release.
 
 ### Mutation ownership beyond scalar fields
 
-**Required when collections carry invariants:** prevent callers from retaining or receiving a mutable alias. Copy at ownership boundaries when necessary, not on every internal access. Return a small immutable projection for read-only operations where copying an entire graph would be wasteful.
+**When collections carry invariants:** copy mutable ownership boundaries, not every access; use small immutable projections when graph copying would be wasteful.
 
-For a hypothetical team whose accepted invariant is “membership is fixed after construction,” this complete value fragment uses one defensive copy entering and one when explicitly requesting a mutable slice:
+This complete value fragment assumes membership is fixed after construction and copies on ingress and mutable egress:
 
 ```go
 package domain
@@ -206,44 +198,36 @@ func (m TeamMembers) IDs() []MemberID {
 }
 ```
 
-Use the repository's Go version; `slices` is a standard-library package in Go 1.21 and later. For a small bounded membership list this is straightforward; for large lists choose a different access model rather than repeatedly cloning it. Do not store the `seen` map as extra state unless the actual lookup workload justifies it.
+`slices` requires Go 1.21+; honor the target Go version. For large lists choose another access model instead of repeated cloning; retain a lookup map only when workload justifies it.
 
-**Incorrect:** return `m.ids` directly and assume callers will not mutate it. A shallow copy of a struct containing that slice has the same problem.
-
-**Verification cases:** mutate the input slice after construction and the returned slice after `IDs`; neither changes membership. Duplicate IDs reject construction. Use race detection for any deliberate shared ownership; a defensive slice copy does not make mutable pointed-to elements safe.
+**Verify:** changing constructor input or `IDs()` output cannot change membership; duplicate IDs reject. Returning `m.ids` or shallow-copying the containing struct violates ownership. Copying pointers does not protect mutable elements; deliberate shared ownership still needs synchronization/race checks.
 
 ## 3. Construction is not hydration
 
-**Required baseline:** distinguish admitting a new business operation from rebuilding an already stored fact.
+New admission and rebuilding a stored fact are distinct:
 
-- `NewReservation` establishes the new-object state and accepts injected identity/time. It does not query a database, send an email, or create an Ent record.
-- `RestoreReservation` checks valid stored shape, preserves the actual lifecycle state, and has no creation side effects. Reuse structural checks where correct; do not replay today's admission policy over every historical row.
-- The persistence adapter's handwritten `internal/adapter/out/persistence/postgres/dao/user_mapper.go` or corresponding feature mapper converts Ent fields into domain entities/values and calls the hydration path; an adapter-owner local mapper is also valid. Generated Ent code remains in `postgres/dao/ent`. Mapping does not belong in `postgres/db`. Handle nullable columns and enum/version differences explicitly.
-- A stronger current creation policy can coexist with older valid records. Decide whether to migrate, read an explicitly versioned older representation, or reject and surface corruption. Do not silently “repair” stored identity, money, tenant, or timestamps while reading.
+- `NewReservation` sets initial state from injected ID/time, without database/network/Ent effects.
+- `RestoreReservation` validates stored shape and preserves lifecycle/identity/time without creation effects or replaying today's admission policy.
+- Handwritten `postgres/dao/*_mapper.go` (or an adapter-owner mapper) converts Ent fields through hydration; generated code stays in `postgres/dao/ent`, never mapping in `postgres/db`. Handle nullability and enum/version differences.
+- Older valid records may coexist with stricter admission. Explicitly migrate, support a versioned representation, or surface corruption; never silently repair identity, money, tenant, or timestamps.
 
-**Correct:** restore a released reservation as released; its creation time remains the stored creation time. If a new admission rule says a SKU is no longer sellable, it does not prevent reading that SKU's old reservations.
+Restore a released reservation as released even if its SKU is no longer sellable. Calling `NewReservation` then overwriting state, or filling missing history with `time.Now()`, manufactures facts.
 
-**Incorrect:** mapper calls `NewReservation` and overwrites state/timestamps afterward, or uses `time.Now()` because a required historical timestamp is absent. Both manufacture facts. A constructor that emits “reservation created” must not run during hydration.
-
-**Verification cases:** load every supported persisted state; old valid records remain readable after a new admission policy; malformed records return a mapped corruption error with operational visibility; reading does not publish an event or change persisted timestamps. Test nullable-field mapping against the actual schema, not just hand-built domain values.
+**Verify:** every supported state and nullable schema field; old-valid/newly-inadmissible rows; classified corruption with operational visibility; no read-time event, write, or timestamp change.
 
 ## 4. Identity, clocks, money, and normalization
 
 ### Identity and uniqueness
 
-**Required baseline:** define where identity is unique and who allocates it. Preserve the example's `User.ID int` when adopting its model; switching to UUIDs is a project migration, not architecture cleanup. Distinguish a user's opaque ID from a mutable business key such as email. A tenant-qualified natural key is not automatically globally unique.
+**Required:** define identity allocator and uniqueness scope. Preserve `User.ID int`; UUID conversion is a migration. Opaque identity differs from mutable email; tenant-qualified keys need not be globally unique.
 
-Application-generated IDs can be created before opening a transaction and reused when an explicitly safe retry repeats the same logical operation. Database-generated IDs may have gaps, including after rollback; neither gaplessness nor chronological ordering follows from a sequence.
+Application IDs can precede a transaction and survive an explicitly safe retry. Database sequences may gap after rollback and imply neither gaplessness nor chronological order. Never allocate across replicas with `MAX(id)+1` or a process mutex.
 
-**Incorrect:** `SELECT MAX(id) + 1` or an in-memory mutex to allocate globally unique IDs across server replicas. A precheck of email availability is also not a concurrency guarantee.
-
-**Verification cases:** concurrent creates across processes; key reuse after soft deletion according to the agreed rule; same natural key in two tenants; retries with the same operation identity. Database constraints are mandatory for uniqueness; see [data and transactions](data-and-transactions.md).
+**Verify:** concurrent creates, soft-deletion key reuse, identical keys across tenants, and stable operation identity on retries. Availability prechecks cannot replace database uniqueness; use [data constraints](data-and-transactions.md#6-uniqueness-races-and-database-constraints).
 
 ### Time is an input with a meaning
 
-**Required when behavior depends on time:** pass the relevant instant into pure behavior, or inject a small application clock. Place the clock interface beside the consumer, typically the service, and wire the production clock in composition. Capture one `now` per operation when multiple decisions must share an instant. Do not call `time.Now()` repeatedly across an invariant.
-
-The reservation example accepts `now`; a service can pass `s.clock.Now()`. Storing UTC instants is appropriate for its timestamps, but not sufficient for every domain:
+**When time affects behavior:** pass an instant or inject a consumer-local application clock wired by composition. Capture one `now` for coupled decisions; the reservation accepts `now` from e.g. `s.clock.Now()`. UTC instants suit its timestamps, not every time concept:
 
 - A birthday is a calendar date, not “midnight UTC.”
 - A recurring 09:00 appointment needs a named time zone and daylight-saving policy.
@@ -252,15 +236,13 @@ The reservation example accepts `now`; a service can pass `s.clock.Now()`. Stori
 
 Go's monotonic reading helps measure durations within a process; serialization strips it. Use `Time.Equal` for instant equality and know the persistence precision rather than depending on `==` over `time.Time`.
 
-**Incorrect:** use the user's localized timestamp string as the database sort key, or use `time.Now()` inside a test-sensitive domain transition.
-
-**Verification cases:** exact expiration boundary, before/after it, timezone conversion, daylight-saving transition for calendar scheduling, database timestamp round-trip precision, and a deterministic fixed-clock test. Do not invent a timezone default where the project has not chosen one.
+**Verify:** expiration equality/before/after, timezone/DST scheduling, database precision round-trip, and fixed-clock determinism. Do not invent an unchosen timezone or use localized strings as database sort keys.
 
 ### Money needs representation and arithmetic policy
 
-**Required when handling money:** record currency, scale, rounding, allowed sign, and overflow behavior. Integer minor units work when the product's precision matches the currency/settlement rules. They are not a universal solution for exchange rates, tax intermediates, or arbitrary-precision quantities. Use decimal/arbitrary-precision arithmetic when required, and specify its rounding boundaries. Never route a decimal amount through `float64` to get into minor units.
+**For money:** decide currency, scale, rounding, sign, and overflow. Minor units fit only compatible settlement precision; rates/tax intermediates may require decimal/arbitrary precision with explicit rounding boundaries. Never convert decimal amounts through `float64`.
 
-The following independent `domain` fragment intentionally supports only two example currencies with two decimal minor units. It does not claim all currencies have two decimals. A real supported-currency catalogue and its lifecycle are project decisions. Amounts may be signed here; whether a particular price or payment may be negative belongs to that operation.
+This independent fragment supports only example USD/EUR two-decimal minor units, not every currency. Supported-currency catalogue/lifecycle is project-owned. Signed amounts are allowed here; an operation decides whether its price/payment may be negative.
 
 ```go
 package domain
@@ -310,35 +292,23 @@ func (m Money) Add(other Money) (Money, error) {
 }
 ```
 
-Multiplication, division, tax, discounts, and FX need equally explicit algorithms before adding those methods. A checked addition method does not make unchecked `amount * quantity` safe. Use maintained ISO 4217 currency-code and minor-unit reference data, and the project's settlement provider contract for its actual accepted precision.
+Multiplication, division, tax, discounts, and FX need separate checked algorithms: safe addition does not make `amount * quantity` safe. Use maintained ISO 4217 data and the settlement provider's accepted precision.
 
-**Incorrect:** `int64(float64Amount * 100)`, adding USD to EUR, or rounding every intermediate line independently when the agreed accounting policy rounds only the invoice total.
-
-**Verification cases:** zero, signed adjustment, currency mismatch, unsupported currency, positive and negative overflow, exact decimal parsing at the adopted scale, rounding ties, and tax/discount order against finance-approved examples. Money tests cannot resolve an unspecified rounding policy; that is a question for the project.
+**Verify:** zero/signed amounts, currency mismatch/unsupported currency, both overflow directions, exact decimal parsing, rounding ties, and finance-approved tax/discount order. Neither `int64(floatAmount*100)` nor independently rounded lines implement an invoice-total rounding policy.
 
 ### Normalize only under an explicit equivalence relation
 
-**Required baseline:** separate display value, canonical comparison key, and validation. Normalize once under an agreed policy and persist the canonical key used by the matching unique constraint. Keep the original spelling when the product needs it.
+**Required:** separate display value, canonical comparison key, and validation. Normalize under one declared equivalence policy, persist its key with the matching unique constraint, and retain original spelling where needed.
 
-For example, trimming surrounding whitespace from a submitted display name may be accepted, while stripping internal spaces may change the person's name. Do not remove email `+` suffixes or dots using provider-specific folklore. SMTP specifies domain case-insensitivity but requires preserving local-part case semantics; a product may intentionally choose a case-insensitive account identity, but that is its declared policy, not an email standard guarantee.
+Trimming a display name may be accepted; deleting internal spaces changes it. Do not strip email `+` suffixes/dots by provider folklore. SMTP domain case-insensitivity does not erase local-part case semantics; case-insensitive account identity is a product choice. `net/mail.ParseAddress` proves syntax, not deliverability, ownership, or identity suitability.
 
-`net/mail.ParseAddress` can parse mailbox syntax; it is not proof that an address is deliverable, owned by a user, or acceptable as an account identity. Unicode normalization, case folding, internationalized domains, and database collation may produce different equivalences; select and test one policy across creation, lookup, change, import, and migration.
+Choose one policy across create, lookup, change, import, and migration, accounting for Unicode normalization/folding, internationalized domains, and database collation. A domain/policy function owns the canonical key; adapters persist it. DTO validation is not the only invariant check.
 
-**Correct:** after the project chooses a canonical email-key policy, expose one domain/policy function used by both create and change-email workflows; the adapter persists `email_key` with the matching unique constraint. Keep transport-specific JSON validation in DTOs, but do not rely on it as the only invariant check.
-
-**Incorrect:** one handler lowercases email, a background importer preserves it, and a unique index uses a third comparison rule. The application then disagrees with the database about identity.
-
-**Verification cases:** whitespace, case variants, composed/decomposed Unicode when supported, internationalized domains, provider-specific aliases that must remain distinct, and existing rows that would collide under a changed canonicalization. Resolve collisions before changing the constraint.
+**Verify:** whitespace/case, supported composed/decomposed Unicode and internationalized domains, aliases that must remain distinct, and historical collisions before changing constraints. Handler/importer/index disagreement creates conflicting identities.
 
 ## 5. Domain service versus application service
 
-**Required baseline:** let the application service own the workflow; keep a pure business decision with the domain if it does not naturally belong to one entity.
-
-This applies even without a complex aggregate or state machine. Calling several
-domain validators but composing their eligibility rule, summary counters, or
-canonical matching in a service leaves that behavior outside its owner. Follow
-[behavior ownership](behavior-ownership.md) for named pure APIs and direct
-verification while keeping the surrounding workflow readable.
+**Required:** the application owns workflow; the domain owns pure business decisions, including compositions of validators, eligibility, canonical matching, and collection counters even without a state machine. When placing these APIs, follow [behavior ownership](behavior-ownership.md).
 
 | Concern | Placement |
 | --- | --- |
@@ -350,70 +320,51 @@ verification while keeping the surrounding workflow readable.
 | Query Ent, map nullable fields, translate constraint errors | `internal/adapter/out/persistence/postgres/{provider,repository,dao}`: providers read; repositories write; handwritten mappers hydrate |
 | Call a payment provider | Outbound port and adapter, orchestrated by application policy |
 
-A domain service is not every file ending in `service.go`. A stateless function is often sufficient. Pass the domain inputs it needs; do not inject an entire application container or make it reach into HTTP context values. If an external quote/rule lookup is unavoidable, model that dependency deliberately through a narrow port and keep I/O deadlines and workflow ownership visible; do not disguise I/O as a pure calculator.
+A stateless domain function often suffices; pass typed inputs, not an application container or HTTP context values. A necessary external quote/rule lookup needs a narrow explicit port with visible deadlines/workflow ownership, not a supposedly pure calculator.
 
-Use cases own one domain's operations in `service/usecase/<domain>`; shared application capabilities belong in `service/shared/<capability>`, not shared business calculations. Peer operations/services must not call each other, including through interfaces. A cross-domain orchestration owns its workflow and calls outbound ports/domain behavior/shared capabilities directly, never use cases. See [architecture](architecture.md) for dependency direction; moving a pure calculation to `shared` does not make it application behavior.
+Use cases own one domain; `service/shared/<capability>` owns application capabilities, not business calculations. Peer operations/services never call one another, even through interfaces. Cross-domain orchestration calls ports/domain/shared capabilities directly, never use cases.
 
-**Correct workflow:** application obtains trusted tenant, validates the command, generates ID and `now`, constructs the reservation, opens one application-owned transaction, conditionally decrements stock, inserts the reservation, and returns only after commit. The domain constructor does not know which repository or transaction implementation is selected.
+The application obtains trusted tenant, validates command, generates ID/one `now`, constructs reservation, then conditionally decrements stock and inserts reservation in one transaction. Return after commit; the constructor knows no repository. Handlers must not own this workflow.
 
-**Incorrect:** `domain.NewReservation` queries Ent to check availability and sends an email; or the handler uses three repositories directly while the nominal service simply forwards one call. In the first case the domain depends outward and cannot define its I/O boundary; in the second the application workflow has leaked into transport.
-
-**Verification cases:** domain tests need no database or network; the use-case test observes one transaction and the intended operations; adapter tests exercise real constraints; an alternative inbound adapter can invoke the same use case without an HTTP request.
+**Verify:** pure domain tests require no database/network; use-case tests observe the transaction/operations; adapters exercise real constraints; another inbound adapter invokes the same use case without HTTP.
 
 ## 6. Bounded contexts and anti-corruption mapping
 
-**Required when different subsystems give different meaning to similar data:** name the contexts and translate at their boundary. Start within one deployable application; a bounded context does not require a microservice or a new database.
+**When subsystems assign different meanings to similar data:** name contexts and translate at their boundary; no microservice or separate database is implied. Billing's invoice/tax customer need not be support's conversation customer or one universal `Customer`.
 
-Billing's customer may require invoice terms and a tax identity; support's customer may require a conversation history. Neither must import a universal `Customer` containing every field. Use stable external identifiers and an adapter-owned translation from a provider's wire model into the receiving context's vocabulary.
+An outbound anti-corruption adapter maps provider `PICKED_UP`/`IN_TRANSIT` to receiving `InTransit`. New statuses return classified unsupported/integration errors unless an explicit `Unknown` is modeled; never map `RETURNED` to `Delivered`. Keep provider DTOs/translation outside domain; the port expresses application needs, not an SDK copy. Shared Ent/HTTP/provider models let external changes redefine local invariants.
 
-For a shipping integration, the anti-corruption adapter can map provider statuses `PICKED_UP` and `IN_TRANSIT` into the receiving context's accepted `InTransit` value. It must return a classified unsupported-status/integration error for a new provider status unless the project has deliberately modeled an `Unknown` state. It must not silently map a new `RETURNED` status to `Delivered` just to keep an enum parser happy.
+For local/remote writes read [reliability and events](reliability-and-events.md); a domain method cannot make them atomic.
 
-Place provider DTOs and that translation under the corresponding outbound adapter, not in `internal/core/domain`. The outbound port describes what the application needs, not a copy of the provider SDK. When local and remote writes cannot share a transaction, follow [reliability and events](reliability-and-events.md); a local aggregate method cannot make a remote provider atomic.
-
-**Incorrect:** share Ent-generated `User` across contexts, or reuse an HTTP/provider DTO as the internal entity. This makes external renames and optional fields silently redefine local invariants.
-
-**Verification cases:** provider adds an unknown status, omits a nullable field, changes timestamp precision, sends a foreign identity, or redelivers the same fact. Contract tests should prove intentional mappings; the application must not accept an unmapped status as successful completion.
+**Verify:** unknown status, nullable field, timestamp precision, foreign identity, and redelivery; unmapped input cannot mean successful completion.
 
 ## 7. Policies and specifications: extract demonstrated variation only
 
-**Optional:** a policy is useful when a named decision varies independently, is reused, or needs an auditable version. A specification can be useful for composing well-defined business predicates. Neither is required for one `if` statement.
+**Optional:** extract a policy for demonstrated independent variation/reuse/auditable version, or a specification for composed business predicates—not for every `if`. Start with `reservation.Release(now)`, not a universal expression engine. Different accepted retail/enterprise expiration rules may justify a narrow policy.
 
-Start with `reservation.Release(now)` rather than `ReleasePolicyFactory`, `ISpecification`, and a universal expression tree. If enterprise and retail reservations actually use different accepted expiration policies, a narrow policy consumed by the use case may make that variation explicit. Record the policy/version used where later audit or replay requires it; do not recompute a historical price with today's policy.
+Keep typed inputs and an owner-approved decision table. Record policy versions needed for audit/replay; never reprice history using today's rules. In-memory predicates neither enforce SQL authorization nor protect stale stock reads; repository filters cannot omit mandatory tenant predicates.
 
-Do not confuse an in-memory predicate with SQL authorization or concurrency enforcement. A Go `CanReserve` check over a previously loaded count does not protect against a simultaneous reservation. Likewise, a repository filter API must not allow callers to omit mandatory tenant predicates.
-
-**Correct:** extract the exact named decision after two real call sites need the same semantics, keep its inputs typed, and test a decision table approved by the domain owner.
-
-**Incorrect:** create a generic specification engine to encode every validation, or evaluate a predicate on stale data and assume persistence is now safe.
-
-**Verification cases:** all decision-table boundaries; the same policy version reproduces the same result; unsupported versions fail explicitly; predicate composition preserves the agreed AND/OR semantics; database race tests still pass independently.
+**Verify:** decision boundaries, reproducibility/unsupported versions, AND/OR composition, and independent database races.
 
 ## 8. Commands, queries, and simple CRUD
 
-**Required baseline:** distinguish instructions to change state from requests to observe it. Inbound mutation inputs live in `core/port/in/command`; interfaces, queries, and results remain in `core/port/in`. Use those application contracts and outbound-port read-provider/write-repository types rather than exposing Ent builders or HTTP DTOs. Apply [coding conventions](coding-conventions.md): an application/I/O operation with at least five parameters including `ctx` and excluding its receiver uses a named Command/Query, with `ctx` first and outside that struct. Pure domain APIs such as the five-value `NewReservation` constructor above are not application/I/O boundaries.
+**Required:** commands change state; queries observe it. Mutation inputs belong in `core/port/in/command`; interfaces/queries/results in `core/port/in`. Use read-provider/write-repository ports, not Ent builders or HTTP DTOs. For application/I/O APIs, five parameters counting `ctx` but not receiver require a named Command/Query; `ctx` stays first and outside it. Pure domain constructors such as `NewReservation` are exempt.
 
-- A command such as `ReserveStock` expresses intent and contains only fields the caller may control. Tenant/actor authority comes from trusted application inputs, not a writable JSON tenant field. Creation time, state, and generated identity are not mass-assigned from transport.
-- A query such as `ListReservations` can return a projection directly through a read port. It need not hydrate every aggregate to render a table.
-- A command's validation is not authentication, and a query is not automatically harmless: it still needs authorization, bounded pagination, and resource limits.
-- Do not publish an event or perform a business write during hydration or a supposedly read-only query. Operational access logs are a separate concern.
+- Commands contain caller-controlled intent, not mass-assigned tenant authority, generated ID, creation time, role, or internal state. Resolve tenant/actor authority through trusted application inputs.
+- Queries may return projections without aggregate hydration, but still need authorization, bounded pagination, and resource limits.
+- Hydration/queries emit no business event or write; operational access logs are separate.
 
-**Optional:** separate read/write operation implementations or CQRS storage when the query shape, scale, or lifecycle justifies it; the baseline still separates read-provider and write-repository contracts. Simple CRUD can use a small `User` entity, a validating constructor, and straightforward use-case methods with those ports. Exported data fields are reasonable for inert request/read models; unexported fields are valuable where they protect real behavioral invariants. Do not manufacture aggregates, event streams, or a specification layer for a settings table with no such needs.
+**Optional:** separate implementations/CQRS storage only when shape/scale/lifecycle warrants it. Small `User` CRUD with validation and ports is sufficient. Exported inert request/read fields are fine; hide fields that protect behavioral invariants. Do not add event streams, specifications, or aggregates without need; avoid `Save(any)` or persistence-object inputs that hide allowed changes.
 
-**Incorrect:** `UpdateUser(ctx, ent.User)` accepts a generated persistence object with caller-controlled tenant, created timestamp, role, or internal status. A generic `Save(any)` similarly hides what a use case is permitted to change.
-
-**Verification cases:** request-only fields cannot alter tenant/role/creation time; queries do not write business records; a query projection does not require N+1 entity hydration; the same use case is callable from HTTP and a job; the CRUD implementation remains smaller than an invented rich model while enforcing every actual invariant.
+**Verify:** protected fields cannot be mass-assigned; queries perform no business writes/N+1 hydration; HTTP/jobs share the use case; CRUD remains small while enforcing actual invariants.
 
 ## Decision record to produce during setup
 
-Record adopted/deferred/not-applicable/open, not a blanket “DDD adopted.” For the target project, answer:
+Discover answers in code/schema/docs first. Record adopted/deferred/not-applicable/open in [adoption](../adoption.md), asking only unresolved business questions:
 
-1. Which facts and transitions are real, and who confirms them?
-2. Which types are entities, values, or inert projections, and who owns mutation?
-3. How are IDs allocated, and what is the natural-key/tenant uniqueness scope?
-4. What is the exact canonicalization policy, including historical collision handling?
-5. What do time, money, sign, scale, and rounding mean in this product?
-6. Which changes must be atomic, including concurrent requests, and which can converge later?
-7. Which historical states must hydrate successfully, and how is malformed storage surfaced?
-8. Are policies/context boundaries actually needed, or is simple CRUD the clearer design?
+- Real facts/transitions and their confirming owner; entity/value/projection and mutation ownership.
+- ID allocation/uniqueness scope; canonicalization and historical collisions.
+- Time, money, sign/scale/rounding; atomic versus convergent changes.
+- Supported historical hydration/corruption handling; demonstrated need for policies/context boundaries versus CRUD.
 
-Discover existing answers from code/schema/docs first. Ask only for genuinely unresolved business facts. The [testing and evolution chapter](testing-and-evolution.md) covers test placement and compatibility workflows.
+For test placement and compatibility work read [testing and evolution](testing-and-evolution.md).

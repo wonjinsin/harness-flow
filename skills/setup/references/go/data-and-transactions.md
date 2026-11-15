@@ -1,25 +1,25 @@
 # Data access and transactions
 
-This chapter extends the canonical Chi/Ent/PostgreSQL profile while preserving the ports-and-adapters layout. Read [architecture](architecture.md) for package direction, [coding conventions](coding-conventions.md) for typing/naming/signature rules, [domain](domain.md) for invariant ownership, [layers](layers.md) for mapping/error boundaries, and [reliability and events](reliability-and-events.md) for idempotency, outbox delivery, external effects, and reconciliation. The [runnable Go example](../../examples/go) is a deliberately different SQLite/standard-library HTTP adaptation, not proof of PostgreSQL isolation behavior.
+This chapter implements the canonical Chi/Ent/PostgreSQL profile. When needed, read [architecture](architecture.md) for dependencies, [coding conventions](coding-conventions.md) for signatures, [domain](domain.md) for invariants, [layers](layers.md) for mapping/errors, and [reliability and events](reliability-and-events.md) for idempotency/outbox/external effects. The [runnable example](../../examples/go) is SQLite/standard-library HTTP, not PostgreSQL isolation evidence.
 
 ## Adoption levels and implementation boundaries
 
-- **Required baseline:** pass `context.Context` from inbound request through service/port/adapter to every database operation; parameterize values; enforce database constraints; scope access by trusted authority; bound queries and release resources.
-- **Required when one operation must write several records atomically:** the application owns one `WithinTransaction(ctx, func(txCtx context.Context) error) error` boundary and calls its existing injected repositories/providers with `txCtx`. Their adapters resolve exactly one transaction handle from that context; core sees no SQL/Ent types or repository bundle. No root-client escape.
-- **Required when concurrent writes can overwrite decisions:** use a conditional write, version check, suitable lock, or serializable transaction chosen for the actual invariant.
-- **Required when deploying schema changes to a running service:** reviewed versioned migrations and an explicit old/new application compatibility window.
-- **Optional:** caching, read replicas, separate read models, stronger isolation, and asynchronous propagation. Each changes observable guarantees and needs a reason.
-- **Needs project decision:** which facts must commit together, conflict semantics, uniqueness scope, tenant model, isolation, deadlines, stale-read tolerance, retry safety, compatibility window, and treatment of an uncertain commit outcome.
+- **Required:** propagate caller context to database operations; parameterize values; enforce constraints/trusted authority; bound queries/resources.
+- **For atomic multi-record changes:** application calls `WithinTransaction(ctx, func(txCtx context.Context) error) error` using its existing injected repositories/providers. Adapters resolve one handle; core sees no SQL/Ent types or repository bundle.
+- **For concurrent decisions:** choose conditional writes, versions, locks, or serializable isolation for the invariant.
+- **For live schema changes:** reviewed versioned migrations with old/new compatibility.
+- **Optional:** cache, replicas, read models, stronger isolation, asynchronous propagation—each needs an explicit guarantee.
+- **Project decisions:** atomic facts, conflict/uniqueness/tenant semantics, isolation/deadlines, staleness, retry safety, compatibility, uncertain outcomes.
 
-Read-provider methods such as `Find/List` and write-repository methods such as `Insert/Save` must accept caller context; do not discard service context or replace it with `context.Background()` inside adapters. Database reads belong in `internal/adapter/out/persistence/postgres/provider`, writes in `postgres/repository`, and pool/transaction lifecycle, private context scope, and executor/client resolution in `postgres/db`. Generated Ent code belongs in `postgres/dao/ent`. Handwritten shared mapping can live in `postgres/dao/*_mapper.go` (separate from generated code), or beside its adapter owner; never put mapping/business SQL in `db`. `db` must not import `provider` or `repository`. An email existence precheck does not replace the database unique constraint. A request `TrID` is correlation, **not** a database transaction. The transaction infrastructure in this chapter must be implemented explicitly.
+Under `internal/adapter/out/persistence/postgres`, `provider` reads, `repository` writes, and `db` owns pool/transaction lifecycle and private scope/resolution—not mapping or business SQL. Generated Ent lives in `dao/ent`; handwritten mapping in `dao/*_mapper.go` or beside its owner. `db` never imports providers/repositories. A request `TrID` is correlation, not a transaction; implement the transaction infrastructure explicitly.
 
 ## 1. Propagate cancellation all the way to the driver
 
-**Required baseline:** `ctx` is the first parameter of inbound use cases and outbound I/O operations. Start with `r.Context()` in an HTTP handler; pass it unchanged unless deriving a deliberately shorter deadline. Use `ExecContext`, `QueryContext`, `QueryRowContext`, `BeginTx`, and Ent's `Save(ctx)`, `Only(ctx)`, `All(ctx)` equivalents. Never replace it with `Background()` to make a timed-out operation finish.
+**Required:** `ctx` is first on inbound use cases/outbound I/O. Pass HTTP `r.Context()`, deriving only deliberately shorter deadlines; use SQL `ExecContext`/`QueryContext`/`QueryRowContext`/`BeginTx` and Ent `Save(ctx)`/`Only(ctx)`/`All(ctx)`. Never substitute `Background()` to finish canceled work.
 
-A context is not a general dependency container. Here it carries one deliberately narrow, adapter-owned transaction capability: a private typed key identifies a pointer scope with handle identity and lifetime checks. Only `db` writes or resolves that value. The application explicitly chooses the boundary and passes `txCtx`; it cannot inspect, commit, or roll back the handle. Never put string-keyed transaction values or request contexts in shared adapter fields.
+Only `db` creates/resolves the private typed-key pointer scope below. This narrow transaction capability is not a general dependency container; core cannot inspect/commit/rollback it. Never use string keys or shared adapter fields for request contexts.
 
-This handler fragment assumes the existing handler owns an inbound port `h.userUseCase` and an existing `cmd` of the port's command type; it shows only the context handoff, not a complete HTTP response implementation:
+Handler fragment, assuming `h.userUseCase` and a port command `cmd`:
 
 ```go
 ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -27,27 +27,23 @@ defer cancel()
 result, err := h.userUseCase.CreateUser(ctx, cmd)
 ```
 
-The two-second budget is illustrative, not a universal production default. Put the configured budget in the layer that owns the operation; a query-specific adapter budget may shorten but must not lengthen its caller's deadline. Do not store per-request contexts in long-lived services or repositories. Pure domain calculations usually take values, not context.
+The illustrative two-second budget belongs to the operation's owning layer; adapter budgets may shorten, not lengthen it. Never retain request contexts in long-lived objects. Pure domain calculations take values, not context.
 
-**Correct:** a repository resolves `executor, err := postgresdb.Executor(ctx, r.pool)` and calls `executor.QueryRowContext(ctx, query, args...)`; an Ent adapter resolves `client, err := postgresdb.Client(ctx, r.client)` before `.Save(ctx)`. Handle resolver errors before issuing any operation.
+Repositories resolve `postgresdb.Executor(ctx, r.pool)`; Ent adapters resolve `postgresdb.Client(ctx, r.client)`, handle errors, then execute with the same context.
 
-**Incorrect:** a service accepts `ctx` but calls `repo.Save(user)`, and the adapter silently creates `context.Background()`. Request cancellation then cannot release blocked pool acquisition, lock waits, or query work promptly.
+SQL `BeginTx` context lasts through commit/rollback; cancellation causes rollback and commit error. Actual driver/server cancellation needs integration evidence, and cancellation racing commit/connection loss is not proof of no commit.
 
-For `database/sql`, the context supplied to `BeginTx` is used until commit/rollback; cancellation causes the SQL package to roll the transaction back, and commit returns an error if that context was canceled. Driver/server cancellation still needs an integration test with the actual driver. Cancellation is not proof that a server-side commit never happened when it races with commit or the connection fails.
-
-**Verification cases:** cancel before pool acquisition, during a lock wait/query, after the first write, and immediately before commit. Confirm no continuing request-owned goroutine, no reusable open transaction, and no partial committed business state on an acknowledged rollback. Include a deadline shorter than a lock wait. An independent worker may use a service-owned shutdown context only after work has been durably accepted; do not detach an HTTP request into an untracked goroutine.
+**Verify:** cancellation before pool acquisition, during query/lock wait, after first write, and near commit; deadlines shorter than lock waits; no leaked request goroutine/transaction or partial state after acknowledged rollback. Only durably accepted independent work may use a worker-owned shutdown context—not detached HTTP goroutines.
 
 ## 2. Application-owned atomicity without a root-client escape
 
 ### Choose the boundary from a business fact
 
-If “reserve inventory and record the reservation” must be atomic, put both writes in one application transaction. Having `StockRepository.TryReserve` and `ReservationRepository.Insert` each start their own transaction does **not** satisfy it. Conversely, do not open a transaction around an entire HTTP request when only two short writes require atomicity. A single atomic SQL statement needs no additional callback wrapper unless it participates in a wider multi-operation invariant.
+Choose the boundary from the fact: stock decrement plus reservation insert needs one application transaction, not independent repository transactions or a whole-request wrapper. Independent atomic statements need no runner.
 
-Ports belong in `internal/core/port/out`; the service depends on them using the `outport` alias. The adapter owns `*sql.DB`, `*sql.Tx`, `*ent.Client`, and `*ent.Tx`. Neither transaction implementation enters core.
+Core's `internal/core/port/out` (`outport`) owns contracts, never SQL/Ent handles. Reuse one `Transactor.WithinTransaction` per database across domains/workflows: owner-locked updates and provisioning perform validation/locks explicitly through ports inside `txCtx`, not per-policy runners/bundles. Choose suitable isolation; different databases cannot share a local transaction. This example rejects nesting; already-scoped helpers use supplied context.
 
-Default to one shared `Transactor.WithinTransaction` execution contract for operations on the same database. Reuse it across services and domains; a new operation, domain, or locking policy alone is not a reason for another runner or `WithX`/`Tx`/`UoW` layer. Account provisioning and owner-locked updates can use the same runner: explicit provider/repository operations perform owner/tenant validation and acquire required locks inside that workflow's `txCtx`. Isolation configuration must suit the invariant, but it does not require per-policy callback bundles. Different databases still cannot share one local transaction. This example rejects nested calls rather than starting an independent transaction or silently reusing one; helpers already inside a boundary use the supplied context directly.
-
-The next three sections form one example using the reservation model from [domain](domain.md). Its example module path is `example.com/reservations`; substitute the target module path when adapting it. Stock plus reservation is a real cross-domain operation, so `service/orchestration/reservation` owns it without calling stock/reservation use cases or peer services, even through interfaces. The orchestration keeps its ordinary injected repositories/providers. They work both inside a transaction with `txCtx` and independently with the caller's ordinary context; adapters never mutate shared fields to switch handles.
+The next three sections use [domain's reservation](domain.md) and module `example.com/reservations` (substitute the target module). Stock/reservation orchestration belongs in `service/orchestration/reservation`, without calling use cases/peer services even through interfaces. Its existing injected adapters work independently with ordinary `ctx` and transactionally with `txCtx`; shared fields never switch handles.
 
 ### Outbound port: existing repositories and a context callback
 
@@ -103,7 +99,7 @@ func (e *CommitError) Error() string { return fmt.Sprintf("commit failed: %v", e
 func (e *CommitError) Unwrap() error { return e.Cause }
 ```
 
-Keep domain repository/provider contracts in their domain files and the shared execution declaration in `transaction.go`. Reads stay in providers: inject the existing provider and pass `txCtx` for invariant-relevant reads, just as for writes. Do not use the outer `ctx` inside the callback, strip its scope, retain `txCtx` after return, or launch work that outlives it.
+Keep domain ports in domain files and the common runner in `transaction.go`. Inject existing read providers too. Every callback operation/helper uses `txCtx`, never outer `ctx`; do not strip/retain its scope or launch work outliving the callback.
 
 ### Inbound command package and interface
 
@@ -139,14 +135,11 @@ type ReservationUseCase interface {
 }
 ```
 
-The interface imports the child command package; that package must not import
-its parent `in` or the concrete service. Query and result types stay in the parent
-port package. Defining inputs on the implementation or importing the parent
-from `command` would invert the boundary and can create an import cycle.
+The parent `in` imports child `command`, never the reverse or a concrete service. Queries/results stay in the parent; implementation-owned inputs invert the boundary.
 
 ### Application orchestration: return success only after commit
 
-`internal/core/service/orchestration/reservation/orchestration.go`; `Clock` is a consumer-owned dependency wired by composition. The command belongs to the inbound contract above. `Tenant` must come from trusted authentication/authorization resolution, not an unchecked JSON field.
+`internal/core/service/orchestration/reservation/orchestration.go`: consumer-owned `Clock` is wired by composition. Resolve/authorize `Tenant`; never trust a JSON tenant field.
 
 ```go
 package reservation
@@ -207,19 +200,19 @@ func (s *Orchestration) Reserve(ctx context.Context, cmd command.ReserveCommand)
 }
 ```
 
-The example accepts a preallocated reservation ID to keep identity policy separate; a real inbound adapter must not grant arbitrary authority by accepting IDs. An idempotency workflow can resolve/generate a stable ID before execution. This example is atomic, but does not by itself implement an idempotency protocol.
+Preallocated reservation ID keeps identity policy separate; inbound IDs confer no authority. Idempotency may supply a stable ID, but this example implements atomicity, not an idempotency protocol.
 
-**Incorrect:** return the reservation, emit a success response, publish to a broker, or invalidate shared cache inside the callback. The transaction may fail afterward. An HTTP socket failure after successful commit also cannot undo that commit.
+Return/publish success or invalidate cache only after commit, never in the callback. A later HTTP socket failure cannot undo commit.
 
-**Verification cases:** stock failure causes no reservation insert; insert failure leaves stock unchanged; commit failure returns no successful result; success is produced only after commit. Inspect every callback call, including reads/helpers, for `txCtx` propagation; adapters with that context must never select a root handle. Reuse the same injected adapter with an ordinary context for an independent operation.
+**Verify:** stock failure skips insert; insert failure rolls stock back; commit failure returns no success; every read/write/helper uses `txCtx`, never root handles; the same adapters support ordinary independent calls.
 
 ## 3. Explicit PostgreSQL / `database/sql` implementation
 
-**Scope:** this is an alternative adapter to Ent, not an additional persistence stack required by the canonical blueprint. The SQL implements the same ports. Long-lived repositories/providers hold the base pool; every method resolves the operation's executor from its supplied context. A present scope must be valid, live, and owned by that exact pool; only an absent scope permits ordinary base-pool access.
+**Alternative to Ent, not a second required stack:** SQL implements the same ports. Each adapter holds the immutable base pool and resolves per operation. Only absent scope permits base access; present scope must be live, correctly typed, and owned by that exact pool.
 
 ### Schema assumptions and constraints
 
-The example assumes a tenant-qualified stock key and reservation key. Foreign keys include tenant so that two individually valid IDs cannot form a cross-tenant association. The parent tenant table and its authorization model are project-specific; positive tenant IDs here do not constitute authorization.
+Tenant-qualified stock/reservation keys and composite foreign keys prevent cross-tenant associations. The parent tenant table/authorization is project-specific; positive tenant IDs are not authorization.
 
 ```sql
 CREATE TABLE stocks (
@@ -250,11 +243,11 @@ CREATE INDEX reservations_tenant_created_id
     ON reservations (tenant_id, created_at DESC, id DESC);
 ```
 
-Constraints mirror only the example's accepted facts. `btrim` and Go's Unicode-aware `TrimSpace` are not identical normalization operations: the application/domain admission rule is stricter for additional whitespace characters. Do not claim their equivalence. If exact storage-level SKU canonicalization is required, define a matching database expression/collation or a persisted canonical key and migrate existing values.
+Go `TrimSpace` recognizes more whitespace than PostgreSQL `btrim`; these checks are not equivalent normalization. Exact storage canonicalization needs a matching expression/collation or persisted key and migration.
 
 ### Adapter-owned scope and SQL lifecycle
 
-`internal/adapter/out/persistence/postgres/db/transaction_scope.go` is shared by the SQL and Ent alternatives. Its key and scope implementations remain private to this adapter package; only the runners create scopes:
+Shared SQL/Ent `internal/adapter/out/persistence/postgres/db/transaction_scope.go`; only runners create the private scopes:
 
 ```go
 package db
@@ -272,7 +265,7 @@ var (
 )
 ```
 
-`internal/adapter/out/persistence/postgres/db/sql_transaction.go` owns the runner and resolver, not business SQL or repository construction:
+`internal/adapter/out/persistence/postgres/db/sql_transaction.go`:
 
 ```go
 package db
@@ -370,11 +363,11 @@ func (t *SQLTransactor) WithinTransaction(ctx context.Context,
 }
 ```
 
-The pointer scope is never copied; its atomic lifetime flag prevents a data race when an accidentally retained context is inspected after return. It does not authorize concurrent callback work or make a resolved executor safe to retain. Resolve per operation, use it synchronously, and never expose/cache it outside the adapter. Different `*sql.DB` values are different owners even when their DSNs match. Composition must pass the same pool pointer to the runner and all participating adapters. The shared key also prevents a scope from the alternative Ent runner from being mistaken for absence.
+The scope pointer is never copied. Its atomic lifetime flag permits safe inspection of accidentally retained contexts, not concurrent callback work or retained executors. Resolve/use synchronously per operation. Composition supplies the exact same pool pointer to runner/adapters, not merely equal DSNs; the shared key also rejects Ent scopes rather than treating them as absent.
 
 ### Reusable SQL repositories
 
-There is no repository-side transaction assembly or scoped repository constructor. `internal/adapter/out/persistence/postgres/repository/reservation_sql.go` implements the domain-specific write contracts:
+`internal/adapter/out/persistence/postgres/repository/reservation_sql.go`; no scoped repository constructors/assembly:
 
 ```go
 package repository
@@ -457,34 +450,32 @@ func (r *sqlReservationRepository) Insert(ctx context.Context, reservation *doma
 }
 ```
 
-The code uses `errors.Join` (Go 1.20+); keep the target Go compatibility policy explicit. `ReadCommitted` is sufficient for **this particular** guarded decrement plus insert: the database serializes updates of the same stock row and rechecks the `available >= quantity` predicate. A pre-read followed by `UPDATE available = oldAvailable - quantity` would not have that property. The adapter maps “missing stock” and “insufficient stock” to the same public error deliberately; separate them only if the application contract needs and may disclose the distinction.
+`errors.Join` requires Go 1.20+. Read Committed suffices for this guarded decrement/insert: competing stock updates serialize and recheck `available >= quantity`. Reading a count then writing `oldAvailable-quantity` does not. Missing and insufficient stock intentionally share a public error.
 
-The deferred rollback is harmless after SQL commit (`sql.ErrTxDone`) and runs on callback error, cancellation before commit, and panic. It does not swallow a panic. A rollback failure is joined with a normal returned failure; during a panic, preserve the panic and use the application's existing panic/operational reporting path if rollback failure visibility is required. Do not recover and return `nil`. Cleanup is an attempt to end an open transaction, not a guarantee that a remote database received it after a network failure.
+Deferred rollback covers callback error/cancellation/panic and ignores SQL's post-commit `ErrTxDone`. Returned rollback failures join the original error; panics propagate unchanged, with rollback visibility through existing panic/operations reporting. Cleanup cannot guarantee remote receipt after connection loss.
 
-The `ctx.Err()` check reduces unnecessary commit attempts after cancellation; cancellation may still race after the check. Do not add a post-commit cancellation check that turns an acknowledged successful commit into an apparent rollback. See the outcome rules below.
+Cancellation can race the pre-commit check; never turn acknowledged commit into apparent rollback with a post-commit check. Never bypass resolver errors via root I/O, outer context, or mutable `r.pool`/`r.tx`.
 
-**Incorrect:** call `pool.ExecContext` directly from any repository/helper receiving `txCtx`; ignore a resolver error and retry on the pool; pass outer `ctx` to a callback provider; or mutate `r.pool`/a shared `r.tx` field to select a transaction. Base-pool use is valid only when the resolver finds no scope. Expired, malformed, and foreign-pool scopes are errors, never absence. The repository/provider imports `postgres/db`, never the reverse.
-
-**Verification cases:** induce a reservation constraint failure after the decrement and verify stock is unchanged using a new independent connection; panic and recover outside `WithinTransaction`, then verify rollback and pool reuse; cancel after decrement; simulate commit failure. Use a multi-connection pool and trace/assert every read/write uses the same transaction. Reject nested calls, reuse of saved `txCtx` after success/error/panic, and a foreign pool; none may issue base-pool work. Confirm the same adapters work independently with ordinary `ctx`. Do not launch asynchronous callback work.
+**Verify:** constraint failure after decrement rolls stock back on an independent connection; panic/cancel releases pool capacity; commit failure returns no success. Trace all reads/writes under a multi-connection pool; nested, saved-after-success/error/panic, malformed, foreign-pool, and wrong-adapter scopes must issue no root work. Also exercise ordinary adapter reuse.
 
 ## 4. Concrete Ent adaptation
 
-The production blueprint keeps schemas in `internal/adapter/out/persistence/postgres/dao/schema` and generated code in `postgres/dao/ent`. Map generated objects to domain entities/values in handwritten `postgres/dao/user_mapper.go` or the equivalent feature mapper, or an adapter-owner local mapper. Core never imports `dao/ent`; `db` contains neither mapping nor business SQL.
+Keep generated Ent in `postgres/dao/ent`, handwritten hydration in `postgres/dao/*_mapper.go` or its adapter owner, and schema inputs in `postgres/dao/schema`; never import generated code into core or map in `db`.
 
-**Required when using Ent transactions:** `db` begins the transaction and records `tx.Client()` in a private live scope. Existing repositories/providers keep the root client only as their immutable owner/base handle; each operation calls `db.Client(ctx, root)` and uses the returned client. A present scope cannot fall back to the root client. Ent builders receive the same propagated operation context.
+**Ent binding:** `db` begins and scopes `tx.Client()`. Existing adapters hold immutable root ownership and resolve `db.Client(ctx, root)` per operation, then pass that context into builders. Present scope never falls back to root.
 
 ### Generated API assumptions
 
-The following adapter is concrete for schemas with these fields:
+The concrete snippets assume:
 
 - `Stock`: ordinary generated integer ID; `field.Int64("tenant_id")`, `field.String("sku")`, `field.Int64("available")`; a unique index on `tenant_id, sku`.
 - `Reservation`: `field.String("id").Immutable()` overrides Ent's default ID type; `field.Int64("tenant_id")`, `field.String("sku")`, `field.Int64("quantity")`, `field.String("state")`, `field.Time("created_at")`, and `field.Time("released_at").Optional().Nillable()`; `field.Int64("version").Default(1)` if adopting the optimistic-concurrency example below.
 
-Use reviewed migration SQL to add the appropriate check constraints and tenant-qualified references. Declaring these field names alone is not equivalent to the PostgreSQL schema above. In particular, this Ent variant has a **globally unique string reservation ID**, unlike the SQL example's composite primary key; choose that identity policy explicitly or configure composite identity using the project's supported Ent features. The tenant predicate is still required even with a globally unique ID. These are alternative schema adaptations, not interchangeable generated code for the source's existing `User` schema.
+Reviewed SQL must add checks and tenant-qualified references; fields alone do not implement the schema above. This Ent variant has **globally unique string reservation IDs**, unlike SQL's composite primary key. Explicitly choose global or supported composite identity; tenant predicates remain mandatory. Neither variant is generated from the existing `User` schema.
 
 ### Ent-owned scope, client resolution, and lifecycle
 
-`internal/adapter/out/persistence/postgres/db/ent_transaction.go` uses the shared private key/errors from `transaction_scope.go`. Adopt it instead of the SQL runner when using Ent; neither alternative requires a second persistence stack. The [official Ent transaction documentation](https://entgo.io/docs/transactions/) documents `BeginTx(ctx, *sql.TxOptions)`, `tx.Client()`, `Commit()`, and `Rollback()`:
+Use `internal/adapter/out/persistence/postgres/db/ent_transaction.go` instead of the SQL runner, sharing `transaction_scope.go`. [Ent's transaction API](https://entgo.io/docs/transactions/) provides `BeginTx`, `tx.Client`, `Commit`, and `Rollback`:
 
 ```go
 package db
@@ -580,7 +571,7 @@ func (t *EntTransactor) WithinTransaction(ctx context.Context,
 }
 ```
 
-Identity is the exact root `*ent.Client` pointer, not a matching DSN. Construct the runner and all reusable adapters with that same root. The resolver returns `tx.Client()` only while its pointer scope is live; expired/foreign/other-adapter scopes return errors, not root clients. No shared repository/client field is replaced. Resolve for every operation, including hooks/helpers that issue database work; never retain the resolved client.
+Compose runner/adapters with the exact same root pointer. Like SQL, this rejects expired/foreign/wrong-adapter scopes; hooks/helpers resolve per operation without retaining clients or mutating shared fields. The callback lifetime and panic/rollback rules above apply to both implementations.
 
 ### Reusable Ent repositories
 
@@ -666,17 +657,15 @@ func (r *entReservationRepository) Insert(ctx context.Context, reservation *doma
 }
 ```
 
-Ent's generated API depends on field names/types/features; generate against the actual schema instead of copying `TenantIDEQ` or setters into an incompatible model. The documented SQL driver supports `BeginTx` isolation options; verify the selected dialect/driver supports the requested level. Avoid `SaveX`/`OnlyX` in routine request paths: normal storage errors should return as errors, not become panics.
+Generate APIs against the actual fields/features; verify selected driver/dialect isolation support. Routine storage errors return normally, not through `SaveX`/`OnlyX` panics.
 
-Map Ent entities into domain snapshots inside the adapter before returning. Do not leak an Ent entity retaining its transactional driver or lazy edge queries outside the scope. Ent's `Unwrap()` supports edge queries after a successfully committed transaction; returning mapped domain/read models avoids this coupling. Never call `Unwrap()` blindly on arbitrary/nontransactional entities; it can panic. Ent transaction hooks are not a durable broker-delivery guarantee.
+Map Ent objects to domain/read values inside scope; no transactional driver/lazy edge query escapes. `Unwrap()` allows post-commit edges but can panic on arbitrary/nontransactional entities; mapped values avoid this coupling. Transaction hooks do not guarantee durable broker delivery.
 
-**Incorrect:** call `r.client.Reservation.Create()` directly rather than resolve the operation client, ignore the resolver error, pass the outer context, or replace a shared `r.client` during a callback. The same escape can hide in a provider, hook, mapper, or helper. Every path receiving `txCtx` must use the resolved transaction client or fail.
-
-**Verification cases:** repeat the SQL failure/panic/cancel/commit, expired-context, nested-call, foreign-owner, and independent-operation tests against Ent and PostgreSQL; verify generated constraints with the actual migration; test hook/helper paths; prove a returned domain object performs no later database query. The runnable SQLite example provides executable evidence only for its own driver/adapters; these PostgreSQL/Ent fragments have not been runtime-validated by that example.
+**Verify on Ent/PostgreSQL:** repeat SQL's failure/lifetime/ownership/ordinary-reuse cases; inspect actual migrated constraints and hook/helper resolution; returned domain objects perform no later query. SQLite example execution validates neither these Ent fragments nor PostgreSQL behavior.
 
 ### Existing read providers participate without reconstruction
 
-The `StockProvider` port returns a scalar projection. An ordinary independent read is `stockProvider.Available(ctx, tenant, sku)`; no transaction runner is necessary. If a command also returns remaining availability after reserving, it can use the same injected provider in its callback. This service-body fragment assumes existing injected `transactor`, `stockRepo`, `reservationRepo`, and `stockProvider`, a validated `reservation`, and its trusted `tenant`, `sku`, and positive `quantity`; the enclosing method returns `(int64, error)`:
+Independent `stockProvider.Available(ctx, tenant, sku)` needs no runner. For a response requiring read-own-write availability, use the same provider inside the callback. This body assumes injected ports, a validated reservation/trusted tenant/SKU/positive quantity, and `(int64, error)` return:
 
 ```go
 var remaining int64
@@ -697,9 +686,9 @@ if err != nil {
 return remaining, nil
 ```
 
-That read observes this transaction's own stock decrement; it is not a new root-pool snapshot. Do not add this read if the response does not need it, and do not promise availability remains unchanged after commit. The guarded write, not a precheck, protects the inventory invariant.
+The read sees its own decrement, not a root snapshot; availability can change after commit. Omit it if unused; the guarded write, not a precheck, protects stock.
 
-The SQL provider lives in `internal/adapter/out/persistence/postgres/provider/stock_sql.go`:
+`internal/adapter/out/persistence/postgres/provider/stock_sql.go`:
 
 ```go
 package provider
@@ -746,7 +735,7 @@ func (p *sqlStockProvider) Available(ctx context.Context,
 }
 ```
 
-The alternative Ent provider lives in `internal/adapter/out/persistence/postgres/provider/stock_ent.go` and uses the same port:
+Ent alternative, `internal/adapter/out/persistence/postgres/provider/stock_ent.go`:
 
 ```go
 package provider
@@ -793,11 +782,11 @@ func (p *entStockProvider) Available(ctx context.Context,
 }
 ```
 
-Composition constructs each selected adapter once with the same base pool/client as its runner and injects those ports into services. Both the independent read and the transactional read use these same instances; only their supplied context differs.
+Composition injects these adapters once with their runner's same base handle; independent/transactional calls differ only in supplied context.
 
 ## 5. Commit outcomes, rollback, and retry boundaries
 
-**Required baseline:** distinguish operation failure from proof of rollback. A database transaction is atomic at the database; the caller may not learn its final outcome after a network failure.
+**Required:** atomicity does not guarantee the caller learns the final outcome:
 
 | Observation | Application meaning |
 | --- | --- |
@@ -809,32 +798,28 @@ Composition constructs each selected adapter once with the same base pool/client
 | Commit loses connection/response | Outcome may be unknown; do not assert no rows committed or blindly replay effects |
 | Request cancels near commit | Classify from actual driver/server outcome; cancellation alone is not a universal rollback proof |
 
-`CommitError` identifies the phase, not a universal classification. Preserve underlying causes with `%w`/`Unwrap`; inspect structured driver codes, not strings. A definite PostgreSQL `40001` serialization failure differs from a connection break while waiting for commit acknowledgment. A failed rollback on a broken connection does not resolve uncertainty.
+`CommitError` identifies phase, not guaranteed abortion. Preserve causes with `%w`/`Unwrap` and inspect structured codes: PostgreSQL `40001` differs from lost acknowledgment; failed rollback on a broken connection cannot resolve uncertainty.
 
-**Required when retried operations matter:** define an operation identity and durable lookup/reconciliation path. Consult [reliability and events](reliability-and-events.md) for the idempotency protocol, conflict handling, durable outbox, and delivery acknowledgments. Do not claim exactly-once delivery or assume a second request is safe merely because the first returned an error.
+**When repeat attempts matter:** define durable operation identity/authorized reconciliation; read [reliability and events](reliability-and-events.md) for idempotency/outbox/delivery. Error does not mean “nothing changed,” duplicate rejection is not idempotency, and exactly-once delivery is not implied.
 
-Do not retry only the final `UPDATE` or `Commit` after a serialization failure. A transaction that is aborted cannot continue; retry the entire transaction with fresh reads and reconstructed/mutation-reset domain state. Automatic retries need a bounded attempt/deadline policy and a callback free of unreplayable side effects. Do not silently add retries to every repository method. A mutated in-memory aggregate or accumulated event slice must not be reused as though the previous attempt never ran.
+Never retry only a statement/commit in an aborted transaction. An approved retry repeats the whole transaction with fresh reads/reconstructed state, bounded attempts/deadlines, and no unreplayable side effects. Do not silently add repository retries or reuse mutated aggregates/event slices; external payments do not roll back with SQL.
 
-**Incorrect:** `if err != nil { return "nothing changed" }`, or send a payment-provider request inside a callback and repeat it after a database conflict. The payment is outside the database transaction.
-
-**Verification cases:** explicit server-side abort, lost commit acknowledgment with eventual database state inspected through a new connection, duplicate client request, and cancellation racing commit. Observe both “committed but response lost” and “aborted” paths in a controlled integration/fault-injection environment. Tests that only mock `Commit()` returning an error prove response handling, not the remote commit outcome.
+**Verify:** explicit abort, duplicate request, cancellation racing commit, and lost acknowledgment reconciled via a new connection. Observe both committed-response-lost and aborted outcomes through controlled faults; mocked commit errors prove only response handling.
 
 ## 6. Uniqueness races and database constraints
 
-**Required when a value must be unique:** implement the database constraint under the same equivalence and scope used by the application. A precheck can improve feedback, but it cannot enforce uniqueness across processes.
-
-For an illustrative tenant-scoped, already canonicalized account email key:
+**For uniqueness:** database constraints must match application equivalence/scope; prechecks only improve feedback. Example for an already canonical tenant email key:
 
 ```sql
 ALTER TABLE users
     ADD CONSTRAINT users_tenant_email_key_unique UNIQUE (tenant_id, email_key);
 ```
 
-This assumes `tenant_id` and `email_key` are `NOT NULL` and existing rows have been canonicalized/deduplicated. Choose whether soft-deleted keys can be reused: if only active rows are unique, PostgreSQL supports a matching partial unique index. Nullable keys and collations change uniqueness semantics; choose them deliberately. Do not lower-case historical emails as an incidental repository fix; see [domain normalization](domain.md#normalize-only-under-an-explicit-equivalence-relation).
+Assume both columns `NOT NULL` and existing data canonicalized/deduplicated. Decide soft-deletion reuse (e.g. active-only partial index); nullability/collation alter semantics. Never recanonicalize history incidentally; use [domain normalization](domain.md#normalize-only-under-an-explicit-equivalence-relation).
 
-The race is: A finds no email, B finds no email, A inserts, B inserts. With the correct unique constraint, one insert fails. Translate that **specific** constraint violation at the adapter boundary into `outport.ErrEmailTaken`; do not classify every integrity error as duplicate email.
+Two processes may both precheck absent; the constraint rejects one insert. Map that **specific** violation, not every integrity failure, to existing `outport.ErrEmailTaken`.
 
-This independent write-repository fragment belongs in `internal/adapter/out/persistence/postgres/repository/user_error.go` (or a shared handwritten `postgres/dao` error helper used by both read/write adapters). It is for pgx v5's PostgreSQL error type, used directly or via a `database/sql` driver path that retains it. It preserves the original cause and supports `errors.Is` without leaking it as a public message. `outport.ErrEmailTaken` is the application's declared sentinel; use its existing equivalent rather than introducing a duplicate.
+`postgres/repository/user_error.go` (or shared handwritten DAO helper), assuming pgx v5 directly or a SQL driver preserving its typed cause:
 
 ```go
 package repository
@@ -871,17 +856,13 @@ func mapUserInsertError(err error) error {
 }
 ```
 
-For Ent, `ent.IsConstraintError(err)` is a useful broad guard but does not establish **which** unique/check/foreign-key constraint failed. Whether the structured driver cause remains reachable depends on generated Ent/runtime versions and wrappers. Inspect the actual error chain in an adapter integration test; do not parse localized SQL error text or silently map all Ent constraint failures to `ErrEmailTaken`. Other drivers need their own typed classifier. Never execute another ordinary statement in a failed PostgreSQL transaction to “check what happened” without rollback/savepoint policy; most statement errors leave that transaction aborted.
+`ent.IsConstraintError` alone cannot distinguish unique/check/FK failures. Verify structured causes survive the actual generated/runtime wrappers; other drivers need typed classifiers. Never parse localized messages, map every constraint to duplicate, or query a failed PostgreSQL transaction without rollback/savepoint policy.
 
-**Incorrect:** enforce uniqueness only with `FindByEmail`, an application mutex, or `ent.IsConstraintError => email taken`. A foreign-key or check failure would be mislabeled and operationally hidden.
-
-**Verification cases:** synchronize two independent connections at a barrier before insert; one succeeds and one gets the domain/application conflict; same key in separate tenants follows policy; different unique/foreign-key/check errors retain their actual classification; canonicalization variants collide only according to the agreed rule. Assert the constraint exists in the deployed migration, not only in a Go struct tag.
+**Verify:** barrier-synchronized independent inserts give one success/one classified conflict; tenant and canonicalization scope match policy; unrelated constraints retain classification. Assert deployed constraints, not Go tags. Causes remain inspectable, never public response text.
 
 ## 7. Reject lost updates with an explicit concurrency protocol
 
-**Required when saving a previously read state can overwrite another writer:** persist an expected version and advance it atomically. A transaction alone at PostgreSQL's default isolation does not make “read, mutate in memory, save all columns” safe.
-
-For the SQL reservation schema above, a successful release expects the version loaded with the reservation and its active state:
+**For read/mutate/save:** predicate on expected version and advance atomically; default isolation alone cannot stop lost updates. SQL release also requires active state:
 
 ```sql
 UPDATE reservations
@@ -890,9 +871,9 @@ UPDATE reservations
    AND version = $3 AND state = 'active';
 ```
 
-Use the domain's validated release instant, not a caller's arbitrary timestamp. Check `RowsAffected() == 1`; zero means no authorized matching current state. Treat it as the application's conflict/not-found outcome without revealing another tenant's data. Do not retry this update without reloading and deciding the intended command again. If returning inventory is part of release, perform the conditional release and inventory increment in the **same** application transaction; roll back both when either fails.
+Use domain-validated release time. Require one affected row; zero maps to the existing conflict/not-found disclosure policy. Retry only after reloading/redeciding the command. If release returns stock, both writes share one application transaction.
 
-In Ent, under the schema assumptions above, the equivalent update fragment first resolves the client from the repository method's context, then uses generated `reservation` predicates. Here `tenant`, `id`, `expectedVersion`, and `releasedAt` are validated values loaded/computed by the use case; a transactional caller supplies `txCtx` as this method's `ctx`:
+Ent equivalent assumes validated `tenant`, `id`, `expectedVersion`, `releasedAt`; the repository receives `txCtx` as `ctx` and imports generated `reservation` predicates:
 
 ```go
 client, err := postgresdb.Client(ctx, r.client)
@@ -910,31 +891,25 @@ n, err := client.Reservation.Update().
     Save(ctx)
 ```
 
-The enclosing repository must propagate `err` and return a conflict unless `n == 1`; do not treat zero affected rows as success. Prefer `Update().Where(...).Save(ctx)` returning a count when the contract needs this check; generated single-entity helpers have their own not-found behavior. A read-provider metadata result can hold `{Entity *domain.Reservation, Version int64}` without making a persistence version part of business identity. An HTTP `ETag`/`If-Match` adaptation must preserve the same expected-version rule and map its precondition failure consistently.
+Propagate `err`; require `n == 1`, never zero-row success. Count-returning `Update().Where(...).Save(ctx)` differs from single-entity not-found helpers. Read metadata may hold `{Entity *domain.Reservation, Version int64}` without making version business identity. HTTP `ETag`/`If-Match` must retain expected-version/conflict semantics.
 
-Alternatives depend on the rule: a guarded arithmetic update, as in stock reservation, avoids stale read/overwrite; `SELECT ... FOR UPDATE` serializes writers when all relevant writers follow that locking protocol; serializable transactions cover some predicate-wide invariants with whole-transaction retry. An integer version does not by itself prevent a cross-row write skew, such as two rows each deciding the other remains on call.
+Guarded arithmetic, all-writer row locking, or serializable transactions may fit other invariants. Versioning does not prevent cross-row write skew (e.g. two on-call rows); comparing timestamps in Go, incrementing without an old-version predicate, or process locks is insufficient.
 
-**Incorrect:** compare `updated_at` in Go and then run an unconditional update, or increment `version` without checking the old one. Both can still overwrite another write. Do not use process-local locks as a cross-replica protocol.
-
-**Verification cases:** load version 1 in two sessions; the first commits version 2; the second affects zero rows and does not overwrite it. Race duplicate release with stock return and prove inventory increments once. Test state predicate mismatch, foreign tenant, and a multi-row write-skew scenario if the product has one.
+**Verify:** two version-1 loads yield one version-2 winner/one conflict; duplicate release returns stock once; mismatched state/foreign tenant fails; test product-specific cross-row write skew separately.
 
 ## 8. Tenant-scoped access is part of every provider/repository contract
 
-**Required when multi-tenancy exists:** trusted tenant identity must reach read, update, delete, existence, pagination, join, bulk operation, and constraint scopes. Resolve and authorize it before calling the use case; a positive integer check or opaque globally unique ID is not authorization.
+**For multi-tenancy:** authorize trusted tenant before the use case, then scope every read/write/delete/existence/page/join/bulk operation/association. Positive or globally unique IDs are not authorization.
 
-**Correct:** a read provider's `FindByID(ctx, tenantID, reservationID)` executes `WHERE tenant_id = $1 AND id = $2`. A repository update, nested relationship, or join must enforce the same tenant. Use tenant-qualified foreign keys where the schema allows them. A background job gets its tenant from authenticated durable job metadata and repeats the application authorization policy appropriate to that actor.
+`FindByID(ctx, tenantID, id)` uses both predicates; edges/joins/child associations do too. Jobs use authenticated durable tenant metadata and actor-appropriate authorization. Checking tenant after mutation/response is too late; a tenant-scoped parent does not scope unrestricted children/caches.
 
-**Incorrect:** query by ID, mutate/save, then compare tenant before writing the HTTP response. Unauthorized effects have already occurred. Another trap is tenant-scoped parent loading followed by an unrestricted child query/edge or cache key.
+RLS is defense in depth: table owners/`BYPASSRLS` roles may bypass it. Connection-setting policies need transaction-local settings on the same handle, e.g. parameterized `SELECT set_config('app.tenant_id', $1, true)`, and deny missing/malformed settings. Never set a pooled root session and assume later queries share connection/tenant. For privilege design read [security and operations](security-and-operations.md).
 
-PostgreSQL row-level security can provide defense in depth, but it is not automatic. Roles that own tables or have `BYPASSRLS` may bypass policies unless configured appropriately. If a policy uses a connection setting, set it transaction-locally on the **same handle**, for example with parameterized `SELECT set_config('app.tenant_id', $1, true)` inside the transaction; use a deny-by-default policy for missing/malformed settings. Never set a session variable on a pooled root connection and assume the next query uses that same connection or tenant. Inspect privileges and pool reuse behavior. See [security and operations](security-and-operations.md).
-
-**Verification cases:** tenant A cannot find/update/delete tenant B's ID; foreign-tenant child IDs cannot be associated; count/search/export use the same scope; missing tenant denies access; cache and cursor cannot cross tenants; RLS tests run as the actual application role, not a superuser; a reused pooled connection cannot inherit the previous tenant.
+**Verify:** foreign reads/writes/deletes/associations/count/search/export/cache/cursors deny; missing tenant denies; RLS runs as the actual application role; pool reuse inherits no prior tenant.
 
 ## 9. Pagination, projections, and N+1 control
 
-**Required baseline:** bound page size, choose deterministic ordering with a unique tie-breaker, and fetch only the shape needed. Do not materialize an entire table or an aggregate graph to render a list. Query/read-model ports can return projections without domain hydration.
-
-For the SQL example, use keyset pagination over immutable `(created_at, id)` within one tenant:
+**Required:** bounded page size, deterministic order/unique tie-breaker, and only necessary projections, not entire tables/graphs. For this schema, keyset-page immutable `(created_at,id)` within tenant:
 
 ```sql
 SELECT id, sku, quantity, state, created_at
@@ -945,11 +920,11 @@ SELECT id, sku, quantity, state, created_at
  LIMIT $4;
 ```
 
-The first page omits the cursor predicate. Fetch `pageSize + 1` to detect another page; return at most `pageSize`, and construct the next cursor from the last **returned** row, not the extra lookahead row. Keep the sort/filter definition and tenant bound to the cursor contract; reject a cursor reused under incompatible filters or authority. Opaque encoding is not authentication, so add integrity protection if the cursor carries authority-sensitive untrusted state. Support exact timestamp precision in round trips.
+First page omits the cursor predicate. Fetch `pageSize+1`, return at most `pageSize`, cursor from last **returned** row. Bind tenant/filter/order; reject incompatible reuse and preserve timestamp precision. Opaque encoding is not authentication; protect integrity when it carries sensitive authority.
 
-Offset pagination is acceptable for small bounded administrative lists, but large offsets still scan/discard work and concurrent insert/delete can shift page boundaries. Keyset pagination also is not a snapshot across HTTP requests: new inserts, deletions, or changed sort keys can change observations. If an export requires a stable snapshot, define an export/snapshot strategy and its resource/retention cost rather than keeping a transaction open across user requests. Counts may be a separate query with a different snapshot; state whether an exact count is necessary.
+Small bounded admin lists may use offsets; large offsets waste work and concurrent changes shift pages. Keysets also do not create a cross-request snapshot. Stable exports need explicit snapshot/resource/retention policy, not transactions held across HTTP requests. Counts can observe another snapshot; specify whether exact count is needed.
 
-**Resource-safe projection example:** this reusable read-provider helper belongs in `internal/adapter/out/persistence/postgres/provider/reservation_query.go` and consumes an existing query/args selected according to the pagination rules above; it does not accept raw client SQL. The caller owns the bounded, parameterized SQL shape. `ReservationRow` is a pure read projection, so `[]ReservationRow` correctly retains value semantics. It demonstrates context-based executor resolution, closing rows, checking scan errors, and checking the terminal iteration error:
+**Resource-safe helper:** `postgres/provider/reservation_query.go` receives an existing bounded parameterized query, never raw client SQL. `ReservationRow` is an inert value projection:
 
 ```go
 package provider
@@ -996,68 +971,56 @@ func scanReservationPage(ctx context.Context, pool *sql.DB, query string, args .
 }
 ```
 
-This is a read-provider helper, not a public contract that permits caller-provided arbitrary SQL. The existing provider passes its immutable base pool and the received context: ordinary `ctx` selects the pool, while `txCtx` selects the transaction for the same query code. No provider reconstruction or separate scoped accessor is needed. SQL values use placeholders; dynamic sort/column identifiers require an allowlist because identifiers cannot be safely parameterized as values.
+The existing provider supplies its base pool/context; resolution supports ordinary and transactional calls unchanged. SQL values use placeholders; dynamic sort/column identifiers need allowlists.
 
-**Required when reading relationships:** batch by known IDs, use a projection/join, or use Ent eager loading (`With...`) deliberately. Eager loading may issue several bounded queries rather than one join; measure the actual query count and selected columns. Joining a parent to many children before applying a parent page limit can truncate/duplicate the parent page; page parents first, then batch children under the same tenant. Prevent unbounded relation expansion from a request's arbitrary `include` parameter.
+**For relationships:** batch IDs, project/join, or deliberately eager-load Ent `With...`; measure actual bounded query count/columns. Page parents before joining/batching children under tenant scope, or child multiplicity truncates/duplicates pages. Bound arbitrary `include` expansion; one owner query per parent is N+1 even with a cache.
 
-**Incorrect:** list 100 parents then call `QueryOwner().Only(ctx)` for each one; or page a joined child result and assume it contains 100 distinct parents. A cache does not make the underlying N+1 contract sound.
-
-**Verification cases:** tied timestamps, empty page, one extra row, cursor precision, deleted boundary row, foreign-tenant/mismatched-filter cursor, invalid/oversized page size, and concurrent insert behavior as documented. Assert a bounded query count and bounded result bytes for relation lists. Check the actual PostgreSQL query plan with representative cardinality and the tenant/order index, not only tiny fixture timing.
+**Verify:** ties/empty/lookahead/cursor precision/deleted boundary, foreign/filter-mismatched cursors, invalid/oversized page sizes, and documented concurrent inserts. Bound query count/result bytes; inspect PostgreSQL plans at representative cardinality with tenant/order indexes.
 
 ## 10. Migrations and backwards-compatible rollout
 
-**Required when production data exists:** keep reviewed migration history and generated Ent schema in agreement. Put migrations in the project's existing migration directory; do not create a competing tool convention. If none exists, adopt one project-owned engine-specific path, such as `internal/adapter/out/persistence/postgres/migrations`, and document its owner. Generated schema diffs are proposals, not permission to run destructive startup migration on every API replica.
+**For production data:** keep reviewed history and generated Ent schema aligned. Reuse the migration engine/directory; absent one, adopt an owned engine-specific path such as `postgres/migrations`. Generated diffs are proposals, never destructive per-replica startup migration.
 
-For changing an existing email representation to `email_key`, an expand/backfill/enforce/contract sequence is:
+Example `email_key` expand/backfill/enforce/contract:
 
-1. **Decide equivalence first.** Document normalization and uniqueness scope; analyze collisions in existing rows. Do not discard one user's account to make the migration pass.
-2. **Expand.** Add a nullable `email_key` column compatible with the old binary. Deploy code that writes the agreed key on every relevant create/change/import path while keeping old reads compatible. During a rolling deployment, old writers may still omit the new key; do not enforce `NOT NULL` yet.
-3. **Backfill safely.** After retiring old writers, fill missing keys in bounded resumable batches. Update with a predicate protecting against concurrent user changes, such as the expected row version/email value; recompute on conflict instead of writing a stale key. Resolve collisions according to an approved business procedure.
-4. **Enforce.** Verify all writers and existing rows satisfy the rule, add/validate the appropriate unique constraint/index and not-null guarantee, and test application conflict mapping. For large PostgreSQL tables consider concurrent index creation and staged validation where supported, with explicit operational ownership.
-5. **Switch and observe.** Deploy reads using the new key; keep compatibility with the declared rollback window. Observe conflict/corruption/backfill status through existing operations mechanisms.
-6. **Contract later.** Only after every supported binary/job stops depending on the old representation, remove the old column/read path in a separately reviewed deployment. A destructive rollback may not be possible; document forward repair or restore instead of inventing a harmless “down” migration.
+1. **Decide equivalence/scope.** Analyze historical collisions; resolve through approved business policy, not discarded accounts.
+2. **Expand.** Add nullable compatible column; update every create/change/import writer while old reads work. Old rolling writers still omit it: no `NOT NULL` yet.
+3. **Backfill.** Retire old writers first; use bounded resumable batches guarded by expected version/email. Recompute conflicts rather than overwrite concurrent changes; resolve collisions.
+4. **Enforce.** Verify every writer/row; add/validate uniqueness/not-null and conflict mapping. Large tables may need concurrent indexes/staged validation with operational ownership.
+5. **Switch/observe.** Read new keys within the declared rollback window; observe conflicts/corruption/backfill through existing operations.
+6. **Contract later.** Remove old paths only after all supported binaries/jobs stop depending on them. Document forward repair/restore where destructive rollback is unsafe.
 
-`CREATE INDEX CONCURRENTLY` cannot run inside a transaction block; a migration runner that wraps every migration in one transaction needs a supported nontransactional migration mode for that operation. Failure can leave an invalid index requiring explicit inspection/recovery. Do not imply every DDL statement is rollbackable or lock-free. Adding/validating constraints, column rewrites/defaults, and index builds have version-specific lock and resource costs. Choose lock/statement timeouts and rehearse on realistic data.
+`CREATE INDEX CONCURRENTLY` needs a supported nontransactional migration mode; failures can leave invalid indexes requiring recovery. DDL is neither universally rollbackable nor lock-free: rehearse version-specific locks, rewrites, defaults, resource cost, and lock/statement budgets on realistic data.
 
-Ent's versioned migration workflow supports deriving reviewed SQL from schema changes and replaying migration history. Keep custom SQL constraints/indexes visible to the chosen workflow so later diffs do not accidentally remove them. Do not hand-edit generated Ent files as the durable schema change.
+Use reviewed Ent versioned SQL/replay; retain custom constraints/indexes in the workflow so later diffs do not remove them. Never hand-edit generated Ent as a durable change.
 
-**Incorrect:** rename/drop the old email column in the same release that introduces the new reader, or change normalization in only the newest HTTP handler. Mixed-version workers and old binaries continue operating during rollout.
-
-**Verification cases:** replay from empty database; upgrade realistic prior data with collisions/nulls; run old binary against expanded schema and new binary during compatibility window; backfill concurrent with email changes; interrupt/resume backfill; fail/recover a concurrent index build; confirm constraints after deployment; rehearse the documented restore/forward-fix path. Link to [testing and evolution](testing-and-evolution.md) for compatibility matrices.
+**Verify:** empty replay, realistic prior collisions/nulls, old/new binary compatibility, concurrent-change/interrupted backfills, failed-index recovery, deployed constraints, and documented restore/forward repair. For compatibility matrices read [testing and evolution](testing-and-evolution.md).
 
 ## 11. Cache and replica consistency
 
-**Optional:** add a cache only for a named workload and explicit freshness contract. The database remains the authority for uniqueness, authorization facts, stock availability, and optimistic concurrency. A cache hit does not replace the guarded write or constraint.
+**Optional:** a named workload needs an explicit freshness guarantee. The database remains authoritative for uniqueness, authorization, stock, and concurrency.
 
-For cache-aside, a miss reads the database and may populate the cache; after a successful command, invalidate/update only **after commit**. Keys must include tenant and every dimension affecting the result (identity, query filters, locale or policy version when relevant). Do not cache raw Ent entities with attached clients. Bound TTL/size; choose whether negative results may be cached and for how long.
+Cache-aside misses may fill mapped values (never attached Ent entities). Invalidate/update only after commit; tenant/result dimensions belong in keys. Bound TTL/size and decide negative caching.
 
-Post-commit invalidation alone has a stale-fill race:
+Post-commit invalidation still has a stale-fill race:
 
 1. Reader A misses cache and reads old database value.
 2. Writer B commits the new value and deletes the cache key.
 3. Reader A fills the cache with the old value after the delete.
 
-Therefore “invalidate after commit” is necessary ordering but not a linearizability guarantee. If bounded stale data is acceptable, document the bound and use TTLs; consider old in-flight readers when defining that bound. If stale reads are unacceptable, bypass this cache for that path or adopt a proven version/fencing/coherent read protocol. For durable eventual invalidation across crashes, use a committed change/outbox mechanism as described in [reliability and events](reliability-and-events.md), rather than a best-effort goroutine. Do not duplicate the outbox algorithm in the repository layer.
+TTL staleness bounds must include old in-flight fills. For intolerant paths bypass cache or use a proven coherent/version/fencing protocol. Crash-safe eventual invalidation requires committed change/outbox delivery from [reliability and events](reliability-and-events.md), not best-effort goroutines or a duplicated repository algorithm.
 
-Read replicas can lag after a successful primary commit. Read-your-writes may require primary routing or a documented replication-position/session strategy; simply invalidating the cache does not make a replica current. Never check a command's stock/uniqueness/version invariant against a lagging replica and then write unconditionally to the primary.
+Replica lag survives cache invalidation. Read-your-writes needs primary routing or a replication-position/session protocol. Never make unconditional primary writes from stale stock/uniqueness/version decisions. Return committed command results directly and route strict follow-ups to primary.
 
-**Correct:** return the committed command result directly and route strict follow-up reads to the primary; use cache/replica only on paths whose stale-read contract permits it.
-
-**Incorrect:** delete cache before the transaction commits, refill it from uncommitted state, or claim a cache and PostgreSQL committed atomically without an actual shared protocol.
-
-**Verification cases:** rollback leaves no uncommitted cached value; crash after commit before invalidation; stale-fill interleaving above; tenant key separation; cached not-found followed by create; replica lag after create/update; strict paths bypass stale reads. Test the promised freshness guarantee, not just whether `Delete(key)` was called.
+**Verify:** no uncommitted cache on rollback; commit/crash/invalidation gap; stale-fill ordering; tenant keys; negative-cache/create race; replica lag; promised strict bypass/freshness—not just `Delete(key)` calls. Cache and SQL are not atomic without a shared protocol.
 
 ## 12. Aggregate boundaries, resources, and isolation choices
 
 ### Aggregate versus multi-aggregate transactions
 
-**Required baseline:** prefer the smallest transaction that protects the stated invariant. Aggregate design guides mutation ownership; it is not a prohibition against a multi-aggregate transaction in one database.
+Use the smallest boundary protecting the fact, not “one aggregate per transaction” or “one transaction per HTTP request.” Stock/reservation and order/line tables may need one database transaction despite multiple aggregates/repositories. Never silently weaken required atomicity to eventual consistency.
 
-The reservation example legitimately updates inventory and inserts a reservation together. An order aggregate split across order/line tables needs one boundary even though there are several repositories/tables. Conversely, an email notification and remote billing write cannot be included atomically merely by executing them between `BEGIN` and `COMMIT`. Use a durable coordination policy from [reliability and events](reliability-and-events.md), including compensation only when the business defines what it means.
-
-**Incorrect:** “one aggregate per transaction” forces a required stock/reservation invariant into eventual consistency without approval; or “one transaction per request” holds database locks while calling several remote APIs.
-
-**Verification cases:** list the states observable by another transaction at each failure point; prove no forbidden state can commit; review whether all writes target one transactional database. Ask the domain owner if partial completion is allowed instead of silently changing the guarantee.
+Remote billing/email cannot join a local transaction; read [reliability and events](reliability-and-events.md) for durable coordination and business-defined compensation. At each failure point, verify observable states and whether every required write shares one transactional database.
 
 ### Isolation is a mechanism, not a label
 
@@ -1069,37 +1032,26 @@ The reservation example legitimately updates inventory and inserts a reservation
 | PostgreSQL Repeatable Read | A stable snapshot for a multi-query report/decision where its anomalies are acceptable | Can abort on concurrent update; does not eliminate write skew/serialization anomalies |
 | PostgreSQL Serializable | A predicate-wide invariant whose concurrent transactions must behave serially | Additional conflict/overhead; whole-transaction retry for `40001`; keep all invariant-relevant paths compatible |
 
-A serializable transaction does not make an external payment or broker atomic. Locking one existing row does not lock every possible future row matching a predicate. PostgreSQL Read Uncommitted behaves like Read Committed; other databases' isolation names may have different implementations. SQLite's write/concurrency behavior is not a substitute for PostgreSQL testing.
+Row locks do not cover every future predicate match; serializable does not include remote effects. PostgreSQL Read Uncommitted acts as Read Committed; other engines differ. SQLite is not PostgreSQL concurrency evidence.
 
-**Incorrect:** set `Serializable` everywhere without handling aborts, or assume `RepeatableRead` prevents every cross-row business anomaly. Isolation choice must match a concrete concurrent execution, not a performance slogan.
-
-**Verification cases:** two concurrent guarded decrements, two stale version saves, lock-order deadlock, phantom/predicate insert, and write skew for the actual product rule. Test that aborted transactions do not return data as successful and safe retries reload all relevant facts.
+**Verify the chosen mechanism:** guarded decrements, stale saves, lock-order deadlocks, predicate inserts, and product-specific write skew. Aborts never return successful data; approved retries reload all facts. Serializable needs abort handling; Repeatable Read does not eliminate every anomaly.
 
 ### Resource lifetime and capacity
 
-**Required baseline:** a transaction consumes a connection until commit/rollback. Keep callbacks short and sequential unless the driver/protocol explicitly supports otherwise; parallel goroutines sharing one transaction are not free parallel connections. Do not perform remote I/O, user interaction, slow serialization, or unbounded batch processing while holding locks.
+**Required:** transactions occupy connections until completion; keep callbacks short/sequential. Shared-transaction goroutines are not extra connections. Keep remote I/O, interaction, slow serialization, and unbounded batches outside locks.
 
-- Configure pool capacity, connection lifetime/idle settings, and operation deadlines from the deployment's database connection budget. Multiply per-process pools by replicas and background workers; avoid exhausting the server during scale-out.
-- Close `Rows` promptly and check `Rows.Err`; close statements when their ownership ends. A nonempty unconsumed cursor can pin a connection. Finish reads before issuing conflicting work on drivers that do not permit multiple active results.
-- Use bounded batches for backfills and exports; a giant transaction increases lock time, WAL/undo pressure, replication lag, and rollback cost.
-- Use database statement/lock/idle-in-transaction limits as operational safeguards in addition to request deadlines, with settings scoped safely for pooled connections.
-- Keep driver/database details in persistence/composition configuration, not domain packages. Observe pool waits, transaction duration, lock contention, and query plans through the existing operations stack; do not log credentials or sensitive parameter values.
+- Budget pool size/lifetime/idle settings/deadlines across all replicas/workers against server capacity.
+- Close rows/statements at ownership end; check scan/iteration errors. Finish reads before conflicting work where drivers forbid multiple active results.
+- Bound backfills/exports to limit lock time, WAL/undo, lag, and rollback cost.
+- Add safely scoped statement/lock/idle-in-transaction limits alongside request deadlines.
+- Keep configuration in persistence/composition; observe pool waits/duration/contention/plans through existing operations, without credentials/sensitive parameters.
 
-**Incorrect:** a transaction callback calls a root read helper while the only pool connection is held by that transaction. The callback may wait forever for itself. Increasing the pool merely hides the dependency/atomicity bug.
+A root helper inside a callback can deadlock waiting for its own pool connection; a larger pool only hides the binding bug.
 
-**Verification cases:** exhausted pool obeys request cancellation; early scan error releases rows; callback panic returns capacity; long batch/lock wait hits the intended bound; maximum replica count fits the database budget; transaction duration remains bounded under remote dependency failure because remote calls are outside the callback.
+**Verify:** cancellation under pool exhaustion, scan-error/panic capacity release, bounded batches/lock waits, maximum replica budget, and no remote-dependency delay while holding transactions.
 
 ## Implementation review checklist
 
-Before adopting an implementation, trace one command from trusted request inputs to commit:
+Trace one authorized command through the concrete code above, then exercise the applicable **Verify** cases—not merely the callback's happy path. Record unresolved business/isolation/retry/compatibility decisions in adoption.
 
-1. Does `ctx` reach every database operation, including begin, hooks, and helpers?
-2. Which exact writes must be atomic, and which application method owns that scope?
-3. Do existing repositories/providers/helpers/hooks and optional outbox inserts propagate `txCtx` and resolve the same transaction handle, rejecting nested, expired, and foreign scopes without root fallback or shared-field mutation?
-4. Do error, panic, cancellation, and commit failure execute cleanup without returning early success?
-5. Does the response distinguish a conflict, known abort, and uncertain commit instead of claiming every error means no commit?
-6. Do unique/check/foreign-key constraints and concurrency predicates protect against independent processes?
-7. Are tenant predicates and composite references present on reads, writes, joins, and caches?
-8. Are queries/pagination and resource lifetimes bounded, and do migrations preserve the supported compatibility window?
-9. If caching/replicas are adopted, is the actual stale-read guarantee explicit?
-10. Which remaining business/isolation/retry/compatibility choices require a project answer rather than a guessed default?
+Acceptance must cover scope/handle propagation and lifecycle, known versus unknown outcomes, real constraints/concurrent writers, tenant boundaries, query/resource bounds, compatible rollout, and any adopted freshness guarantee. Mock/SQLite evidence cannot establish PostgreSQL/Ent behavior.
