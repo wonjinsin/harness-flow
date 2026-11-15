@@ -21,7 +21,7 @@ For local CRUD, constraints and a deadline may suffice; a broker does not improv
 - Domain owns invariants/facts; input ports own context-aware use cases/results. Services own operation order, recoverable states, and transaction scope. Follow [architecture](architecture.md) when choosing usecase/shared/orchestration; no peer-service or orchestration-to-usecase calls.
 - Output ports expose required persistence, transaction, vendor, and durable-event capabilities. HTTP authenticates, parses/validates, delegates, and maps outcomes—not a second workflow.
 - Under `internal/adapter/out/persistence/postgres`, `provider` reads, `repository` writes idempotency/inbox/outbox and business state, `db` owns lifecycle/private context-handle resolution, and `dao` separates generated `ent` from handwritten mappers. Existing adapters receive callback `txCtx` for the same transaction; `db` never imports providers/repositories. Read [data and transactions](data-and-transactions.md) when implementing this boundary.
-- Vendor adapters outside persistence own protocol, credentials, error translation, and documented retry rules; persistence “provider” means database reads. Add integrations only when used.
+- Follow [architecture](architecture.md) for vendor adapter placement. These adapters own protocol, credentials, error translation, and documented retry rules; persistence “provider” means database reads. Add integrations only when used.
 - `cmd/api/main.go` owns reusable clients/pools/workers and lifecycle. A separate publisher executable is optional.
 
 ## 2. Deadlines and cancellation are resource ownership

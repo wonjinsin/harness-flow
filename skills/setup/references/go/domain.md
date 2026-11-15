@@ -314,7 +314,7 @@ Choose one policy across create, lookup, change, import, and migration, accounti
 | --- | --- |
 | Decode JSON, parse path ID, map response | `internal/adapter/in/http/{handler,dto}` |
 | Authenticate and establish trusted caller/tenant | Inbound security middleware/application authorization boundary |
-| Load inventory, construct reservation, choose transaction, save both | `internal/core/service/orchestration/reservation` (one real stock/reservation workflow) |
+| Load inventory, construct reservation, choose transaction, save both | `ReservationOrchestrator` in `internal/core/service/orchestration/reservation.go` (one real stock/reservation workflow) |
 | Check a legal reservation transition | `internal/core/domain` entity method |
 | Calculate an agreed allocation across already supplied domain values | Domain service/function, if needed |
 | Query Ent, map nullable fields, translate constraint errors | `internal/adapter/out/persistence/postgres/{provider,repository,dao}`: providers read; repositories write; handwritten mappers hydrate |
@@ -322,7 +322,7 @@ Choose one policy across create, lookup, change, import, and migration, accounti
 
 A stateless domain function often suffices; pass typed inputs, not an application container or HTTP context values. A necessary external quote/rule lookup needs a narrow explicit port with visible deadlines/workflow ownership, not a supposedly pure calculator.
 
-Use cases own one domain; `service/shared/<capability>` owns application capabilities, not business calculations. Peer operations/services never call one another, even through interfaces. Cross-domain orchestration calls ports/domain/shared capabilities directly, never use cases.
+Use cases own one domain; `service/shared/<capability>.go` declares a named `<Capability>Service` for application capabilities, not business calculations. Peer operations/services never call one another, even through interfaces. Cross-domain orchestration calls ports/domain/shared capabilities directly, never use cases.
 
 The application obtains trusted tenant, validates command, generates ID/one `now`, constructs reservation, then conditionally decrements stock and inserts reservation in one transaction. Return after commit; the constructor knows no repository. Handlers must not own this workflow.
 

@@ -46,15 +46,15 @@ baseline restoration is needed.
 
 ## 3. Write the working path
 
-Put the decision or output contract first, then the steps and their completion
-conditions. Choose the form that fixes the observed failure:
+For a revision, locate the rule and examples that already own each requested
+behavior. Replace incorrect guidance in place, merge overlapping rules, and delete
+superseded instructions; update affected references and examples in the same change.
+Keep each decision in one authoritative place; remove sections that only restate
+it, including pre-existing headings. Add guidance only for a demonstrated gap
+with no existing owner, never as an appended override.
 
-| Failure | Instruction form |
-| --- | --- |
-| Wrong output shape | Required parts in their intended order |
-| Missing element | A required field in the output or template |
-| Conditional behavior | An observable condition and the action it selects |
-| Rule broken under pressure | A precise prohibition addressing that violation |
+For new guidance, put the decision or output contract first, followed by the
+necessary steps and completion conditions.
 
 Preserve the source contract before compressing prose: exact fields, allowed
 values, and how each value comes from the input. If a field requires evidence
@@ -63,9 +63,8 @@ example or suggestive field name does not specify its meaning. Remove repetition
 not these semantics.
 
 Keep rules, exceptions, and completion criteria together. Inline what every path
-needs; link branch-specific detail where the branch occurs and say when to read it.
-Prefer one useful example to repeated warnings. Remove duplication and obvious
-advice; do not add persuasion essays, narrative history, or ceremonial checklists.
+needs; link branch-specific detail where it is used. Prefer one useful example
+to repeated warnings, obvious advice, persuasion, or narrative history.
 
 For `skills/<name>/SKILL.md`, use YAML frontmatter:
 - `name`: lowercase letters, digits, and hyphens; at most 64 characters; matches

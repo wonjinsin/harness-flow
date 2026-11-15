@@ -15,7 +15,7 @@ import (
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/repository"
 	"example.com/architecture-handbook/internal/core/domain"
 	"example.com/architecture-handbook/internal/core/port/in/command"
-	"example.com/architecture-handbook/internal/core/service/usecase/user"
+	"example.com/architecture-handbook/internal/core/service/usecase"
 )
 
 func newDatabase(t *testing.T) (context.Context, *sql.DB, *provider.UserProvider, *sqlitedb.Transactor) {
@@ -64,7 +64,7 @@ func assertCounts(t *testing.T, ctx context.Context, db *sql.DB, want rowCounts)
 
 func TestCreateUserCommitsUserAndAuditAndCanBeRead(t *testing.T) {
 	ctx, db, userProvider, transactor := newDatabase(t)
-	users := user.NewUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
+	users := usecase.NewUserUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
 	created, err := users.CreateUser(ctx, command.CreateUserCommand{Name: " Alice ", Email: "ALICE@example.com"})
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	users := user.NewUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
+	users := usecase.NewUserUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
 	_, err = users.CreateUser(ctx, command.CreateUserCommand{Name: "Alice", Email: "alice@example.com"})
 	if err == nil {
 		t.Fatal("creation succeeded despite the database rejecting the audit write")
@@ -139,7 +139,7 @@ func TestAuditConstraintFailureRollsBackFirstWrite(t *testing.T) {
 
 func TestConcurrentDuplicateEmailHasOneWinnerAndDatabaseConstraint(t *testing.T) {
 	ctx, db, userProvider, transactor := newDatabase(t)
-	users := user.NewUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
+	users := usecase.NewUserUseCase(userProvider, repository.NewUserRepository(db), repository.NewAuditRepository(db), transactor)
 	const callers = 8
 	start := make(chan struct{})
 	results := make(chan error, callers)

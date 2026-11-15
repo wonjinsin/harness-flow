@@ -17,7 +17,7 @@ import (
 	sqlitedb "example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/db"
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/provider"
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/repository"
-	"example.com/architecture-handbook/internal/core/service/usecase/user"
+	"example.com/architecture-handbook/internal/core/service/usecase"
 )
 
 func main() {
@@ -50,7 +50,7 @@ func run(address, databasePath string, logger *slog.Logger) (err error) {
 	userRepository := repository.NewUserRepository(db)
 	auditRepository := repository.NewAuditRepository(db)
 	transactor := sqlitedb.NewTransactor(db)
-	users := user.NewUseCase(userProvider, userRepository, auditRepository, transactor)
+	users := usecase.NewUserUseCase(userProvider, userRepository, auditRepository, transactor)
 	server := &http.Server{
 		Addr:              address,
 		Handler:           httpadapter.NewRouter(users, db.PingContext, logger),

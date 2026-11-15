@@ -19,7 +19,7 @@ Optional mechanisms are not CRUD prerequisites; PoC omissions are not safe defau
 
 ## 2. The canonical tree
 
-This ownership map is not a folder-creation checklist: add conditional `shared/<capability>` and `orchestration/<workflow>` packages only for implemented behavior, never empty forwarding scaffolds. `*` marks generated Ent output. Tests normally sit beside their owners; root `test/` holds integration fixtures.
+This ownership map is not a folder-creation checklist: add `shared` and `orchestration` only for implemented behavior, never empty forwarding scaffolds. Service areas are packages; their domain/capability/workflow owners are files, not per-type subpackages. `*` marks generated Ent output. Tests normally sit beside their owners; root `test/` holds integration fixtures.
 
 ```text
 cmd/
@@ -40,12 +40,11 @@ internal/
         user.go                     # Read-only UserProvider; write-only UserRepository
     service/
       usecase/
-        user/
-          usecase.go                # User operations implementing UserUseCase
+        user.go                     # UserUseCase and NewUserUseCase
       shared/
-        <capability>/               # Conditional reusable application/I/O capability
+        <capability>.go             # Conditional named <Capability>Service
       orchestration/
-        <workflow>/                 # Conditional multi-domain application workflow
+        <workflow>.go               # Conditional named <Workflow>Orchestrator
   adapter/
     in/
       http/
@@ -61,6 +60,7 @@ internal/
           tr_id.go                  # Request correlation, not a DB transaction
           http_logger.go            # Access log around the request
           cors.go                   # Transport policy
+      grpc/                         # Only when gRPC is an implemented transport
     out/
       persistence/
         postgres/                   # Real engine name; adapt for an existing engine
@@ -79,6 +79,10 @@ internal/
               client.go             # Generated Ent client *
               user.go               # Generated row/entity representation *
               ...                   # Other generated builders/predicates/migration assets *
+      ai/<vendor>/                  # e.g. claude/, jev/, only when used
+      auth/<vendor>/                # e.g. supabase/
+      storage/<vendor>/             # e.g. supabase/
+      document/<format>/            # e.g. pdf/, xls/, xlsx/
   config/
     config.go                       # Environment/config loading and validation
   pkg/
@@ -91,6 +95,8 @@ test/
   integration/                      # Database/transport integration tests and fixtures
   mocks/                            # Existing test-support location
 ```
+
+Partition **all inbound/outbound adapters** by their concrete protocol, engine, vendor or format, as in the tree. Even one implementation belongs under its real name; add no unused alternatives or redundant `http/http` level. Keep handlers, DTOs, mappings and client details within that implementation. Common contracts stay implementation-neutral; a multi-format dispatcher may compose readers without introducing parent/child import cycles. `core/port/in` and `core/port/out` remain capability contracts, not vendor/format packages.
 
 Retain the existing ownership of `internal/mock` and root `test/mocks`; do not duplicate mocks. Directory names do not prove tests exist.
 
@@ -145,9 +151,9 @@ Core owns these application boundary contracts by default. Keep them small and c
 
 ### Service areas and exact call restrictions
 
-- `service/usecase/<domain>` owns domain-scoped inbound operations. Name the inbound contract for that domain (`UserUseCase`, not a universal `UseCase` or `Service`).
-- `service/shared/<capability>` is conditional: reusable application coordination or I/O, such as an outbound notification capability, with an explicit narrow contract. Pure calculations, matching, eligibility, summaries, and collection rules remain in domain even when several callers reuse them.
-- `service/orchestration/<workflow>` is conditional: a multi-domain workflow coordinates domain behavior and outbound ports/shared capabilities directly. It must not call use cases.
+- `service/usecase/<domain>.go` owns domain-scoped inbound operations. Declare the concrete `CatalogUseCase` or `LedgerUseCase` and its `NewCatalogUseCase` or `NewLedgerUseCase` constructor in package `usecase`; inbound interfaces remain in `port/in`. Do not hide a generic `UseCase` behind a domain package.
+- `service/shared/<capability>.go` is conditional reusable application coordination or I/O, with a named `<Capability>Service` and constructor. Analysis reuses budget reservation/settlement through injected `shared.AccountingService`, not a peer orchestrator. Pure calculations, matching, eligibility, summaries, and collection rules remain in domain.
+- `service/orchestration/<workflow>.go` owns an independently entered multi-domain workflow. Declare `AnalysisOrchestrator`, `ConfirmationOrchestrator`, or an independently entered `AccountingOrchestrator` with matching `New...Orchestrator` constructors in package `orchestration`, not generic `Orchestrator` types in per-workflow folders.
 - Peer operation/service calls are forbidden, including calls to another inbound operation on the same use-case implementation, usecase-to-usecase calls across domains, shared-to-shared calls, and orchestration-to-orchestration calls. Hiding a peer dependency behind an interface, an inbound port, a callback, or a forwarding facade does not make it allowed. Shared capabilities must not call use cases or orchestration. Use cases must not call orchestration; orchestration must not call use cases. Extract reusable pure behavior into domain, or a genuine reusable application/I/O capability into shared, instead of chaining peer operations.
 - All service areas access persistence/external I/O only through outbound ports. They never import concrete adapters, DAO, or `db`. Composition may connect usecase/orchestration to narrow shared contracts; do not invent a second forwarding service/DAO layer.
 
@@ -164,8 +170,8 @@ When declaring boundary types/signatures or configuring quality tooling, read [c
 | Request-to-command and result-to-response conversion | `adapter/in/http/dto/user_mapper.go` | Repository calls or business side effects |
 | HTTP-independent domain operation, query/result, input error | `core/port/in/user.go` (`UserUseCase`, `ErrInvalidInput`) | Command declarations, JSON tags, HTTP status, framework request/context types |
 | Inbound write intent (`*Command` structs) | `core/port/in/command/user.go` | Queries/results, interfaces, generic parameters, HTTP DTOs, parent `in` imports, service/transport/ORM dependencies |
-| Domain-scoped coordination, clock usage, authorization, atomic unit | `core/service/usecase/user/usecase.go` | Peer operation calls, HTTP decoding, SQL, Ent entities, inline business calculations |
-| Reusable application/I/O capability; multi-domain workflow | Conditional `core/service/shared/<capability>`; `core/service/orchestration/<workflow>` | Pure business rules in shared, peer calls, orchestration calling use cases |
+| Domain-scoped coordination, clock usage, authorization, atomic unit | `core/service/usecase/user.go`: `UserUseCase` | Per-domain service folders, peer operation calls, HTTP/SQL/Ent, inline business calculations |
+| Reusable application/I/O capability; independent multi-domain workflow | Conditional `core/service/shared/<capability>.go`; `core/service/orchestration/<workflow>.go` | Per-type folders, pure business rules in shared, peer calls, orchestration calling use cases |
 | Entity behavior, composed rules, business summaries and matching over values/collections | `core/domain/` | Database clients, network calls, response envelopes |
 | Read/write persistence capabilities needed by service | `core/port/out/user.go` (`UserProvider` / `UserRepository`) | Mixed read/write repository, ORM predicates, vendor response types |
 | Read queries; writes through existing context-aware adapters | `adapter/out/persistence/postgres/provider/`; `postgres/repository/` | Peer adapter forwarding or deciding a business transition |
@@ -181,7 +187,9 @@ When declaring boundary types/signatures or configuring quality tooling, read [c
 
 The default envelope/helper location is `internal/pkg/utils/http.go`, and `dto/response.go` defines the error-result shape. Retain a target project's already accepted helper location rather than creating a competing envelope. Transport code may use that HTTP helper; core must not depend on HTTP mechanics merely because their package is named `utils`. Separating mixed helpers can be an explicit project migration, not an excuse to invent a new default layout.
 
-For orders, add matching domain, inbound port/command, outbound port, `usecase/order`, and necessary adapter files under the real engine. Group inbound operations by domain; split only for cohesion, not into universal application interfaces or forwarding `facade/manager/business` layers.
+For orders, add matching domain, inbound port/command, outbound port, `usecase/order.go` declaring `OrderUseCase`, and necessary adapter files under the real implementation. Group inbound operations by domain; additional files may share that type and package, without universal forwarding `facade/manager/business` layers.
+
+In each provider/repository owner file, place its concrete struct, interface assertion and constructor after imports, followed by its methods: `provider/account.go` owns `Account`, `provider/category.go` owns `Category`, and corresponding repository files own their write types. Do not collect unrelated structs/constructors in `types.go` or `dependencies.go`, or invent an embedded base merely to deduplicate `pool`/`ent` fields. Store only dependencies each owner uses.
 
 “Handler” and “controller” mean one transport responsibility (`UserController` here). Providers/repositories are already adapters; DAO is conversion/schema/generated access, not another forwarding service. A mapper used by one adapter may stay local; shared read/write mapping belongs beside `dao/schema` and generated `dao/ent`, never in generated output or generic `db`.
 
@@ -204,9 +212,11 @@ Reads use `UserProvider`, never repository read methods; absence is inspectable 
 
 ## 6. Composition and lifecycle
 
-**Required baseline:** `cmd/api/main.go` owns the concrete object graph and process lifecycle. Start from validated configuration, create logging infrastructure and database resources, construct providers/repositories, use cases, and the HTTP router, then run the server. Close resources at the boundary that opened them. A constructor should receive required dependencies; it should not find them through a global registry or `context.Value`.
+**Required baseline:** `cmd/api/main.go` owns the concrete object graph and process lifecycle. Validate configuration, create logging/database resources, then construct providers/repositories, shared services, use cases/orchestrators and transports. Close resources at the boundary that opened them. Constructors receive required dependencies, never discover them through globals, registries or `context.Value`.
 
-For the concrete startup wiring and its imports, read [layers §9](layers.md#9-config-database-construction-shared-packages-composition). Construct `db.NewEntClient`, provider/repository, `user.NewUseCase(..., time.Now)`, and `httpadapter.NewRouter` there. The server must set project-owned `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`; a constructor excerpt is not a complete lifecycle. Before implementing startup/shutdown, read [security and operations](security-and-operations.md) for failure propagation, graceful shutdown, readiness, secret handling, proxy trust, and resource bounds.
+Inject providers/repositories into each shared service once, then inject that service into its consumers. For example, compose `shared.NewCategoryService(categoryProvider, ruleRepo)` and call `s.categoryService.Remember(txCtx, command)`, not `category.Remember(txCtx, provider, repo, command)`. Operational methods receive context and business inputs, not dependency bundles. Process-lifetime instances may be reused when concurrency-safe; request data and transaction handles never replace their fields. Pure domain functions need no service wrapper.
+
+For startup wiring and imports, read [layers §9](layers.md#9-config-database-construction-shared-packages-composition). Construct `db.NewEntClient`, provider/repository, `usecase.NewUserUseCase(..., time.Now)`, and `httpadapter.NewRouter` there. Set project-owned `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`; a constructor excerpt is not a complete lifecycle. Read [security and operations](security-and-operations.md) before startup/shutdown changes.
 
 A startup root context or a separate bounded shutdown context is appropriate at composition. Replacing a request's context with `context.Background()` inside the service/repository is not. A middleware field named `TrID` is correlation only; it neither begins nor commits a database transaction.
 
@@ -220,7 +230,7 @@ For `RenameUser`, resolve decisions in this order:
 2. Put the user invariant in domain so non-HTTP callers cannot bypass it.
 3. Add `command.RenameUserCommand` and the `UserUseCase` signature; preserve trusted actor/tenant and input semantics using [coding conventions](coding-conventions.md#2-five-total-boundary-parameters-require-an-input-struct).
 4. Add only needed provider reads/repository writes. Choose concurrency/atomicity; do not expose Ent builders or unrestricted column maps.
-5. Coordinate load → authorize → domain transition → persist in `usecase/user`, never by calling another inbound operation.
+5. Coordinate load → authorize → domain transition → persist in `usecase/user.go`, never by calling another inbound operation.
 6. Implement adapters/mapping and schema+migration inputs; regenerate Ent. Add DTO mapping/controller/route; change composition only for new dependencies.
 7. Test domain, service, HTTP compatibility, and real-database failure/concurrency boundaries using [testing and evolution](testing-and-evolution.md).
 
@@ -256,4 +266,4 @@ The [runnable example](../../examples/go) explicitly adapts to standard HTTP/SQL
 
 Trace route → handler/DTO mapper → inbound command/port → service/domain → outbound port → persistence mapper/Ent → safe response against the owner table and exact call rules above. Review changed behavior with [layers' boundary checks](layers.md), applicable production chapters, and [testing/evolution](testing-and-evolution.md); do not infer implemented guarantees from placement.
 
-Report an observed edge and correction, e.g. “`usecase/user` imports `dao/ent` and returns `*ent.User`; return domain through `UserUseCase` and map in `persistence/postgres/dao/user_mapper.go`,” not “not clean enough.”
+Report an observed edge and correction, e.g. “`usecase/user.go` imports `dao/ent` and returns `*ent.User`; return domain through `UserUseCase` and map in `persistence/postgres/dao/user_mapper.go`,” not “not clean enough.”

@@ -28,11 +28,12 @@ fragments, not a self-evaluation, within 1500 words.
 - Persistence is under the real engine (`postgres`), with read-only `provider`,
   write `repository`, reusable `db` mechanics, and adapter-owned DAO/mapping.
   Do not create unused alternative engines or disguise CRUD under `db`.
-- Domain use cases live under `service/usecase/<domain>`; reusable application
-  stages under cohesive `service/shared/<capability>`; real multi-domain work
-  under `service/orchestration/<workflow>`. Neither sibling use cases nor shared
-  services nor orchestrations call peers; orchestration does not call use cases.
-  Pure eligibility/calculation remains in domain, not shared.
+- Domain use cases live in `service/usecase/<domain>.go` with explicit concrete
+  `CatalogUseCase` types/constructors; shared capabilities in `service/shared/<capability>.go`
+  with named services; independent workflows in `service/orchestration/<workflow>.go`
+  with named orchestrators. No per-type service subpackages. Neither sibling use
+  cases nor shared services nor orchestrations call peers; orchestration does not
+  call use cases. Pure eligibility/calculation remains in domain, not shared.
 - The application owns one transaction through
   `WithinTransaction(ctx, func(txCtx context.Context) error)`. It calls existing
   injected providers/repositories with txCtx, not a callback repository bundle.
@@ -60,6 +61,9 @@ fragments, not a self-evaluation, within 1500 words.
 - Dependencies expose provider, repository and transaction roles; a UoW suffix
   is not required. Names use Go MixedCaps/initialisms and specific operation
   vocabulary. Do not suffix every method with the dependency's role.
+- Construct shared services with their provider/repository dependencies once;
+  operations pass only ctx and business inputs. Keep each provider/repository
+  struct, constructor and assertion atop its own domain file, not a type registry.
 - The quality runner is `golangci-lint`, no gofumpt adoption. Use the project's
   Go-compatible pinned official binary/config in local and CI paths, not a
   floating global installation or application-module tooling dependency.
@@ -141,6 +145,77 @@ policy. Read setup references on demand; no edits or checks. Under 1000 words.
   preserved error taxonomy and safe transport mapping.
 - Golangci-lint only, pinned local/CI plan and honest spacing/coverage limits; no
   tool installation or application mutation implied by handbook approval.
+
+## Adapter and service ownership revision
+
+### Consumer prompt
+
+Approved handbook-only adoption for Go module example.com/ledger. Deliver a concise
+concrete placement/composition passage, not an implementation or self-evaluation.
+Existing integrations: inbound HTTP and gRPC; PostgreSQL read providers/write
+repositories with pool and EntBinding; outbound Claude and Jev AI clients, Supabase
+auth/storage, PDF/XLS/XLSX readers. Catalog and Ledger inbound operations, independent
+Analysis and Confirmation workflows, shared category validation I/O and budget
+reservation/settlement used by Analysis. Provider types Account and Category currently
+share a types.go with pool *sql.DB and ent *db.EntBinding; their methods live in
+account.go and category.go. Show actual file paths, concrete type/constructor
+declarations and ownership of their fields, startup wiring, one shared call inside a
+transaction, and allowed/forbidden calls. No tools or source changes in this artifact
+exercise. Keep to 1100 words.
+
+### Acceptance
+
+- Concrete adapters partition the used protocols, engines, vendors and formats,
+  including single implementations. No unused alternatives or vendor-specific ports.
+- Service-area packages contain domain/workflow files and explicit concrete type
+  and constructor names, not generic types hidden in per-domain subpackages.
+- Shared category/accounting services receive dependencies once at construction;
+  operational calls pass ctx/business inputs. Analysis uses AccountingService,
+  not a peer AccountingOrchestrator. Preserve all existing peer-call bans.
+- Account/Category declarations and constructors belong after imports in their
+  respective owner files. Preserve pool/EntBinding needs without base-type indirection.
+- Propagate txCtx, never swap shared fields or claim that handbook adoption migrated
+  the application. Existing local exceptions remain subject to adoption policy.
+
+### Baseline
+
+The pre-edit `b4fe8ee` setup entry, adoption, index, architecture and coding chapters
+were supplied to one independent artifact consumer. It correctly partitioned external
+adapters and used constructor injection, but emitted `usecase/catalog/usecase.go`,
+`orchestration/analysis/workflow.go`, generic `Workflow`, and explicitly retained
+provider declarations/constructors in `types.go`. Those placement decisions fail the
+approved target. This is an artifact comparison, not on-demand reader-loading proof.
+
+### Candidate and execution evidence
+
+The same artifact case passed after replacing the placement/composition owners.
+After removing a redundant adapter-path list and repeated per-type-folder warning,
+a fresh consumer still produced flat service-area packages, named concrete types,
+owner-local provider declarations and constructor-injected shared services with
+txCtx. These are one candidate and one final sample, not a reliability estimate.
+
+A separate fresh on-demand consumer applied the final skill to MySQL Returns:
+HTTP/CSV input, S3/SMTP output, no AI/gRPC, owner-local pool-only Return/Refund
+providers, injected AuthorizationService, atomic refund writes and email outside
+the transaction. It preserved peer-call bans and made no migration/loading claim.
+
+An on-demand Catalog consumer also preserved the five-total-parameter Command
+boundary, pointer entities/plural collections, value Money, safe transport mapping,
+domain-owned validation and the local golangci-lint plan. Its CatalogUseCase and
+independent export orchestrator reused one constructed CategoryService inside
+txCtx without passing provider/repository arguments or calling a peer service.
+
+The migrated runnable example passed `go test -race -count=1 ./...`, `go vet ./...`
+and build; touched Go files needed no formatting. A real compiled HTTP process
+returned health 200, creation 201, normalized read 200, duplicate 409, invalid and
+unknown-field 400, missing-user 404, and safe 500 on a deliberately rejected audit
+insert. SQLite retained only the original user/audit, proving no partial second
+write. SIGTERM exited zero; restart retained the committed user. Temporary process,
+database and binary were removed. SQLite is not PostgreSQL/MySQL/vendor evidence.
+
+Repository `node --test` passed 216 tests. Structural checks resolved 191 local
+links across 15 skill/reference/example Markdown files and both skill metadata
+blocks. Native host loading and live external integrations were not exercised.
 
 ## Observed evidence
 

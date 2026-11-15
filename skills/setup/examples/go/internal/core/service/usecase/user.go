@@ -1,4 +1,4 @@
-package user
+package usecase
 
 import (
 	"context"
@@ -11,17 +11,17 @@ import (
 	outport "example.com/architecture-handbook/internal/core/port/out"
 )
 
-type UseCase struct {
+type UserUseCase struct {
 	userProvider    outport.UserProvider
 	userRepository  outport.UserRepository
 	auditRepository outport.AuditRepository
 	transactor      outport.Transactor
 }
 
-var _ inport.UserUseCase = (*UseCase)(nil)
+var _ inport.UserUseCase = (*UserUseCase)(nil)
 
-func NewUseCase(userProvider outport.UserProvider, userRepository outport.UserRepository, auditRepository outport.AuditRepository, transactor outport.Transactor) *UseCase {
-	return &UseCase{
+func NewUserUseCase(userProvider outport.UserProvider, userRepository outport.UserRepository, auditRepository outport.AuditRepository, transactor outport.Transactor) *UserUseCase {
+	return &UserUseCase{
 		userProvider:    userProvider,
 		userRepository:  userRepository,
 		auditRepository: auditRepository,
@@ -29,7 +29,7 @@ func NewUseCase(userProvider outport.UserProvider, userRepository outport.UserRe
 	}
 }
 
-func (s *UseCase) CreateUser(ctx context.Context, input command.CreateUserCommand) (*domain.User, error) {
+func (s *UserUseCase) CreateUser(ctx context.Context, input command.CreateUserCommand) (*domain.User, error) {
 	user, err := domain.NewUser(input.Name, input.Email, time.Now())
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (s *UseCase) CreateUser(ctx context.Context, input command.CreateUserComman
 	return created, nil
 }
 
-func (s *UseCase) GetUser(ctx context.Context, id int) (*domain.User, error) {
+func (s *UserUseCase) GetUser(ctx context.Context, id int) (*domain.User, error) {
 	if id < 1 {
 		return nil, fmt.Errorf("%w: user ID must be positive", domain.ErrInvalidInput)
 	}

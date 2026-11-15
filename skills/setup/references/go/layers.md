@@ -201,10 +201,10 @@ The first merges transport/storage with domain; the second bypasses construction
 
 ## 3. Application service: coordinate, do not translate protocols
 
-Place this fragment in `internal/core/service/usecase/user/usecase.go`. The package is `user`; its `NewUseCase` implements `UserUseCase`. Returning an inbound interface is this example's convention; a concrete constructor return is also valid when the caller still depends on the boundary it needs.
+Place this fragment in `internal/core/service/usecase/user.go`, in the flat `usecase` package. `UserUseCase` and `NewUserUseCase` name the implementation and constructor; the implementation satisfies `inport.UserUseCase`. Returning an inbound interface is this example's convention; a concrete constructor return is also valid when the caller still depends on the boundary it needs.
 
 ```go
-package user
+package usecase
 
 import (
     "context"
@@ -217,19 +217,19 @@ import (
     outport "example.com/app/internal/core/port/out"
 )
 
-type useCase struct {
+type UserUseCase struct {
     userProvider outport.UserProvider
     userRepo     outport.UserRepository
     now          func() time.Time
 }
 
-func NewUseCase(userProvider outport.UserProvider, userRepo outport.UserRepository, now func() time.Time) inport.UserUseCase {
-    return &useCase{userProvider: userProvider, userRepo: userRepo, now: now}
+func NewUserUseCase(userProvider outport.UserProvider, userRepo outport.UserRepository, now func() time.Time) inport.UserUseCase {
+    return &UserUseCase{userProvider: userProvider, userRepo: userRepo, now: now}
 }
 
-var _ inport.UserUseCase = (*useCase)(nil)
+var _ inport.UserUseCase = (*UserUseCase)(nil)
 
-func (s *useCase) CreateUser(ctx context.Context, cmd command.CreateUserCommand) (*domain.User, error) {
+func (s *UserUseCase) CreateUser(ctx context.Context, cmd command.CreateUserCommand) (*domain.User, error) {
     if err := ctx.Err(); err != nil {
         return nil, err
     }
@@ -244,7 +244,7 @@ func (s *useCase) CreateUser(ctx context.Context, cmd command.CreateUserCommand)
     return created, nil
 }
 
-func (s *useCase) GetUser(ctx context.Context, id int) (*domain.User, error) {
+func (s *UserUseCase) GetUser(ctx context.Context, id int) (*domain.User, error) {
     if id <= 0 {
         return nil, inport.ErrInvalidInput
     }
@@ -255,7 +255,7 @@ func (s *useCase) GetUser(ctx context.Context, id int) (*domain.User, error) {
     return u, nil
 }
 
-func (s *useCase) ListUsers(ctx context.Context, q inport.ListUsersQuery) (inport.UserPage, error) {
+func (s *UserUseCase) ListUsers(ctx context.Context, q inport.ListUsersQuery) (inport.UserPage, error) {
     q, err := q.Normalize()
     if err != nil {
         return inport.UserPage{}, err
@@ -280,7 +280,7 @@ The example query policy is default 50, max 100, offset max 100000—not univers
 and a hypothetical global `persistence` registry):
 
 ```go
-func (s *useCase) CreateUser(_ context.Context, req dto.CreateUserRequest) (*ent.User, error) {
+func (s *UserUseCase) CreateUser(_ context.Context, req dto.CreateUserRequest) (*ent.User, error) {
     client := persistence.GlobalClient()
     return client.User.Create().SetName(req.Name).SetEmail(req.Email).
         Save(context.Background())
@@ -964,7 +964,7 @@ Retain cohesive `internal/pkg/{constants,errors,logger,utils}` mechanics, not an
 
 ### Composition selects all concrete adapters
 
-`cmd/api/main.go` knows concrete adapter and use-case constructors for ordinary wiring. This fragment is inside a startup function whose `startupCtx`, validated `cfg`, and root `log` are already in scope. Standard imports include `fmt`/`time`; `db`, `provider`, and `repository` import matching `internal/adapter/out/persistence/postgres/` packages; `user` imports `internal/core/service/usecase/user`; `httpadapter` aliases the HTTP adapter.
+`cmd/api/main.go` knows concrete adapter and use-case constructors for ordinary wiring. This fragment is inside a startup function whose `startupCtx`, validated `cfg`, and root `log` are already in scope. Standard imports include `fmt`/`time`; `db`, `provider`, and `repository` import matching `internal/adapter/out/persistence/postgres/` packages; `usecase` imports `internal/core/service/usecase`; `httpadapter` aliases the HTTP adapter.
 
 ```go
 client, err := db.NewEntClient(startupCtx, cfg.Database)
@@ -979,7 +979,7 @@ defer func() {
 
 userProvider := provider.NewUserProvider(client)
 userRepo := repository.NewUserRepository(client)
-userUseCase := user.NewUseCase(userProvider, userRepo, time.Now)
+userUseCase := usecase.NewUserUseCase(userProvider, userRepo, time.Now)
 router := httpadapter.NewRouter(userUseCase, log)
 ```
 

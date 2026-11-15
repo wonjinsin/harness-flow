@@ -139,12 +139,15 @@ and Zerolog. Dependency versions are not architectural requirements. The handboo
 addresses context propagation, multi-repository transactions, and safe public
 errors alongside the chosen structure.
 
-Storage is organized by the actual engine, then read-only `provider`, write
-`repository`, reusable `db` mechanics and adapter-owned DAO code. Application
-implementations use domain-specific `service/usecase`, real reused
-`service/shared` capabilities and composite `service/orchestration` workflows.
-Peer use cases/services do not call one another; orchestration does not call
-use cases, and pure business rules remain in domain.
+Adapters are partitioned by actual protocol, engine, vendor or format, including
+single implementations. Persistence then separates read-only `provider`, write
+`repository`, reusable `db` mechanics and DAO code; each concrete adapter's type
+and constructor stay with its methods in its own file.
+Application areas are packages with named owners in files: `usecase/catalog.go`
+declares `CatalogUseCase`, `orchestration/analysis.go` declares `AnalysisOrchestrator`,
+and reused I/O lives in named services such as `shared.AccountingService`.
+Shared services receive dependencies once at construction, not on each operation.
+Peer service calls remain forbidden; pure business rules remain in domain.
 
 The [Go coding conventions](skills/setup/references/go/coding-conventions.md)
 define entity pointers and named plural pointer collections, value semantics for
@@ -391,7 +394,7 @@ Project-local (`<project>/.claude/settings.json`) — use `$CLAUDE_PROJECT_DIR`,
 **Meta**
 
 - **using-harness-flow** — entry point for the skill system, injected at session start
-- **writing-skills** — create, edit, and verify skills through evidence-based evaluations; skill-only work goes here directly, even with an approved spec, plan, or brief
+- **writing-skills** — create, edit, and verify skills through evidence-based evaluations; revise owning rules in place, merge overlap and remove superseded sections instead of appending overrides. Skill-only work goes here directly, even with an approved spec, plan, or brief.
 - **llm-md-revise** — filters session learnings into a user-approved batch for the repository's canonical project instructions
 - **caveman** — ultra-compressed "caveman" response mode for token efficiency (pre-activated via `session-start-caveman.js`)
 

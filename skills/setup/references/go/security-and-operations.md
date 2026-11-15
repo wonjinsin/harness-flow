@@ -21,7 +21,7 @@ Missing identity policy blocks protected endpoints; never hardcode `admin`, trus
 - HTTP router/middleware own public/protected groups, authentication, bounded input/trace IDs, recovery and admission; trust forwarding headers only from configured proxies. Handlers/DTOs parse, map explicit application input/result and render typed outcomes—not business rules.
 - Input ports carry explicit actor inputs; services enforce action/object policy for HTTP, jobs and other callers. Domain owns business invariants, not JWT/HTTP/Ent. Follow [architecture](architecture.md) for usecase/shared/orchestration dependencies, including peer-call bans.
 - Output ports expose needed persistence/policy/vendor capabilities; reuse existing policy rather than invent abstractions. Under `persistence/postgres`, `provider` reads, `repository` guards writes/translates constraints, `db` owns lifecycle/private `txCtx` resolution without importing provider/repository, and `dao` separates generated Ent from handwritten mapping. Apply trusted scope to reads **and** writes; a transaction is not authorization. Read [data and transactions](data-and-transactions.md) when implementing these adapters.
-- Identity/vendor integrations remain outside persistence; its “provider” means database reads.
+- Follow [architecture](architecture.md) for identity/vendor adapter placement; persistence “provider” means database reads.
 - `internal/config` owns typed startup settings; existing `internal/pkg/errors`/`logger` own small helpers, not business policy/service locators. `cmd/api/main.go` composes clients/pools/health/lifecycle, not authorization.
 
 ## 2. Authentication is not authorization
@@ -81,9 +81,11 @@ Cookie sessions require `Secure`, `HttpOnly`, appropriate `SameSite`, expiry/rot
 
 Pass the verified actor explicitly through the input port, not `*http.Request`, middleware context keys, JWT maps or caller roles. Jobs require defined service capabilities, not implicit admin rights.
 
-Scoped `service/usecase/user` example; imports: `context`, `errors`, `fmt`, `example.com/project/internal/core/domain` (replace module path). `Actor`/`UserReadPolicy` are conditional extensions from approved policy, not changes to canonical User fields/`UserUseCase` or implicit allow-authenticated policy:
+Scoped `internal/core/service/usecase/user.go` alternative in package `usecase`; imports: `context`, `errors`, `fmt`, `example.com/project/internal/core/domain` (replace module path). `Actor`/`UserReadPolicy` are conditional extensions from approved policy, not changes to canonical User fields/`inport.UserUseCase` or implicit allow-authenticated policy:
 
 ```go
+package usecase
+
 type Actor struct {
     Subject string
 }
@@ -96,14 +98,18 @@ type UserReadPolicy interface {
     AuthorizeRead(context.Context, Actor, *domain.User) error
 }
 
-type UseCase struct {
+type UserUseCase struct {
     userProvider UserProvider
     policy       UserReadPolicy
 }
 
+func NewUserUseCase(userProvider UserProvider, policy UserReadPolicy) *UserUseCase {
+    return &UserUseCase{userProvider: userProvider, policy: policy}
+}
+
 var ErrMissingActor = errors.New("missing actor")
 
-func (s *UseCase) GetUser(ctx context.Context, actor Actor, id int) (*domain.User, error) {
+func (s *UserUseCase) GetUser(ctx context.Context, actor Actor, id int) (*domain.User, error) {
     if actor.Subject == "" {
         return nil, ErrMissingActor
     }

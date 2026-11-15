@@ -43,7 +43,7 @@ Choose the boundary from the fact: stock decrement plus reservation insert needs
 
 Core's `internal/core/port/out` (`outport`) owns contracts, never SQL/Ent handles. Reuse one `Transactor.WithinTransaction` per database across domains/workflows: owner-locked updates and provisioning perform validation/locks explicitly through ports inside `txCtx`, not per-policy runners/bundles. Choose suitable isolation; different databases cannot share a local transaction. This example rejects nesting; already-scoped helpers use supplied context.
 
-The next three sections use [domain's reservation](domain.md) and module `example.com/reservations` (substitute the target module). Stock/reservation orchestration belongs in `service/orchestration/reservation`, without calling use cases/peer services even through interfaces. Its existing injected adapters work independently with ordinary `ctx` and transactionally with `txCtx`; shared fields never switch handles.
+The next three sections use [domain's reservation](domain.md) and module `example.com/reservations` (substitute the target module). Stock/reservation orchestration belongs in `service/orchestration/reservation.go`, in the flat `orchestration` package, without calling use cases/peer services even through interfaces. Its existing injected adapters work independently with ordinary `ctx` and transactionally with `txCtx`; shared fields never switch handles.
 
 ### Outbound port: existing repositories and a context callback
 
@@ -139,10 +139,10 @@ The parent `in` imports child `command`, never the reverse or a concrete service
 
 ### Application orchestration: return success only after commit
 
-`internal/core/service/orchestration/reservation/orchestration.go`: consumer-owned `Clock` is wired by composition. Resolve/authorize `Tenant`; never trust a JSON tenant field.
+`internal/core/service/orchestration/reservation.go` declares `ReservationOrchestrator` and `NewReservationOrchestrator`; consumer-owned `Clock` is wired by composition. Resolve/authorize `Tenant`; never trust a JSON tenant field.
 
 ```go
-package reservation
+package orchestration
 
 import (
     "context"
@@ -159,24 +159,24 @@ type Clock interface {
     Now() time.Time
 }
 
-type Orchestration struct {
+type ReservationOrchestrator struct {
     transactor      outport.Transactor
     stockRepo       outport.StockRepository
     reservationRepo outport.ReservationRepository
     clock           Clock
 }
 
-var _ inport.ReservationUseCase = (*Orchestration)(nil)
+var _ inport.ReservationUseCase = (*ReservationOrchestrator)(nil)
 
-func NewOrchestration(transactor outport.Transactor, stockRepo outport.StockRepository,
-    reservationRepo outport.ReservationRepository, clock Clock) *Orchestration {
-    return &Orchestration{
+func NewReservationOrchestrator(transactor outport.Transactor, stockRepo outport.StockRepository,
+    reservationRepo outport.ReservationRepository, clock Clock) *ReservationOrchestrator {
+    return &ReservationOrchestrator{
         transactor: transactor, stockRepo: stockRepo,
         reservationRepo: reservationRepo, clock: clock,
     }
 }
 
-func (s *Orchestration) Reserve(ctx context.Context, cmd command.ReserveCommand) (*domain.Reservation, error) {
+func (s *ReservationOrchestrator) Reserve(ctx context.Context, cmd command.ReserveCommand) (*domain.Reservation, error) {
     if err := ctx.Err(); err != nil {
         return nil, err
     }

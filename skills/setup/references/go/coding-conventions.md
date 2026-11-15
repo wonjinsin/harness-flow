@@ -14,9 +14,11 @@ Process/Handle names. Preserve accepted local/public names; report conflicts.
 
 These additional conventions belong to this profile, not a universal Google architecture:
 
-- Domain-named inbound contracts: UserUseCase/ReservationUseCase, not universal
-  UseCase/Service. Read persistence through UserProvider; mutate through
-  UserRepository. AIProvider/PaymentProvider stay in their own external adapters.
+- Name both inbound contracts and concrete services: UserUseCase/ReservationUseCase,
+  AnalysisOrchestrator, AccountingService; not generic UseCase/Orchestrator/Service.
+  Follow [architecture placement](architecture.md#3-dependency-direction-is-about-imports-not-execution-order).
+  Read persistence through UserProvider; mutate through UserRepository.
+  AIProvider/PaymentProvider retain their external dependency roles.
 - Retain dependency roles in fields/parameters/composition: userProvider, userRepo,
   transactor, aiProvider—not repo for everything or Repository on every operation.
 - WithinTransaction receives txCtx and uses existing injected adapters, not
@@ -29,7 +31,10 @@ These additional conventions belong to this profile, not a universal Google arch
   descriptive results; Err-prefixed sentinels, Error-suffixed types. Retain the
   accepted cause-retaining taxonomy/safe mapper, not a second error system.
 
-Composition may import user and call user.NewUseCase; no naming-only Manager/Facade/alias.
+Composition calls usecase.NewUserUseCase, orchestration.NewAnalysisOrchestrator,
+or shared.NewAccountingService. If a constructor needs a dependency struct, name
+its owner (CatalogDependencies), not a package-wide Dependencies bag. Dependencies
+belong in constructors/fields, not operation inputs; no naming-only Manager/Facade/alias.
 
 ## 2. Five total boundary parameters require an input struct
 

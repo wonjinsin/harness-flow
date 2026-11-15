@@ -43,8 +43,9 @@ Read [architecture](references/go/architecture.md),
 [layers](references/go/layers.md),
 [coding conventions](references/go/coding-conventions.md), and
 [behavior ownership](references/go/behavior-ownership.md). These chapters own the
-exact placement, peer-call, command/import, typing, parameter-count, naming,
-spacing and tooling contracts; apply them to examples, not just the folder map.
+adapter partitioning, service file/type ownership, constructor injection, peer-call,
+command/import, typing, parameter-count, naming, spacing and tooling contracts;
+apply them to declarations and calls, not just the folder map.
 
 At application/outbound I/O boundaries, count `ctx` but not the receiver:
 four total parameters may remain scalar; five or more require a named input.

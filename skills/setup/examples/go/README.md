@@ -96,7 +96,7 @@ JSON promise. GET patterns also support HEAD.
 | Composition | [`cmd/api/main.go`](cmd/api/main.go): flags, concrete dependencies, server/database lifecycle |
 | Domain | [`internal/core/domain/user.go`](internal/core/domain/user.go): invariants, entity and semantic errors |
 | Inbound contract | [`port/in/user.go`](internal/core/port/in/user.go) and [`command/user.go`](internal/core/port/in/command/user.go): interface and mutation input |
-| Application/outbound | [`service/usecase/user/user.go`](internal/core/service/usecase/user/user.go), [`port/out/user.go`](internal/core/port/out/user.go), [`transaction.go`](internal/core/port/out/transaction.go): orchestration, read/write and transaction ports |
+| Application/outbound | [`service/usecase/user.go`](internal/core/service/usecase/user.go), [`port/out/user.go`](internal/core/port/out/user.go), [`transaction.go`](internal/core/port/out/transaction.go): concrete `UserUseCase`/`NewUserUseCase`, read/write and transaction ports |
 | HTTP | [`router.go`](internal/adapter/in/http/router.go), [`handler/`](internal/adapter/in/http/handler), [`dto/user_mapper.go`](internal/adapter/in/http/dto/user_mapper.go): routes, protocol/errors and wire mapping |
 | SQLite mechanics | [`db/database.go`](internal/adapter/out/persistence/sqlite/db/database.go), [`db/transaction.go`](internal/adapter/out/persistence/sqlite/db/transaction.go): schema/pool, private scope, executor and lifecycle |
 | SQLite behavior | [`provider/`](internal/adapter/out/persistence/sqlite/provider) and [`repository/`](internal/adapter/out/persistence/sqlite/repository): read/row mapping versus user/audit writes |

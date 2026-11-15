@@ -18,7 +18,7 @@ import (
 	sqlitedb "example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/db"
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/provider"
 	"example.com/architecture-handbook/internal/adapter/out/persistence/sqlite/repository"
-	"example.com/architecture-handbook/internal/core/service/usecase/user"
+	"example.com/architecture-handbook/internal/core/service/usecase"
 )
 
 func newAPI(t *testing.T) (http.Handler, *sql.DB) {
@@ -36,7 +36,7 @@ func newAPI(t *testing.T) (http.Handler, *sql.DB) {
 	userRepository := repository.NewUserRepository(db)
 	auditRepository := repository.NewAuditRepository(db)
 	transactor := sqlitedb.NewTransactor(db)
-	users := user.NewUseCase(userProvider, userRepository, auditRepository, transactor)
+	users := usecase.NewUserUseCase(userProvider, userRepository, auditRepository, transactor)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return httpadapter.NewRouter(users, db.PingContext, logger), db
 }
