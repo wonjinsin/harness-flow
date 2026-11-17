@@ -25,7 +25,7 @@ are not architectural requirements; guidance alone does not prove compliance.
 | Business rule, entity, value object, read model, or collection calculation | Domain, coding conventions, behavior ownership, relevant layers, testing |
 | Database write, transaction, uniqueness, concurrent update, pagination, cache, or migration | Data and transactions, behavior/domain ownership, testing |
 | External HTTP call, job, webhook, retry, idempotency, broker, or event | Reliability and events, data atomicity, security/operations, testing |
-| Authentication, authorization, tenancy, logging, configuration, or deployment | Security and operations, relevant data/reliability sections, testing |
+| Authentication, authorization, tenancy, response envelopes, execution IDs, logging, configuration, or deployment | Architecture's HTTP contract, layers' renderer/middleware, security and operations, relevant data/reliability sections, testing |
 | Refactor, legacy adoption, framework change, or new bounded context | Architecture, domain, testing/evolution, and the affected adapters |
 
 A selected chapter is not a mandate to implement every pattern it discusses.
@@ -48,7 +48,7 @@ map, not a second definition of the contracts.
 | [Domain](go/domain.md) | Invariants, entities/values/aggregates, construction versus hydration, identity/time/money and bounded contexts |
 | [Data and transactions](go/data-and-transactions.md) | Context propagation, existing adapters with `txCtx`, SQL/Ent binding and lifecycle, constraints/concurrency, queries, migrations and caches |
 | [Reliability and events](go/reliability-and-events.md) | Deadlines, retries, idempotency, outbox/inbox, ordering, irreversible effects and reconciliation |
-| [Security and operations](go/security-and-operations.md) | Identity/tenancy, input safety, private causes/public errors, logging, lifecycle, deployment and recovery |
+| [Security and operations](go/security-and-operations.md) | Identity/tenancy, input safety, private causes/public errors, execution-ID generation/propagation, flat JSON logs/caller/detail ownership, lifecycle, deployment and recovery |
 | [Testing and evolution](go/testing-and-evolution.md) | Behavioral evidence at domain/service/HTTP/database boundaries, concurrency, enforcement, legacy adoption and framework drift |
 | [Executable Go example](../examples/go/README.md) | Local SQLite/standard-library HTTP adaptation with atomic user/audit writes and negative paths; not proof of Chi/Ent/PostgreSQL or production readiness |
 

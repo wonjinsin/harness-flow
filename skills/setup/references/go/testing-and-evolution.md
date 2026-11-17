@@ -70,7 +70,11 @@ For runnable composition and request helpers, read [http/router_test.go](../../e
 
 These tests use the **local SQLite/stdlib adaptation**, not the canonical wire envelope or production Chi/Ent/PostgreSQL. Preserve the target API's accepted statuses/codes/authentication; never disable auth or change `422` to `400` to copy examples. They do not prove production identity, tenant policy, TLS, ingress or DB semantics.
 
-Extend with content type and exactly-one-JSON-value checks, required success identity, authorized response-field allowlist, error code, and no private fields. Inject a distinctive synthetic secret marker; search the entire public body/headers and ordinary logs, not just forbidden key names. Assert it appears only in approved restricted diagnostics with exactly one inbound owner. Use no real credentials.
+For the canonical profile, assert exactly `transaction_id`, string `response_code`, safe `message` and always-present `result` across success, validation/auth errors, router 404/405, recovery and serialization failure. Cover null, false, zero, empty string/list and nested JSON results; verify the actual HTTP status independently. Serialization failure keeps the original ID. Exercise HEAD and approved bodyless/file/stream exceptions separately.
+
+Check the execution ID's 17 timestamp digits plus five alphanumeric characters, millisecond zero-padding, explicit timezone and preservation across response/log/downstream context. Untrusted request headers cannot replace it. Log records have one physical JSON line, unique flat scalar keys, and runtime-derived `caller` pointing to direct and wrapped logging calls rather than the logger helper. Reject reserved-key collisions and nested extra values; verify optional safe detail survives and `operation`/`query` are absent. These are runtime assertions, not source-text matching.
+
+Inject a distinctive synthetic secret marker; search the entire public body/headers and ordinary logs, not just forbidden key names. Assert it appears only in approved restricted diagnostics with exactly one inbound owner. Use no real credentials.
 
 Cover malformed/trailing JSON, unsupported media, size edges, methods, missing/denied objects and approved existence policy. Run mapping cases with an input-port double, then selected real-service/database cases; report separately. `ResponseRecorder` cannot prove TLS/HTTP2/stream disconnect/proxy behavior: use `httptest.Server` or deployment checks for those.
 

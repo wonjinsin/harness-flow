@@ -656,3 +656,115 @@ hidden in new shipped files. Temporary execution harnesses/binaries/databases we
 removed. No commit, push, plugin installation, application migration or global
 change occurred. Native reader loading, real Ent/PostgreSQL/MySQL, broker/provider
 failure guarantees and full generated applications remain outside executed evidence.
+
+## Response, execution-ID and logging contract — 2026-11-17
+
+### Consumer protocol and fixed cases
+
+Use fresh consumers of the current checkout's `skills/setup/SKILL.md`, retrieving
+references on demand. Shared handbook-only delivery is approved, with no reader
+wiring, installation, source migration or tooling edits. Consumers return a
+handbook fragment, literal JSON and a helper/middleware outline; they do not
+modify repository files or run build/lint/tests/formatters. Do not give them
+the acceptance rubric or previous outputs.
+
+**HTTP case:** A new Go/Chi service has no existing wire contract. Produce
+guidance for user creation (HTTP 201, result `{"id":123}`), missing user (404),
+internal failure (500 with a secret-bearing private cause), and empty success.
+Admission is `2026-11-16T20:13:53.364+09:00`. Show concrete JSON and explain
+response/log correlation, ID generation/propagation, router 404/405, recovery,
+serialization failure, HEAD/204 and file/stream endpoints.
+
+**Logging case:** A new Go/Zerolog HTTP and worker service has no existing
+logger conventions. A wrapped handler log originates at
+`internal/adapter/in/http/handler/user.go:92 UserHandler.Create`, at
+`2026-11-16T20:13:54.382+09:00`, after 1018 ms. `POST /users` returns 503.
+Its cause is `pq: canceling statement due to statement timeout`; developer
+detail is `timeout_ms=1000`. An independent worker logs a safe message and
+`attempt=2`, without HTTP context. Show failure, ordinary HTTP completion and
+worker JSON; explain wrapper attribution, identity, extra fields/collisions,
+sensitive inputs and failure ownership.
+
+**Reserved fresh variation:** A new request begins
+`2026-01-01T01:01:00.007+09:00`. Show alternative successes with `result:false`
+and `result:0`. A logger has two transparent wrappers. Evaluate separate extra
+collections `{attempt:2}`, `{transaction_id:"override"}`, `{details:{attempt:2}}`
+and duplicate `(attempt,1),(attempt,2)` pairs. Distinguish public/private output
+for `db refused connection; password=SYNTHETIC_PRIVATE`. Finally, decide whether
+a handbook refresh may silently migrate a published `{trid,code,result}` API
+and its existing logger when no source-edit permission was given.
+
+### Acceptance, fixed before candidate authoring
+
+- Ordinary responses have exactly `transaction_id`, four-digit string
+  `response_code`, safe `message`, and always-present `result`; retain real HTTP
+  statuses and all JSON result types. Framework errors and serialization fallback
+  use the same renderer/ID. Protocol exceptions are explicit.
+- IDs contain 17 timestamp digits, including three milliseconds, plus five
+  cryptographically random ASCII alphanumerics. Use an explicit timezone shared
+  with log timestamps, generate once at admission, and propagate typed context.
+  Never replace with public headers, per-log IDs or fake entropy fallbacks.
+- Logs are flat, compact, single-line JSON. Runtime-derived `caller` contains
+  project-relative path, line and function of the real logging invocation,
+  accounting for supported wrappers rather than reporting the helper/error origin.
+- No `operation`/`query`, mandatory error-detail schema or nested `additional_info`.
+  Explicit safe scalar details survive at top level; collisions, duplicates and
+  nested extra values are rejected before emission. Workers invent no HTTP fields.
+- Preserve useful sanitized causes without leaking credentials. Exactly one
+  inbound failure owner; access/metrics/audit remain distinct. Execution IDs do
+  not establish database transactions, idempotency or guaranteed uniqueness.
+- Existing accepted APIs/loggers remain unchanged pending explicit migration;
+  handbook-only permission is not application-edit or installation permission.
+
+### Observed consumer results
+
+Each stage used one independent fresh consumer per case. These are observed
+artifact outcomes, not a statistical reliability estimate.
+
+| Stage | HTTP | Logging |
+| --- | --- | --- |
+| Pre-edit baseline | Failed: emitted `trid`/`code`, `result.msg`, omitted empty result and erased the ID on encoding failure; no required ID algorithm. | Failed: emitted `request_id` and `operation`, split caller/function, suppressed the supplied safe cause, and had no worker execution ID. |
+| Candidate | Passed: four-field responses and retained encoding-failure ID; exact admission-ID contract and protocol exceptions. | Passed: flat JSON, automatic caller contract, safe cause/timeout detail, independent worker identity and collision rules. |
+| Simplified final | Passed the same HTTP case. | Passed the same logging case. |
+
+After candidate success, removed the redundant statement that an empty ID
+accessor is not permission to generate an ID inside the logger; the create-once
+owner rule already establishes that. Both original cases passed again.
+
+The unseen variation also passed: preserved false/zero, emitted the `.007`
+timestamp as prefix `20260101010100007`, accepted scalar detail, rejected all
+three invalid collections without last-wins conversion, attributed through both
+wrappers, retained verified connection-refusal detail without the password, and
+refused an unauthorized application/API migration.
+
+### Executed evidence and limits
+
+Extracted the actual candidate ID/context, shared response renderer, HTTP
+admission/access middleware, recovery and authentication fragments into a
+temporary Go module. Used Go 1.25.1, Chi 5.2.3 and Zerolog 1.34.0 with a real
+loopback `httptest.Server`, not only response recorders. Both initial and final
+smoke runs passed:
+
+- 13 JSON responses, all six JSON result shapes, real 201/401/404/405/500/503
+  statuses, retained ID after failing custom serialization, no stale `Location`,
+  and the same IDs in responses and logs despite hostile correlation headers.
+- Eight millisecond boundaries including 000/001/009/010/099/100/364/999 and
+  UTC-input-to-profile-timezone conversion.
+- 27 single-line JSON records with unique scalar keys, expected timestamp,
+  direct/wrapped caller file/line/function in the optimized Go run, safe timeout
+  detail, independent worker context and no synthetic secret leakage.
+- Bodyless HEAD and a flushed, then panicking response: no replacement JSON was
+  appended after commitment.
+
+`node --test` passed 216 tests, zero failures/skips. All 210 local Markdown
+links checked across setup and the README resolved, including anchors; setup
+frontmatter/entry size and the changed literal JSON examples were valid.
+
+Field-collection rejection and a two-wrapper call chain were exercised by fresh
+artifact consumers; the executable smoke used fixed typed fields and one wrapper,
+not a shipped generic collection helper. Entropy-source failure, streaming/
+hijacking, native reader activation and a full production application remain
+unverified. The existing SQLite teaching adaptation intentionally keeps its
+documented different wire contract; it is not evidence for this canonical profile.
+Temporary smoke files were removed. No commit, push, plugin installation, global
+skill update or target-application migration was performed.

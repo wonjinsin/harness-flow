@@ -179,6 +179,13 @@ See [behavior ownership](skills/setup/references/go/behavior-ownership.md) for
 the worked review example and direct checks. Shorter methods alone are not the
 goal, and moving business policy into DTOs/DAOs is not a correction.
 
+The default HTTP contract uses `transaction_id`, string `response_code`, `message`
+and always-present `result`. The same execution ID connects responses and flat,
+single-line JSON logs; the logger captures the real callsite automatically, while
+callers supply safe additional fields. See the [wire contract](skills/setup/references/go/architecture.md#4-exact-responsibility-and-file-decisions)
+and [identity/logging rules](skills/setup/references/go/security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs).
+Refreshing this skill does not migrate an existing application's published API.
+
 Setup inspects the target stack and existing conventions, then asks the user how
 the guidance should be stored and loaded: **Claude Code native rules** under
 `.claude/rules/`, or **a shared handbook with selected reader wiring**. The shared

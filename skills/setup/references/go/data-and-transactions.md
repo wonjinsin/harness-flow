@@ -11,7 +11,7 @@ This chapter implements the canonical Chi/Ent/PostgreSQL profile. When needed, r
 - **Optional:** cache, replicas, read models, stronger isolation, asynchronous propagation—each needs an explicit guarantee.
 - **Project decisions:** atomic facts, conflict/uniqueness/tenant semantics, isolation/deadlines, staleness, retry safety, compatibility, uncertain outcomes.
 
-Under `internal/adapter/out/persistence/postgres`, `provider` reads, `repository` writes, and `db` owns pool/transaction lifecycle and private scope/resolution—not mapping or business SQL. Generated Ent lives in `dao/ent`; handwritten mapping in `dao/*_mapper.go` or beside its owner. `db` never imports providers/repositories. A request `TrID` is correlation, not a transaction; implement the transaction infrastructure explicitly.
+Under `internal/adapter/out/persistence/postgres`, `provider` reads, `repository` writes, and `db` owns pool/transaction lifecycle and private scope/resolution—not mapping or business SQL. Generated Ent lives in `dao/ent`; handwritten mapping in `dao/*_mapper.go` or beside its owner. `db` never imports providers/repositories. The request's `transaction_id` is correlation, not a database transaction; implement the transaction infrastructure explicitly.
 
 ## 1. Propagate cancellation all the way to the driver
 

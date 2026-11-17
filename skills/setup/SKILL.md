@@ -61,8 +61,10 @@ sample User feature or ask for facts available in files.
 
 Select every relevant chapter through the index. Multi-repository writes require
 [data and transactions](references/go/data-and-transactions.md), external effects
-require [reliability](references/go/reliability-and-events.md), and protected
-resources require [security](references/go/security-and-operations.md). Initial
+require [reliability](references/go/reliability-and-events.md). HTTP responses,
+execution IDs, logging and protected resources require
+[security](references/go/security-and-operations.md) alongside the architecture
+and layer contracts. Initial
 adoption assesses all chapters, but materializes only adopted rules and useful
 examples. Use [applicability](references/adoption.md#3-decide-applicability-before-materializing-patterns)
 to distinguish required baseline, conditional, optional and undecided rules;

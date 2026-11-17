@@ -30,7 +30,7 @@ Missing identity policy blocks protected endpoints; never hardcode `admin`, trus
 
 ### Authenticate at the inbound adapter
 
-Scoped middleware; imports: `context`, `net/http`, `strings`. The project must supply a real provider/library-backed `TokenVerifier` satisfying this contract, not arbitrary-claim acceptance:
+Scoped middleware; imports: `context`, `net/http`, `strings`, and the shared HTTP `utils` renderer from [layers](layers.md#classify-errors-once-serialize-once). The transaction-ID/logger middleware runs before authentication. The project must supply a real provider/library-backed `TokenVerifier` satisfying this contract, not arbitrary-claim acceptance:
 
 ```go
 type Principal struct {
@@ -56,13 +56,13 @@ func RequireBearer(verifier TokenVerifier, next http.Handler) http.Handler {
         if !ok || !strings.EqualFold(scheme, "Bearer") || token == "" ||
             strings.ContainsAny(token, " \t\r\n") {
             w.Header().Set("WWW-Authenticate", "Bearer")
-            http.Error(w, "authentication required", http.StatusUnauthorized)
+            utils.Respond(w, r, http.StatusUnauthorized, "Authentication required", nil)
             return
         }
         principal, err := verifier.Verify(r.Context(), token)
         if err != nil || principal.Subject == "" {
             w.Header().Set("WWW-Authenticate", "Bearer")
-            http.Error(w, "authentication required", http.StatusUnauthorized)
+            utils.Respond(w, r, http.StatusUnauthorized, "Authentication required", nil)
             return
         }
         ctx := context.WithValue(r.Context(), principalKey{}, principal)
@@ -71,7 +71,7 @@ func RequireBearer(verifier TokenVerifier, next http.Handler) http.Handler {
 }
 ```
 
-Reuse the accepted JSON error renderer when required; never log tokens/expose verifier errors. Privately distinguish verifier outage from invalid credentials; safe `503` versus `401` is policy, never fail-open. Bound headers/tokens and rate-limit before expensive cryptography.
+Use the shared renderer for all ordinary JSON API rejections; never log tokens/expose verifier errors. Privately distinguish verifier outage from invalid credentials; safe `503` versus `401` is policy, never fail-open. Bound headers/tokens and rate-limit before expensive cryptography.
 
 Configure issuer/key set, allowed algorithms, audience, expiry/not-before, bounded clock skew, rotation and session acceptance. Reject attacker-selected keys/URLs; parsing JWTs is not verification. Use provider libraries, not ad hoc hashing/cryptography.
 
@@ -241,47 +241,28 @@ func (e *Failure) Unwrap() error { return e.Cause }
 
 `Op` is fixed developer text, never raw input. `%w` preserves cause; exposing concrete causes as an API remains a decision. Never serialize `Failure.Error()`.
 
-Complete HTTP mapper; imports: `context`, `encoding/json`, `errors`, `net/http`; `apperrors` aliases the preceding shared type (e.g. `example.com/project/internal/pkg/errors`). `requestID` is validated/generated. This **alternative** JSON shape is not permission to migrate the canonical `{trid, code, result}`, four-digit codes and error `result: {msg}` in [layers](layers.md); reuse the target's accepted renderer.
+HTTP classification fragment; imports: `context`, `errors`, `net/http`; `apperrors` aliases the preceding shared type. Pass the returned status/message with `result:nil` to the [shared renderer](layers.md#classify-errors-once-serialize-once). This mapper defines no second response shape and never exposes `Failure.Error()`:
 
 ```go
-type PublicError struct {
-    Code      string `json:"code"`
-    Message   string `json:"message"`
-    RequestID string `json:"request_id,omitempty"`
-}
-
-func WriteError(w http.ResponseWriter, err error, requestID string) {
-    status := http.StatusInternalServerError
-    body := PublicError{
-        Code: "internal", Message: "request could not be completed", RequestID: requestID,
-    }
+func PublicFailure(err error) (int, string) {
     var failure *apperrors.Failure
     if errors.As(err, &failure) {
         switch failure.Code {
         case apperrors.Invalid:
-            status = http.StatusBadRequest
-            body.Code, body.Message = "invalid_input", "invalid request"
+            return http.StatusBadRequest, "Invalid request"
         case apperrors.NotFound:
-            status = http.StatusNotFound
-            body.Code, body.Message = "not_found", "resource not found"
+            return http.StatusNotFound, "Resource not found"
         case apperrors.Forbidden:
-            status = http.StatusForbidden
-            body.Code, body.Message = "forbidden", "operation not permitted"
+            return http.StatusForbidden, "Operation not permitted"
         case apperrors.Conflict:
-            status = http.StatusConflict
-            body.Code, body.Message = "conflict", "operation conflicts with current state"
+            return http.StatusConflict, "Operation conflicts with current state"
         case apperrors.Unavailable:
-            status = http.StatusServiceUnavailable
-            body.Code, body.Message = "unavailable", "service temporarily unavailable"
+            return http.StatusServiceUnavailable, "Service temporarily unavailable"
         }
     } else if errors.Is(err, context.DeadlineExceeded) {
-        status = http.StatusGatewayTimeout
-        body.Code, body.Message = "deadline_exceeded", "request deadline exceeded"
+        return http.StatusGatewayTimeout, "Request deadline exceeded"
     }
-    w.Header().Set("Content-Type", "application/json")
-    w.Header().Set("Cache-Control", "no-store")
-    w.WriteHeader(status)
-    _ = json.NewEncoder(w).Encode(body)
+    return http.StatusInternalServerError, "Internal server error"
 }
 ```
 
@@ -340,34 +321,99 @@ Use approved secret-manager/protected runtime injection; committed `.env` and ba
 
 ## 6. Logging, traces, metrics, and audit have different jobs
 
-**Required baseline.** Use existing Zerolog structured conventions, stable fields/levels and bounded sanitized metadata: operation, route template, method, status, duration, category and correlation ID. Exclude raw ID paths, bodies, auth/cookies, DSNs, email/payment data and untrusted field names; apply access/retention policy.
+**Required baseline:** emit compact, single-line JSON in every environment. All log values are top-level scalars; no nested `http`, `error`, `db`, `additional_info`, arrays or JSON-encoded objects hidden in strings. JSON escaping keeps embedded newlines inside one physical record. Use a concurrency-safe event writer so records cannot interleave. An accepted existing format needs an explicit migration decision, not a second logger.
+
+### Execution identity, independent of logging
+
+`transaction_id` identifies one inbound HTTP, worker/job or CLI execution, not a database transaction. Generate it once at admission, before authentication/validation, then pass it through typed context to services, repositories and outbound adapters. The response renderer and request/job-scoped logger read that same value; neither generates another ID. Each independent execution gets a new ID. Trusted downstream propagation is explicit; never adopt arbitrary public request headers as the canonical ID. Do not install a second `request_id`/`trid` generator.
+
+Format: `yyyyMMddHHmmssSSS` (17 digits, including **three millisecond digits**) plus **five cryptographically random ASCII alphanumeric characters** (`A-Z`, `a-z`, `0-9`), exactly **22 characters**. Example: `20261116201353364a7K2m`. Use one explicit timezone for the ID prefix and log timestamps; the default profile uses Asia/Seoul (`+09:00`), never ambient machine local time. An adopted timezone change must change both. The ID prefix is the admission time; a log's `time` is its event time.
+
+The suffix is not a uniqueness guarantee, database key, idempotency key or commit proof. Do not substitute counters, truncated UUIDs or time-only fallbacks. Entropy failure stops admission before business work; report the infrastructure failure without fabricating an ID. An emergency HTTP 503 still has all four response fields, with an explicitly unavailable empty `transaction_id`.
+
+Core correlation mechanics for `internal/pkg/logger`; imports: `context`, `crypto/rand`, `time`. Only the inbound owner calls `NewTransactionID`/`WithTransactionID`; downstream code calls `TransactionID`:
+
+```go
+var logLocation = time.FixedZone("KST", 9*60*60)
+
+type transactionIDKey struct{}
+
+func NewTransactionID(now time.Time) (string, error) {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    var storage [22]byte
+    id := now.In(logLocation).AppendFormat(storage[:0], "20060102150405")
+    ms := now.Nanosecond() / 1_000_000
+    id = append(id, byte('0'+ms/100), byte('0'+ms/10%10), byte('0'+ms%10))
+    var random [8]byte
+    for len(id) < len(storage) {
+        if _, err := rand.Read(random[:]); err != nil {
+            return "", err
+        }
+        for _, value := range random {
+            if value >= 248 {
+                continue
+            }
+            id = append(id, alphabet[int(value)%len(alphabet)])
+            if len(id) == len(storage) {
+                break
+            }
+        }
+    }
+    return string(id), nil
+}
+
+func WithTransactionID(ctx context.Context, id string) context.Context {
+    return context.WithValue(ctx, transactionIDKey{}, id)
+}
+
+func TransactionID(ctx context.Context) string {
+    id, _ := ctx.Value(transactionIDKey{}).(string)
+    return id
+}
+```
+
+The rejection threshold avoids modulo bias. Startup/shutdown logs outside a request/job may omit `transaction_id`; request/job logs and API responses must not.
+
+### Automatic fields and caller-supplied detail
+
+The logger owns `time`, `level`, `transaction_id`, `caller`, and `message`. `time` includes the full date, hour/minute/second, exactly three millisecond digits and timezone, e.g. `2026-11-16T20:13:54.382+09:00`. For Zerolog, configure `TimeFieldFormat = "2006-01-02T15:04:05.000Z07:00"` and `TimestampFunc` in the same zone at startup; attach timestamp/caller hooks once at construction.
+
+**Automatic `caller`:** project-relative source path, line and function at the actual logging call, e.g. `internal/adapter/in/http/handler/user.go:92 UserHandler.Create`. Capture it at emission, not logger construction; callers never type a location string. Configure the library's caller formatter (`CallerMarshalFunc` with `runtime.FuncForPC` in Zerolog) and source-path mapping. Account for each supported logging wrapper's stack depth (`CallerSkipFrame`/`CallerWithSkipFrameCount`), without changing a global skip count per request. Check direct and wrapped calls, including optimized builds. Caller is where the log was emitted, **not** the original error site.
+
+**Additional information is caller input, not an output object.** Accept developer-selected string/number/boolean/null fields and merge them at the top level. Do not automatically serialize structs, error graphs, request/job payloads or arbitrary user-selected keys. Additional fields cannot overwrite the five owned fields, inherited context fields, or each other; reject collisions before emission, never emit duplicate JSON keys or rely on last-wins decoding. Reject nested values rather than stringify them. Use existing typed logger APIs for literal fields; only a helper accepting a field collection needs the collision/type checks.
+
+HTTP boundaries supply known `method`, normalized `route`, numeric `status`, `response_code` string when applicable, and numeric `duration_ms`; workers do not fabricate HTTP fields. `operation` and `query` are not log fields: use `caller` to locate the call. Do not require `error_phase`, `error_code`, `error_message`, `error_source`, a database-state object, or an `additional_info` object. Error/detail fields such as `error`, `timeout_ms` or `attempt` are explicitly chosen for that call, not a mandatory diagnostic schema.
+
+Retain the actual diagnostic content after redaction, not just `category=internal` or a generic failure label. A known-safe cause may be attached as `error`; unknown foreign error strings require adapter-aware sanitization, with only verified safe details retained. Exclude raw ID paths, request bodies, auth/cookies, DSNs, SQL parameters, email/payment data and credentials. Public response messages remain separately sanitized. Logging helpers cannot make arbitrary text safe merely by JSON-escaping it; apply access/retention policy.
+
+Illustrative emitted record; `caller` is runtime-derived, and `error`/`timeout_ms` are supplied by the owning log call:
+
+```json
+{"time":"2026-11-16T20:13:54.382+09:00","level":"error","transaction_id":"20261116201353364a7K2m","caller":"internal/adapter/in/http/handler/user.go:92 UserHandler.Create","message":"User creation failed","method":"POST","route":"/users","status":503,"duration_ms":1018,"error":"pq: canceling statement due to statement timeout","timeout_ms":1000}
+```
 
 **Single failure-diagnostic owner:** each HTTP, worker/job or CLI execution logs once at its inbound boundary **or** framework final handler, never both. Domain/services/providers/repositories/outbound adapters enrich and return preserved errors **without logging**, at any level. Explicit project exceptions still name one owner (e.g. lifecycle failure with no inbound boundary). Access records, metrics and required audit are distinct signals.
 
-- **Correlation/`TrID`:** bounded trusted/generated observation identity, not a transaction, idempotency key or commit proof.
+- **Correlation:** the execution ID above connects evidence; it is not tenant identity, authentication or authorization.
 - **Trace/span context:** validated/sampled under trusted ingress rules; no secrets in baggage that may cross organizations.
 - **Database transaction:** actual begin/commit/rollback resource boundary; middleware IDs cannot create one.
 - **Business/event ID:** durable identity with separate uniqueness/retention, not a fresh request ID.
 - **Audit:** defined actor/action/target/result evidence with access/tamper/retention controls, not sampled logs. Persist atomically with mutation/outbox when required, minimizing secrets.
 
-Inbound Zerolog field-shape fragment using an existing logger and middleware `time.Time`:
+Inbound Zerolog field-shape fragment using the already configured context logger and an explicitly sanitized cause; the five automatic fields are not repeated:
 
 ```go
-logger.Info().
-    Str("request_id", requestID).
-    Str("route", routeTemplate).
-    Str("method", method).
-    Int("status", status).
-    Dur("duration", time.Since(started)).
-    Str("outcome", outcomeCode).
-    Msg("http request completed")
+zerolog.Ctx(ctx).Error().
+    Str("error", safeCause).
+    Int("timeout_ms", timeoutMS).
+    Msg("User creation failed")
 ```
 
-Variables are sanitized metadata, not a response wrapper. A wrapper must preserve required streaming/hijacking interfaces (or use the framework's tested wrapper). Successful-request logs may be optional at volume; chosen SLO metrics remain necessary.
+Choose error for unexpected execution failures, warn for actionable expected degradation, info for ordinary completion and debug for opt-in diagnostic detail. Do not upgrade every validation rejection to error or log the same propagated failure at debug in inner layers. Successful-request access logs may be optional at volume; chosen SLO metrics remain necessary. HTTP wrappers must preserve required streaming/hijacking interfaces.
 
 **Metrics:** bounded route/method/status/operation/category labels, never user/email/trace/key/URL/provider messages. Measure request/dependency latency/errors, DB pool wait/use and worker saturation; adopted async features add oldest backlog, attempts, mismatches, poison depth and unknown/reconciliation age. Alert on actionable impact/backlog. Sampling cannot erase required audit evidence.
 
-**Verify:** success/denial/input/provider/panic telemetry; one diagnostic at each supported inbound kind, none in inner layers/second handler, distinct access/metrics/audit; no synthetic secret/PII leakage; bounded labels across random IDs; safe outbox causation without claiming a trace is a transaction.
+**Verify:** success/denial/input/provider/panic telemetry; one diagnostic at each supported inbound kind; exact ID shape, millisecond padding, shared response/log identity and no header takeover; direct/wrapped caller file/line/function; one physical JSON line with unique top-level scalar keys; collision/nested-value rejection; known-safe diagnostic detail retained without synthetic secret/PII leakage. Keep access/metrics/audit distinct, labels bounded across random IDs and outbox causation separate from transaction guarantees.
 
 ## 7. Health endpoints describe traffic eligibility, not business success
 

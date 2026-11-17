@@ -318,13 +318,9 @@ type UserListResponse struct {
     Limit   int            `json:"limit"`
     HasMore bool           `json:"has_more"`
 }
-
-type ErrorResult struct {
-    Msg string `json:"msg"`
-}
 ```
 
-Keep `ErrorResult` in `dto/response.go` and use the established `utils.StandardResponse` (`internal/pkg/utils/http.go`). This controller implements [architecture's default envelope](architecture.md#4-exact-responsibility-and-file-decisions), not bare JSON/problem details or a second helper. Existing helper relocation requires an explicit migration. Exposing `Email` is an API/access decision; protected lists may need narrower responses.
+Use the shared `utils.StandardResponse` and `utils.Respond` (`internal/pkg/utils/http.go`) for [architecture's default envelope](architecture.md#4-exact-responsibility-and-file-decisions). Errors use its top-level `message` and `result:null`, not a separate error DTO. Existing helper relocation requires an explicit migration. Exposing `Email` is an API/access decision; protected lists may need narrower responses.
 
 Put conversion in the **HTTP** mapper `internal/adapter/in/http/dto/user_mapper.go`:
 
@@ -381,7 +377,7 @@ func ToCommand(req CreateUserRequest, repo outport.UserRepository) command.Creat
 
 ## 5. HTTP controller: bounded decode, use-case call, safe response
 
-`internal/adapter/in/http/handler/user.go` owns parsing/status/headers and depends on the inbound port. These shared-package fragments import standard `context`, `encoding/json`, `errors`, `fmt`, `io`, `mime`, `net/http`, `strconv`; Chi; Chi middleware as `chimw`; Zerolog; `dto`, `domain`, `inport`, `outport`; and existing `utils`. Middleware below installs the request logger.
+`internal/adapter/in/http/handler/user.go` owns parsing/status/headers and depends on the inbound port. These shared-package controller fragments import standard `context`, `encoding/json`, `errors`, `io`, `mime`, `net/http`, `strconv`; Chi; Zerolog; `dto`, `domain`, `inport`, `outport`; and existing `utils`. Middleware below installs the request logger.
 
 ```go
 type UserController struct {
@@ -404,7 +400,7 @@ func (c *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
         return
     }
     w.Header().Set("Location", "/users/"+strconv.Itoa(u.ID))
-    c.respond(w, r, http.StatusCreated, dto.ToUserResponse(u))
+    utils.Respond(w, r, http.StatusCreated, "User created", dto.ToUserResponse(u))
 }
 
 func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
@@ -418,7 +414,7 @@ func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
         c.fail(w, r, err)
         return
     }
-    c.respond(w, r, http.StatusOK, dto.ToUserResponse(u))
+    utils.Respond(w, r, http.StatusOK, "User retrieved", dto.ToUserResponse(u))
 }
 ```
 
@@ -498,33 +494,52 @@ func (c *UserController) fail(w http.ResponseWriter, r *http.Request, err error)
         status, code, message = http.StatusGatewayTimeout, "timeout", "operation timed out"
     }
     if status >= 500 {
-        zerolog.Ctx(r.Context()).Error().Err(err).Str("code", code).Msg("request failed")
+        zerolog.Ctx(r.Context()).Error().Err(err).Str("category", code).Msg("request failed")
     }
-    c.respond(w, r, status, dto.ErrorResult{Msg: message})
+    utils.Respond(w, r, status, message, nil)
+}
+```
+
+Shared renderer in `internal/pkg/utils/http.go`; imports: `encoding/json`, `fmt`, `net/http`, `strconv`, Zerolog, and `appLog` for `internal/pkg/logger`'s typed transaction-ID accessor from [security §6](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs):
+
+```go
+type StandardResponse struct {
+    TransactionID string `json:"transaction_id"`
+    ResponseCode  string `json:"response_code"`
+    Message       string `json:"message"`
+    Result        any    `json:"result"`
 }
 
-func (c *UserController) respond(w http.ResponseWriter, r *http.Request, status int, value any) {
-    envelope := utils.StandardResponse{
-        TrID: chimw.GetReqID(r.Context()), Code: fmt.Sprintf("%04d", status), Result: value,
+func Respond(w http.ResponseWriter, r *http.Request, status int, message string, result any) {
+    id := appLog.TransactionID(r.Context())
+    envelope := StandardResponse{
+        TransactionID: id, ResponseCode: fmt.Sprintf("%04d", status),
+        Message: message, Result: result,
     }
     body, err := json.Marshal(envelope)
     if err != nil {
-        zerolog.Ctx(r.Context()).Error().Err(err).Msg("encode response")
+        zerolog.Ctx(r.Context()).Error().Str("error_type", fmt.Sprintf("%T", err)).
+            Msg("response encoding failed")
         status = http.StatusInternalServerError
-        body = []byte(`{"trid":"","code":"0500","result":{"msg":"internal server error"}}`)
+        body = []byte(`{"transaction_id":` + strconv.Quote(id) +
+            `,"response_code":"0500","message":"Internal server error","result":null}`)
         w.Header().Del("Location")
     }
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(status)
+    if r.Method == http.MethodHead {
+        return
+    }
     if _, err := w.Write(body); err != nil {
-        zerolog.Ctx(r.Context()).Debug().Err(err).Msg("write response")
+        zerolog.Ctx(r.Context()).Debug().Str("error_type", fmt.Sprintf("%T", err)).
+            Msg("response delivery failed")
     }
 }
 ```
 
-Marshal before committing headers. After `WriteHeader`/partial write, log delivery failure without writing a second `500` or retrying business work. The fixed encoding-error body retains the envelope with empty `trid`; request logs still carry correlation.
+Marshal bounded DTOs before committing headers. The non-recursive encoding fallback quotes the original generated ID and contains only strings/null, so a failing result marshaler cannot erase correlation or re-enter serialization. Custom marshaler errors may contain secrets: this renderer emits their type, not arbitrary error text. Callers never use this helper for bodyless 204/304 or file/stream contracts. After headers/partial write, delivery telemetry cannot append another response or retry business work.
 
-This explicit Chi `RequestID` adaptation fills `trid` via `chimw.GetReqID`. If retaining the default `TrID`, use its typed accessor; never install both ID generators. A canceled request gets no response (access status may be zero); a child deadline on a live request maps to `504`. Timeout does not prove a write failed to commit; before adding retries read [reliability](reliability-and-events.md).
+The middleware's typed accessor supplies `transaction_id`; never install Chi's `RequestID` alongside it or generate IDs in handlers/renderers. A canceled request gets no response (access status may be zero); a child deadline on a live request maps to `504`. Timeout does not prove a write failed to commit; before adding retries read [reliability](reliability-and-events.md).
 
 `RepositoryError.Error` is sanitized, not every foreign `.Err(err)`. Before logging SQL/client-body/credential/sensitive-field errors, apply [security and operations](security-and-operations.md)'s redaction and single-owner policy; retained causes are not permission to dump them.
 
@@ -549,16 +564,21 @@ json.NewEncoder(w).Encode(row)
 
 ### Router
 
-Place this fragment in `internal/adapter/in/http/router.go`, using `chi`, Chi middleware as `chimw`, the custom middleware package as `httpmw`, `handler`, `inport`, and `zerolog` imports.
+Place this fragment in `internal/adapter/in/http/router.go`, using standard `net/http`, `chi`, the custom middleware package as `httpmw`, `handler`, `inport`, `utils`, and `zerolog` imports.
 
 ```go
 package http
 
 func NewRouter(userUseCase inport.UserUseCase, log zerolog.Logger) *chi.Mux {
     r := chi.NewRouter()
-    r.Use(chimw.RequestID)
     r.Use(httpmw.RequestLogger(log))
-    r.Use(chimw.Recoverer)
+    r.Use(httpmw.Recoverer)
+    r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+        utils.Respond(w, req, http.StatusNotFound, "Route not found", nil)
+    })
+    r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
+        utils.Respond(w, req, http.StatusMethodNotAllowed, "Method not allowed", nil)
+    })
 
     healthController := handler.NewHealthController()
     r.Get("/healthz", healthController.Check)
@@ -575,18 +595,26 @@ func NewRouter(userUseCase inport.UserUseCase, log zerolog.Logger) *chi.Mux {
 
 Routes preserve `GET /healthz`, `POST /users/`, `GET /users/`, `GET /users/{id}`. Redirect/slash normalization is not implicit. Before configuring CORS origins/credentials, forwarded-IP trust, or client-provided correlation headers, read [security and operations](security-and-operations.md). Never trust arbitrary `RealIP` forwarding headers.
 
-Use one canonical `RequestID` or `TrID`; it proves neither transaction, tenant, authentication nor idempotency. Registration order matters: logger wraps recovery, which wraps handlers. Framework timeout cannot stop context-ignoring I/O; request budgets and server timeouts are distinct.
+Registration order matters: the execution-ID/logger middleware wraps recovery, which wraps authentication/handlers. Framework rejections and the health handler also use `utils.Respond`; default text errors are not the JSON API contract. Framework timeout cannot stop context-ignoring I/O; request budgets and server timeouts are distinct.
 
 ### Request-scoped logger and access-log ownership
 
-This fragment belongs in `internal/adapter/in/http/middleware/http_logger.go`, with standard `net/http`, `time`, Chi middleware as `chimw`, and `zerolog` imports. It uses Chi's wrapper rather than a hand-rolled response writer that might drop optional HTTP interfaces.
+These fragments belong in `internal/adapter/in/http/middleware/http_logger.go` and `recovery.go`, with standard `fmt`, `net/http`, `time`, Chi, Chi middleware as `chimw`, Zerolog, `utils`, and `appLog` for `internal/pkg/logger` from [security §6](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs). The injected logger already has timestamp/caller hooks and a concurrency-safe JSON writer. Chi's response wrapper preserves its supported optional HTTP interfaces.
 
 ```go
 func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            requestLog := log.With().Str("request_id", chimw.GetReqID(r.Context())).Logger()
-            r = r.WithContext(requestLog.WithContext(r.Context()))
+            r = r.WithContext(log.WithContext(r.Context()))
+            id, err := appLog.NewTransactionID(time.Now())
+            if err != nil {
+                zerolog.Ctx(r.Context()).Error().Msg("transaction ID generation failed")
+                utils.Respond(w, r, http.StatusServiceUnavailable, "Service temporarily unavailable", nil)
+                return
+            }
+            ctx := appLog.WithTransactionID(r.Context(), id)
+            requestLog := log.With().Str("transaction_id", id).Logger()
+            r = r.WithContext(requestLog.WithContext(ctx))
             ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
             started := time.Now()
             defer func() {
@@ -594,13 +622,18 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
                 if status == 0 && r.Context().Err() == nil {
                     status = http.StatusOK
                 }
-                requestLog.Info().
+                event := requestLog.Info().
                     Str("method", r.Method).
-                    Int("status", status).
                     Int("bytes", ww.BytesWritten()).
-                    Dur("duration", time.Since(started)).
-                    Bool("canceled", r.Context().Err() != nil).
-                    Msg("http request")
+                    Float64("duration_ms", float64(time.Since(started))/float64(time.Millisecond)).
+                    Bool("canceled", r.Context().Err() != nil)
+                if status != 0 {
+                    event.Int("status", status).Str("response_code", fmt.Sprintf("%04d", status))
+                }
+                if route := chi.RouteContext(r.Context()).RoutePattern(); route != "" {
+                    event.Str("route", route)
+                }
+                event.Msg("http request completed")
             }()
             next.ServeHTTP(ww, r)
         })
@@ -608,7 +641,33 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 }
 ```
 
-This deliberately avoids request bodies, authorization headers, query strings, and raw paths that may embed personal identifiers. Add a normalized route template, if needed, through the router's supported route context, not an unbounded user-controlled label. HTTP request logging does not replace business audit records.
+The same context reaches handlers and downstream adapters; workers/CLI follow the same create-once/bind-once pattern at their own admission boundary. This avoids request bodies, authorization headers, query strings and raw paths with personal identifiers. HTTP access logging does not replace business audit records.
+
+```go
+func Recoverer(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+        defer func() {
+            recovered := recover()
+            if recovered == nil {
+                return
+            }
+            if recovered == http.ErrAbortHandler {
+                panic(recovered)
+            }
+            zerolog.Ctx(r.Context()).Error().
+                Str("error_type", fmt.Sprintf("%T", recovered)).Msg("request panic")
+            if ww.Status() != 0 || r.Context().Err() != nil {
+                panic(http.ErrAbortHandler)
+            }
+            utils.Respond(ww, r, http.StatusInternalServerError, "Internal server error", nil)
+        }()
+        next.ServeHTTP(ww, r)
+    })
+}
+```
+
+Recovery never prints an arbitrary panic value or appends JSON after response commitment. Use the framework's tested protocol handling for streaming/hijacked connections and verify those paths separately; the ordinary JSON envelope cannot repair an already-written response.
 
 **Logging owner:** middleware emits one access record; the owning inbound HTTP/worker/CLI boundary emits one unexpected-failure record. Domain/service/provider/repository/outbound adapters return contextual failures without logging them again. Before introducing exceptions, audit, or other signals, read [security's cross-inbound ownership policy](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs). Metrics/audits are separate; sensitive audits need their own schema/access/retention/atomicity, not an access-log line.
 
@@ -866,7 +925,7 @@ func (c *UserController) ListUsers(w http.ResponseWriter, r *http.Request) {
         c.fail(w, r, err)
         return
     }
-    c.respond(w, r, http.StatusOK, dto.ToUserListResponse(page))
+    utils.Respond(w, r, http.StatusOK, "Users retrieved", dto.ToUserListResponse(page))
 }
 ```
 

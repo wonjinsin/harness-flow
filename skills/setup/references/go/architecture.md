@@ -55,10 +55,10 @@ internal/
         dto/
           user.go                   # HTTP request/response representations
           user_mapper.go            # Request -> command; domain/result -> response
-          response.go               # HTTP envelope, if the project uses one
+          response.go               # Endpoint-specific response DTOs, when needed
         middleware/
-          tr_id.go                  # Request correlation, not a DB transaction
-          http_logger.go            # Access log around the request
+          http_logger.go            # Execution ID/context and access log
+          recovery.go               # Safe JSON recovery before response commitment
           cors.go                   # Transport policy
       grpc/                         # Only when gRPC is an implemented transport
     out/
@@ -183,9 +183,27 @@ When declaring boundary types/signatures or configuring quality tooling, read [c
 | Shared logger/error/helper mechanics | The existing cohesive `internal/pkg` package | An untyped application-wide bag of business methods |
 | Select implementations, construct graph, shutdown | `cmd/api/main.go` | Request-specific decisions or schema mutation on ordinary startup |
 
-**Default HTTP contract:** the routes are `GET /healthz`, `POST /users/`, `GET /users/`, and `GET /users/{id}`. Preserve those slash/method choices unless the project intentionally changes its compatibility policy; redirect or slash-normalization behavior is not implicit. The response envelope is `{"trid": "...", "code": "0200", "result": ...}` with `result` omitted when empty. `code` is a four-digit string: `"0200"`/`"0201"` for the shown successes and `"0400"`/`"0404"`/`"0409"`/`"0500"` for the shown errors. The error result is `{"msg": safeMessage}`. Keep this default style; do not silently replace it with bare JSON or problem details. If a PoC exposes raw errors, replace them with safe messages without changing the envelope.
+**Default HTTP contract:** the routes are `GET /healthz`, `POST /users/`, `GET /users/`, and `GET /users/{id}`. Preserve those slash/method choices unless the project intentionally changes its compatibility policy; redirect or slash-normalization behavior is not implicit.
 
-The default envelope/helper location is `internal/pkg/utils/http.go`, and `dto/response.go` defines the error-result shape. Retain a target project's already accepted helper location rather than creating a competing envelope. Transport code may use that HTTP helper; core must not depend on HTTP mechanics merely because their package is named `utils`. Separating mixed helpers can be an explicit project migration, not an excuse to invent a new default layout.
+Every ordinary JSON API response has exactly four top-level fields:
+
+| Field | Contract |
+| --- | --- |
+| `transaction_id` | String identifying this inbound execution, shared with its logs; generation and propagation belong to [security and operations §6](security-and-operations.md#6-logging-traces-metrics-and-audit-have-different-jobs). |
+| `response_code` | Four-digit **string**, zero-padded from the actual HTTP status: `"0200"`, `"0201"`, `"0400"`, `"0404"`, `"0409"`, `"0500"`, `"0503"`. Never replace the real HTTP status with an always-200 response. |
+| `message` | Safe, human-readable string for success or failure; never raw private causes. |
+| `result` | Any JSON value: object, array, string, number, boolean or `null`. Always present, including empty/false/zero/null; no `omitempty`. Nested application data is allowed here, unlike flat log fields. |
+
+```json
+{"transaction_id":"20261116201353364a7K2m","response_code":"0201","message":"User created","result":{"id":123}}
+{"transaction_id":"20261116201353364a7K2m","response_code":"0503","message":"Service temporarily unavailable","result":null}
+```
+
+These are alternative outcomes, not different executions sharing an ID. Use the same renderer for validation/authentication/authorization errors, router 404/405, recovery and pre-header serialization failure, retaining the original ID. No legacy `trid`/`code` aliases or nested `result.msg` error wrapper. Existing published contracts require an approved migration, not a silent rename during setup.
+
+**Protocol exceptions:** HEAD and HTTP 204/304 cannot carry this JSON body. New ordinary empty-success endpoints use 200 with `result:null`, not 204. Explicit file/download/stream/SSE and existing bodyless endpoint contracts remain separate; document them rather than wrapping bytes or buffering unbounded streams. A disconnected client or already-committed response cannot be promised a replacement envelope.
+
+The shared envelope/renderer lives in `internal/pkg/utils/http.go`; [layers](layers.md#classify-errors-once-serialize-once) supplies the concrete fragment. Retain an existing accepted helper location rather than creating a competing envelope. Only transport code uses the HTTP helper; core must not depend on it merely because the package is named `utils`.
 
 For orders, add matching domain, inbound port/command, outbound port, `usecase/order.go` declaring `OrderUseCase`, and necessary adapter files under the real implementation. Group inbound operations by domain; additional files may share that type and package, without universal forwarding `facade/manager/business` layers.
 
@@ -218,7 +236,7 @@ Inject providers/repositories into each shared service once, then inject that se
 
 For startup wiring and imports, read [layers §9](layers.md#9-config-database-construction-shared-packages-composition). Construct `db.NewEntClient`, provider/repository, `usecase.NewUserUseCase(..., time.Now)`, and `httpadapter.NewRouter` there. Set project-owned `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`; a constructor excerpt is not a complete lifecycle. Read [security and operations](security-and-operations.md) before startup/shutdown changes.
 
-A startup root context or a separate bounded shutdown context is appropriate at composition. Replacing a request's context with `context.Background()` inside the service/repository is not. A middleware field named `TrID` is correlation only; it neither begins nor commits a database transaction.
+A startup root context or a separate bounded shutdown context is appropriate at composition. Replacing a request's context with `context.Background()` inside the service/repository is not. The `transaction_id` execution identifier is correlation only; it neither begins nor commits a database transaction.
 
 **Required for atomic multi-write invariants:** application calls `WithinTransaction(ctx, func(txCtx context.Context) error)` using existing injected providers/repositories. `db` privately binds handles and owns lifecycle; adapters resolve per call without field mutation. No repository bundles, per-operation `WithX`/`XTx`, mandatory UoW, HTTP-wide transaction middleware, or ORM handles in core. Workflow owns owner/tenant validation and lock order; creation and owner-locked updates share the runner. Every participating read/write uses `txCtx`, not outer context/root client. Before implementing it, read [data and transactions](data-and-transactions.md) for scope rejection, database boundaries, and lifecycle failures.
 
@@ -255,7 +273,7 @@ A tree is not production evidence. When reviewing a PoC, follow the owning imple
 - For discarded context, unsafe errors, generated-code edits, uniqueness prechecks, misleading totals, or unstable ordering, inspect the concrete corrections in [layers](layers.md).
 - For a mixed insert/update `Save` that mutates ID, document the exact accepted mutation contract or migrate all consumers to explicit operations; a client-supplied nonzero ID is never implicit update authority.
 - For mixed `utils` that pulls HTTP into domain, separate the dependency explicitly while retaining the accepted transport helper/envelope.
-- For multi-write atomicity, read [data and transactions](data-and-transactions.md); correlation `TrID` is not a transaction.
+- For multi-write atomicity, read [data and transactions](data-and-transactions.md); the execution's `transaction_id` is not a database transaction.
 - For durable publication or retryable effects, read [reliability/events](reliability-and-events.md); add delivery/idempotency mechanisms only when required.
 - For protected/tenant data, read [security/operations](security-and-operations.md); public CRUD is not an identity service.
 - For substantive executable evidence rather than mock/test directories, read [testing/evolution](testing-and-evolution.md).

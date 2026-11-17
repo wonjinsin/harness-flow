@@ -8,9 +8,12 @@ generated code or test-only production switch is required.
 
 Its API deliberately differs: `POST /users`, `GET /users/{id}`, `GET /health`,
 direct user JSON and `{"error":"..."}` failures. The canonical profile instead
-uses `/users/` create/list, `/healthz` and `{trid,code,result}` with `{msg}` errors.
-This example supplies no list, correlation envelope or compatibility redirects;
-preserve an existing application's wire contract when adapting it.
+uses `/users/` create/list, `/healthz` and the four-field
+`{transaction_id,response_code,message,result}` envelope, with flat JSON logs
+and automatic caller attribution. This existing teaching adaptation supplies
+neither that envelope/ID/logger contract nor list/compatibility redirects; its
+tests do not validate them. Preserve an existing application's wire contract
+when adapting it.
 
 ## Prerequisites and exact commands
 

@@ -1,6 +1,6 @@
 # Reliability, idempotency, and events
 
-Use this chapter when duplicate commands, durable delivery, or external effects need a precise guarantee. Adopt only mechanisms justified by the failure model; [adoption](../adoption.md) records unresolved policy. Layering and `TrID` supply neither transactions nor reliable delivery.
+Use this chapter when duplicate commands, durable delivery, or external effects need a precise guarantee. Adopt only mechanisms justified by the failure model; [adoption](../adoption.md) records unresolved policy. Layering and the execution's `transaction_id` supply neither database transactions nor reliable delivery.
 
 ## 1. Choose the smallest honest guarantee
 
